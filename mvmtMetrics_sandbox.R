@@ -36,7 +36,7 @@ centroids <- bs %>%
   group_by(trackId) %>%
   summarize(geometry = st_union(geometry)) %>%
   st_centroid()
-mapview(centroids, zcol = "trackId")
+#mapview(centroids, zcol = "trackId")
 
 hist(st_coordinates(centroids)[,2]) # plot y coords to find a good cutoff point
 
@@ -48,12 +48,14 @@ southernIndivs <- centroids %>%
 bs <- bs %>%
   filter(trackId %in% southernIndivs)
 
-# Movement metrics --------------------------------------------------------
-## Daily -------------------------------------------------------------------
-# HOME RANGE
-# Home range size (50% KDE)
-# Home range size (90% KDE)
-# Home range concentration (50% KDE/90% KDE) (Nitika calls this "movement personality")
+## For how many days is each individual tracked?
+bs %>%
+  group_by(trackId) %>%
+  summarize(nDaysTracked = length(unique(dateOnly)))
+
+# Movement Behavior --------------------------------------------------------
+
+## HOME RANGE ---------------------------------------------------------------
 hrList <- bs %>%
   dplyr::select(trackId) %>%
   st_transform(32636) %>%
@@ -75,25 +77,67 @@ inds <- map_dfr(hrList, ~.x[1, "trackId"])
 whichNotNull <- which(map_lgl(kuds, is.null) == F)
 kudsNotNull <- kuds[whichNotNull]
 
+
+### Core Area (50%) ---------------------------------------------------------
 kud_areas_50 <- map_dbl(kudsNotNull, ~kernel.area(.x, percent = 50), .progress =T)
+### Home Range (95%) ---------------------------------------------------------
 kud_areas_95 <- map_dbl(kudsNotNull, ~kernel.area(.x, percent = 95), .progress = T)
 
 indsKUDAreas <- inds[whichNotNull,] %>%
   bind_cols("coreArea" = kud_areas_50,
             "homeRange" = kud_areas_95)
 
-# ROOST SITE USE
-# Roost switching frequency
+### Core Area Fidelity (50%/95%) --------------------------------------------
+indsKUDAreas <- indsKUDAreas %>%
+  mutate(coreAreaFidelity = coreArea/homeRange)
+
+### 3D Home Range: Altitude -------------------------------------------------
+## this is extremely preliminary. Will need to incorporate a DEM. Right now I'm just curious to include the altitude and see what characteristics emerge.
+altitudes <- bs %>%
+  dplyr::select(trackId, dateOnly, timestamp, location_lat, location_long, height_above_msl) %>% # correct for lowest possible elevation
+  mutate(height_above_msl = case_when(height_above_msl < -430 ~ -430,
+                                      TRUE ~ height_above_msl),
+         hour = lubridate::hour(timestamp))
+hist(altitudes$height_above_msl)
+
+# mean/median/max daily flight altitudes
+# dailyAltitudes <- altitudes %>%
+#   group_by(trackId, dateOnly) %>%
+#   summarize(meanAltitude = mean(height_above_msl, na.rm = T),
+#             maxAltitude = max(height_above_msl, na.rm = T),
+#             medAltitude = median(height_above_msl, na.rm = T),
+#             propOver1km = sum(height_above_msl > 1000)/n())
+# save(dailyAltitudes, file = "data/dailyAltitudes.Rda")
+load("data/dailyAltitudes.Rda")
+
+# It doesn't make sense that some birds are spending nearly all their time in a given day over 1km high...oh wait yes it does, because Israel has mountains/high points, and it could be roosting there. Okay so I clearly can't really do this analysis before adding the DEM. Ah well.
+
+### exploration: expect tight correlation between pct time spent over 1km and mean altitude
+dailyAltitudes %>%
+  mutate(year = lubridate::year(dateOnly)) %>%
+  ggplot(aes(x = propOver1km, y = maxAltitude, col = factor(year)))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  facet_wrap(~year)
+
+## ROOST SITE USE ----------------------------------------------------------
 ## get roost locations
-r <- get_roosts_df(df = bs, id = "trackId", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s") %>%
-  st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
-  st_set_crs("WGS84") %>%
-  st_transform(32636)
+# r <- get_roosts_df(df = bs, id = "trackId", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s") %>%
+#   st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
+#   st_set_crs("WGS84") %>%
+#   st_transform(32636)
+# save(r, file = "data/r.Rda")
+load("data/r.Rda")
 
 ## make them fall into polygons
 roostIDs <- as.numeric(st_intersects(x = r, y = roostPolygons))
 r$roostID <- roostIDs
+## For any that are NA, generate random ID's for the roosts
+## how many are NA?
+sum(is.na(r$roostID))
+ids <- paste(r, 1:sum(is.na(r$roostID)))
 
+### Roost Switches ----------------------------------------------------------
 ## Calculate sequences of roost locations
 roostSequences <- r %>%
   st_drop_geometry() %>%
@@ -120,7 +164,9 @@ roostSwitches %>%
   ylab("Number of vultures")+
   xlab("Prop. nights switching roosts")
 
-## Calculate roost diversity (Shannon index)
+
+### Roost Diversity -------------------------------------------------------
+## (Shannon index)
 shannon <- r %>%
   st_drop_geometry() %>%
   mutate(roostID = as.character(roostID),
@@ -133,10 +179,33 @@ shannon <- r %>%
                                        index = "shannon")) %>%
   dplyr::select(trackId, shannon)
 
-# MOVEMENT
-# Mean DMD (daily max displacement)
-# Mean DDT (daily distance traveled)
 
+## MOVEMENT ----------------------------------------------------------------
+### Tortuosity --------------------------------------------------------------
+# XXX to do!
+
+### Daily Flight Duration ---------------------------------------------------
+dfd <- bs %>%
+  st_drop_geometry() %>%
+  group_by(trackId) %>%
+  mutate(flight = ifelse(ground_speed > 5, T, F),
+         lagTimestamp = lag(timestamp),
+         lagFlight = lag(flight)) %>%
+  mutate(dur = case_when(flight & lagFlight ~ difftime(timestamp, lagTimestamp, units = "secs"),
+                         flight & !lagFlight ~ 0,
+                         !flight & lagFlight ~ difftime(timestamp, lagTimestamp, units = "secs"),
+                         is.na(flight)|is.na(lagFlight) ~ 0)) %>%
+  group_by(trackId, dateOnly) %>%
+  summarize(totalFlightDuration = sum(dur, na.rm = T))
+
+dfdSumm <- dfd %>%
+  group_by(trackId) %>%
+  summarize(MDFD = mean(totalFlightDuration, na.rm = T),
+            minDFD = min(totalFlightDuration, na.rm = T),
+            maxDFD = max(totalFlightDuration, na.rm = T),
+            medDFD = median(totalFlightDuration, na.rm = T))
+
+### Daily Distance Traveled/Mean Displacement -------------------------------
 dailyMovement <- bs %>%
   group_by(trackId, dateOnly) %>%
   summarize(displacement = st_distance(geometry, geometry[1]),
@@ -145,6 +214,8 @@ dailyMovement <- bs %>%
             dist_m = st_distance(geometry, lead, by_element = T),
             speed_ms = as.numeric(dist_m)/as.numeric(difftime_s),
             dist_10minEquiv = speed_ms*600)
+save(dailyMovement, file = "data/dailyMovement.Rda")
+load("data/dailyMovement.Rda")
 
 dailyMovementSumm <- dailyMovement %>%
   sf::st_drop_geometry() %>%
@@ -162,12 +233,53 @@ dailyMovementSumm %>%
   geom_histogram()+
   xlab("Daily Distance Traveled (m)")
 
+## MULTIVARIATE MOVEMENT METRIC --------------------------------------------
+## Scale all predictor vars
+allScaled <- all %>%
+  group_by(timePeriod, value, type) %>%
+  mutate(meanDMD = as.vector(scale(meanDMD)),
+         meanDDT = as.vector(scale(meanDDT)),
+         shannon = as.vector(scale(shannon)),
+         propSwitch = as.vector(scale(propSwitch)),
+         coreArea = as.vector(scale(coreArea)),
+         homeRange = as.vector(scale(homeRange)),
+         hr50_95 = as.vector(scale(hr50_95)))
 
-## What is the repeatability of these metrics for each individual? (this is something I should investigate if I want to go the personality route)
+allScaled_br2021_mat <- allScaled %>% 
+  filter(timePeriod == "season", value == 1) %>%
+  ungroup() %>%
+  dplyr::select(meanDMD, meanDDT, shannon, propSwitch, coreArea, 
+                homeRange, hr50_95) %>%
+  filter(!is.na(meanDMD)) %>%
+  filter(!is.na(hr50_95))
 
-## Monthly -----------------------------------------------------------------
-## Seasonal ----------------------------------------------------------------
-# Multivariate movement index ---------------------------------------------
+allScaled_br2022_mat <- allScaled %>% 
+  filter(timePeriod == "season", value == 2) %>%
+  ungroup() %>%
+  dplyr::select(meanDMD, meanDDT, shannon, propSwitch, coreArea, 
+                homeRange, hr50_95) %>%
+  filter(!is.na(meanDMD)) %>%
+  filter(!is.na(hr50_95))
+
+# PCAs
+pca_br2021 <- prcomp(x = allScaled_br2021_mat)
+pca_br2022 <- prcomp(x = allScaled_br2022_mat)
+
+autoplot(pca_br2021, loadings = T, loadings.label = T)+theme_classic()+ggtitle("Breeding season 2021")
+autoplot(pca_br2022, loadings = T, loadings.label = T)+theme_classic()+ggtitle("Breeding season 2022")
+
+contrib_br2021 <- get_pca_var(pca_br2021)$contrib
+contrib_br2021[,1:3]
+contrib_br2022 <- get_pca_var(pca_br2022)$contrib
+contrib_br2022[,1:3]
+
+# Exploring questions that come up from the PCA
+## Shannon roost diversity vs. roost switching percentage
+all %>%
+  ggplot(aes(x = propSwitch, y = shannon))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
 
 # Social Networks ---------------------------------------------------------
 load("data/datAnnotCleaned.Rda")
@@ -307,10 +419,11 @@ networkMetrics <- monthsData %>%
   ungroup() %>%
   mutate(degreeRelative = degree/n,
          strengthRelative = strength/n,
-         pageRankRelative = pageRank/n)
+         pageRankRelative = pageRank/n,
+         sbd = strength/degree)
 
 
-# Join network metrics to movement data -----------------------------------
+# JOIN network metrics to movement data -----------------------------------
 mnMvmt <- dailyMovementSumm %>%
   group_by(trackId) %>%
   summarize(meanDMD = mean(dmd, na.rm = T),
@@ -318,16 +431,23 @@ mnMvmt <- dailyMovementSumm %>%
             meanDDT = mean(ddt, na.rm = T),
             sdDDT = sd(ddt, na.rm = T))
 
+# get number of days tracked for each individual
+daysTracked <- bs %>%
+  st_drop_geometry() %>%
+  group_by(trackId) %>%
+  summarize(daysTracked = length(unique(dateOnly)))
+
+# JOIN
 all <- left_join(networkMetrics, mnMvmt, by = "trackId") %>% 
   left_join(., shannon, by = "trackId") %>% 
   left_join(., roostSwitches, by = "trackId") %>%
   left_join(., indsKUDAreas, by = "trackId") %>%
-  mutate(hr50_95 = coreArea/homeRange,
-         sbd = strength/degree)
+  left_join(., dfdSumm, by = "trackId") %>%
+  left_join(., daysTracked, by = "trackId")
 
 # now, excluding home range, we have our independent and dependent variables in the same place.
 
-# Exploratory plots -------------------------------------------------------
+# Analysis -------------------------------------------------------
 ## For now, just looking at 2022 breeding season, which is the fourth season out of 6
 seasonNames <- map_chr(seasons, ~.x$seasonUnique[1])
 
@@ -525,105 +645,4 @@ all %>%
   ylab("Relative strength (strength/n)")+
   xlab("Mean daily distance traveled")
 
-# Attempt PCA -------------------------------------------------------------
-## Scale all predictor vars
-allScaled <- all %>%
-  group_by(timePeriod, value, type) %>%
-  mutate(meanDMD = as.vector(scale(meanDMD)),
-         sdDMD = as.vector(scale(sdDMD)),
-         meanDDT = as.vector(scale(meanDDT)),
-         sdDDT = as.vector(scale(sdDDT)),
-         shannon = as.vector(scale(shannon)),
-         propSwitch = as.vector(scale(propSwitch)),
-         coreArea = as.vector(scale(coreArea)),
-         homeRange = as.vector(scale(homeRange)),
-         hr50_95 = as.vector(scale(hr50_95)))
 
-allScaled_br2021_mat <- allScaled %>% 
-  filter(timePeriod == "season", value == 1) %>%
-  ungroup() %>%
-  dplyr::select(meanDMD, sdDMD, meanDDT, sdDDT, shannon, propSwitch, coreArea, 
-                homeRange, hr50_95) %>%
-  filter(!is.na(meanDMD)) %>%
-  filter(!is.na(hr50_95))
-
-allScaled_br2022_mat <- allScaled %>% 
-  filter(timePeriod == "season", value == 2) %>%
-  ungroup() %>%
-  dplyr::select(meanDMD, sdDMD, meanDDT, sdDDT, shannon, propSwitch, coreArea, 
-                homeRange, hr50_95) %>%
-  filter(!is.na(meanDMD)) %>%
-  filter(!is.na(hr50_95))
-
-
-# PCAs with standard deviations
-pca_br2021 <- prcomp(x = allScaled_br2021_mat)
-pca_br2022 <- prcomp(x = allScaled_br2022_mat)
-
-autoplot(pca_br2021, loadings = T, loadings.label = T)+theme_classic()+ggtitle("Breeding season 2021")
-autoplot(pca_br2022, loadings = T, loadings.label = T)+theme_classic()+ggtitle("Breeding season 2022")
-
-contrib_br2021 <- get_pca_var(pca_br2021)$contrib
-contrib_br2021[,1:3]
-contrib_br2022 <- get_pca_var(pca_br2022)$contrib
-contrib_br2022[,1:3]
-
-# Roost variables --> roost network ---------------------------------------
-all %>%
-  filter(timePeriod == "season", value %in% 1:2, type == "roosting") %>%
-  ggplot(aes(x = shannon, y = degreeRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  theme(text = element_text(size = 18))+
-  ylab("Relative degree")+
-  xlab("Roost diversity")
-
-all %>%
-  filter(timePeriod == "season", value %in% 1:2, type == "roosting") %>%
-  ggplot(aes(x = shannon, y = strengthRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  theme(text = element_text(size = 18))+
-  ylab("Relative strength")+
-  xlab("Roost diversity")
-
-all %>%
-  filter(timePeriod == "season", value %in% 1:2, type == "roosting") %>%
-  ggplot(aes(x = propSwitch, y = degreeRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  theme(text = element_text(size = 18))+
-  ylab("Relative degree")+
-  xlab("Roost switching")
-
-all %>%
-  filter(timePeriod == "season", value %in% 1:2, type == "roosting") %>%
-  ggplot(aes(x = propSwitch, y = strengthRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  theme(text = element_text(size = 18))+
-  ylab("Relative strength")+
-  xlab("Roost switching")
-
-
-# Strength and degree are highly correlated (duh) ------------------------------
-
-all %>%
-  filter(timePeriod == "season", value %in% 1:2) %>%
-  ggplot(aes(x = degree, y = strength, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  theme(text = element_text(size = 18))+
-  facet_wrap(~type, scales = "free_y")+
-  ylab("Strength")+
-  xlab("Degree")
