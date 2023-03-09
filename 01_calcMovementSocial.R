@@ -1,4 +1,4 @@
-# Script for a preliminary investigation of movement metrics
+# Script for a preliminary investigation of movement metrics. So far, this analysis is only the 
 
 # Setup -------------------------------------------------------------------
 ## Load packages -----------------------------------------------------------
@@ -13,6 +13,8 @@ library(adehabitatHR)
 library(sp)
 library(ggfortify)
 library(factoextra)
+library(elevatr) # for getting elevation information
+library(raster) # for getting elevation information
 
 ## Load data ---------------------------------------------------------------
 load("data/datAnnotCleaned.Rda")
@@ -20,50 +22,84 @@ roostPolygons <- sf::st_read("data/roosts25_cutOffRegion.kml") %>%
   sf::st_set_crs("WGS84") %>%
   sf::st_transform(32636)
 
-# Time: restrict to 2021-2022 breeding season -----------------------------
-bs <- datAnnotCleaned %>%
-  filter(timestamp > lubridate::ymd("2021-12-01"), 
-         timestamp < lubridate::ymd("2022-07-01"))
+# Fix time zone so dates make sense ---------------------------------------
+## Overwrite the dateOnly column from the new times
+datAnnotCleaned <- datAnnotCleaned %>%
+  mutate(timestampIsrael = lubridate::with_tz(timestamp, tzone = "Israel"),
+         dateOnly = lubridate::date(timestampIsrael))
+
+# Time: restrict to 2022 breeding season -----------------------------
+bs2022 <- datAnnotCleaned %>%
+  filter(timestampIsrael > lubridate::ymd("2021-12-01"), 
+         timestampIsrael < lubridate::ymd("2022-07-01"))
 
 # Space: restrict to southern indivs --------------------------------------
 ## Make it an sf object
-bs <- bs %>%
+bs2022 <- bs2022 %>%
   sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
   sf::st_set_crs("WGS84") %>%
   sf::st_transform(32636)
 
-centroids <- bs %>%
+centroids_bs2022 <- bs2022%>%
   group_by(trackId) %>%
   summarize(geometry = st_union(geometry)) %>%
   st_centroid()
-#mapview(centroids, zcol = "trackId")
+#mapview(centroids_bs2022, zcol = "trackId")
 
-hist(st_coordinates(centroids)[,2]) # plot y coords to find a good cutoff point
+hist(st_coordinates(centroids_bs2022)[,2]) # plot y coords to find a good cutoff point
 
 ## filter to only southern indivs
-southernIndivs <- centroids %>%
+southernIndivs <- centroids_bs2022 %>%
   filter(st_coordinates(.)[,2] < 3550000) %>%
   pull(trackId)
 
-bs <- bs %>%
+bs2022 <- bs2022 %>%
   filter(trackId %in% southernIndivs)
 
-## For how many days is each individual tracked?
-bs %>%
+# How many points per day per individual?
+bs2022 %>%
+  st_drop_geometry() %>%
+  group_by(trackId, dateOnly) %>%
+  summarize(nPoints = n()) %>%
+  ggplot(aes(x = nPoints))+
+  geom_histogram()
+
+# theoretically, should only have 72 points per day--12 hours, 6 points per hour. That should vary a bit. I don't really understand why so many individuals/days have more than 100 points per day, but let's proceed for now.
+# 72/3 = 24. For simplicity, let's restrict to individual/days with at least 25 points per day.
+bs2022 <- bs2022 %>%
+  group_by(trackId, dateOnly) %>%
+  filter(n() >= 25)
+
+## For how many days is each individual tracked (after filtering for points per day)?
+daysTracked_bs2022 <- bs2022 %>%
+  st_drop_geometry() %>%
   group_by(trackId) %>%
   summarize(nDaysTracked = length(unique(dateOnly)))
+
+totalTimePeriod <- as.numeric(max(bs2022$dateOnly) - min(bs2022$dateOnly))
+
+bs2022 <- bs2022 %>%
+  left_join(daysTracked_bs2022, by = "trackId") %>%
+  mutate(propDaysTracked = nDaysTracked/totalTimePeriod)
+
+# Exclude individuals tracked for less than 1/3 of the time
+bs2022 <- bs2022 %>%
+  filter(propDaysTracked >= 0.33)
 
 # Movement Behavior --------------------------------------------------------
 
 ## HOME RANGE ---------------------------------------------------------------
-hrList <- bs %>%
+hrList <- bs2022 %>%
+  ungroup() %>%
   dplyr::select(trackId) %>%
   st_transform(32636) %>%
   mutate(x = st_coordinates(.)[,1], y = st_coordinates(.)[,2]) %>%
   st_drop_geometry() %>%
   group_by(trackId) %>%
   group_split(.keep = T)
+
 hrListSP <- map(hrList, ~SpatialPoints(.x[,c("x", "y")]))
+
 kuds <- map(hrListSP, ~{
   if(nrow(.x@coords)>= 5){
     k <- kernelUD(.x, h = "href", grid = 100, extent = 3)}
@@ -76,7 +112,6 @@ inds <- map_dfr(hrList, ~.x[1, "trackId"])
 
 whichNotNull <- which(map_lgl(kuds, is.null) == F)
 kudsNotNull <- kuds[whichNotNull]
-
 
 ### Core Area (50%) ---------------------------------------------------------
 kud_areas_50 <- map_dbl(kudsNotNull, ~kernel.area(.x, percent = 50), .progress =T)
@@ -92,33 +127,42 @@ indsKUDAreas <- indsKUDAreas %>%
   mutate(coreAreaFidelity = coreArea/homeRange)
 
 ### 3D Home Range: Altitude -------------------------------------------------
-## this is extremely preliminary. Will need to incorporate a DEM. Right now I'm just curious to include the altitude and see what characteristics emerge.
-altitudes <- bs %>%
-  dplyr::select(trackId, dateOnly, timestamp, location_lat, location_long, height_above_msl) %>% # correct for lowest possible elevation
-  mutate(height_above_msl = case_when(height_above_msl < -430 ~ -430,
-                                      TRUE ~ height_above_msl),
-         hour = lubridate::hour(timestamp))
-hist(altitudes$height_above_msl)
+# Get elevation information
+# elevs_z10 <- elevatr::get_elev_raster(bs2022 %>%
+#                                         st_transform(crs = "WGS84"),                                   z = 10)
+# save(elevs_z10, file = "data/elevs_z10.Rda")
+load("data/elevs_z10.Rda")
 
-# mean/median/max daily flight altitudes
-# dailyAltitudes <- altitudes %>%
-#   group_by(trackId, dateOnly) %>%
-#   summarize(meanAltitude = mean(height_above_msl, na.rm = T),
-#             maxAltitude = max(height_above_msl, na.rm = T),
-#             medAltitude = median(height_above_msl, na.rm = T),
-#             propOver1km = sum(height_above_msl > 1000)/n())
-# save(dailyAltitudes, file = "data/dailyAltitudes.Rda")
-load("data/dailyAltitudes.Rda")
+bs2022$groundElev_z10 <- raster::extract(x = elevs_z10, 
+                                         y = bs2022 %>% 
+                                           st_transform(crs = "WGS84"))
+bs2022 <- bs2022 %>%
+  mutate(height_above_ground = height_above_msl - groundElev_z10)
 
-# It doesn't make sense that some birds are spending nearly all their time in a given day over 1km high...oh wait yes it does, because Israel has mountains/high points, and it could be roosting there. Okay so I clearly can't really do this analysis before adding the DEM. Ah well.
+# set any negative differences to 0
+bs2022 <- bs2022 %>%
+  mutate(height_above_ground = case_when(height_above_ground < 0 ~ 0,
+                                         TRUE ~ height_above_ground))
 
-### exploration: expect tight correlation between pct time spent over 1km and mean altitude
+# calculate daily altitude stats
+dailyAltitudes <- bs2022 %>%
+  st_drop_geometry() %>%
+  group_by(trackId, dateOnly) %>%
+  summarize(meanAltitude = mean(height_above_ground, na.rm  =T),
+            maxAltitude = max(height_above_ground, na.rm = T),
+            medAltitude = median(height_above_ground, na.rm = T),
+            propOver1km = sum(height_above_ground > 1000)/n())
+
 dailyAltitudes %>%
-  mutate(year = lubridate::year(dateOnly)) %>%
-  ggplot(aes(x = propOver1km, y = maxAltitude, col = factor(year)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  facet_wrap(~year)
+  ggplot(aes(x = trackId, y = propOver1km))+
+  geom_boxplot() 
+
+dailyAltitudesSumm <- dailyAltitudes %>%
+  group_by(trackId) %>%
+  summarize(mnDailyMaxAlt = mean(maxAltitude, na.rm = T),
+            mnDailyMnAlt = mean(meanAltitude, na.rm = T),
+            mnDailyPropOver1km = mean(propOver1km, na.rm = T),
+            mnDailyMedAlt = mean(medAltitude, na.rm = T))
 
 ## ROOST SITE USE ----------------------------------------------------------
 ## get roost locations
@@ -185,7 +229,7 @@ shannon <- r %>%
 # XXX to do!
 
 ### Daily Flight Duration ---------------------------------------------------
-dfd <- bs %>%
+dfd <- bs2022%>%
   st_drop_geometry() %>%
   group_by(trackId) %>%
   mutate(flight = ifelse(ground_speed > 5, T, F),
@@ -206,7 +250,7 @@ dfdSumm <- dfd %>%
             medDFD = median(totalFlightDuration, na.rm = T))
 
 ### Daily Distance Traveled/Mean Displacement -------------------------------
-dailyMovement <- bs %>%
+dailyMovement <- bs2022%>%
   group_by(trackId, dateOnly) %>%
   summarize(displacement = st_distance(geometry, geometry[1]),
             lead = geometry[row_number()+1],
@@ -432,7 +476,7 @@ mnMvmt <- dailyMovementSumm %>%
             sdDDT = sd(ddt, na.rm = T))
 
 # get number of days tracked for each individual
-daysTracked <- bs %>%
+daysTracked <- bs2022 %>%
   st_drop_geometry() %>%
   group_by(trackId) %>%
   summarize(daysTracked = length(unique(dateOnly)))
@@ -443,7 +487,7 @@ all <- left_join(networkMetrics, mnMvmt, by = "trackId") %>%
   left_join(., roostSwitches, by = "trackId") %>%
   left_join(., indsKUDAreas, by = "trackId") %>%
   left_join(., dfdSumm, by = "trackId") %>%
-  left_join(., daysTracked, by = "trackId")
+  left_join(., dailyAltitudesSumm, by = "trackId")
 
 # now, excluding home range, we have our independent and dependent variables in the same place.
 
