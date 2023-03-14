@@ -18,6 +18,7 @@ library(raster) # for getting elevation information
 library(viridis)
 library(naniar)
 library(parallel) # for running long distance calculations in parallel
+library(corrplot)
 
 ## Load data ---------------------------------------------------------------
 load("data/datAnnotCleaned.Rda")
@@ -141,7 +142,7 @@ indsKUDAreas <- indsKUDAreas %>%
 # elevs_z09 <- elevatr::get_elev_raster(bs2022 %>%
 #                                         st_transform(crs = "WGS84"),                                   z = 9)
 # save(elevs_z09, file = "data/elevs_z09.Rda")
-load("data/elevs_z10.Rda")
+load("data/elevs_z09.Rda")
 
 bs2022$groundElev_z09 <- raster::extract(x = elevs_z09, 
                                          y = bs2022 %>% 
@@ -226,13 +227,18 @@ shannon <- r %>%
   mutate(roostID = as.character(roostID),
          roostID = case_when(is.na(roostID) ~ paste(trackId, dateOnly, sep = "_"),
                              TRUE ~ roostID)) %>%
+  group_by(trackId, roostID) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
   group_by(trackId) %>%
-  summarize(nNights = n(),
-            uniqueRoosts = length(unique(roostID)),
-            shannon = vegan::diversity(as.numeric(as.factor(roostID)), 
-                                       index = "shannon")) %>%
-  dplyr::select(trackId, shannon, nNights, uniqueRoosts)
-
+  dplyr::select(trackId, roostID, n) %>%
+  mutate(nNights = sum(n),
+         uniqueRoosts = length(unique(roostID))) %>%
+  mutate(prop = n/nNights,
+         lnProp = log(prop),
+         item = prop*lnProp) %>%
+  group_by(trackId) %>%
+  summarize(shannon = -sum(item))
 
 ## Roost ranking
 ranking <- r %>%
@@ -281,7 +287,7 @@ dfd <- bs2022 %>%
 
 dfdSumm <- dfd %>%
   group_by(trackId) %>%
-  summarize(MDFD = mean(totalFlightDuration, na.rm = T),
+  summarize(meanDFD = mean(totalFlightDuration, na.rm = T),
             minDFD = min(totalFlightDuration, na.rm = T),
             maxDFD = max(totalFlightDuration, na.rm = T),
             medDFD = median(totalFlightDuration, na.rm = T))
@@ -316,7 +322,7 @@ dfdSumm <- dfd %>%
 # save(dailyMovement, file = "data/dailyMovement.Rda")
 load("data/dailyMovement.Rda") # we should only get one NA value per individual per day, which means that we should have as many individual*days as there are NA values. The only other way we could have an NA value here is if one of the geometries if NA, and I don't think there are any NA geometries. Also, the same rows should be NA for dist_m and difftime_s.
 
-dailyMovement %>% st_drop_geometry() %>% select(trackId, dateOnly) %>% distinct() %>% nrow() # okay good.
+dailyMovement %>% st_drop_geometry() %>% dplyr::select(trackId, dateOnly) %>% distinct() %>% nrow() # okay good.
 
 dailyMovementSumm <- dailyMovement %>%
   sf::st_drop_geometry() %>%
@@ -338,26 +344,6 @@ mnMvmt <- dailyMovementSumm %>%
 mnMvmt %>% is.na() %>% colSums() # yessssssssssssssss
 dailyMovementSumm %>% is.na() %>% colSums() # also yessssss
 
-
-dailyMovementSumm %>%
-  ggplot(aes(x = dmd))+
-  geom_histogram()+
-  xlab("Daily Max Displacement (m)")
-
-dailyMovementSumm %>%
-  ggplot(aes(x = ddt))+
-  geom_histogram()+
-  xlab("Daily Distance Traveled (m)")
-
-mnMvmt %>%
-  ggplot(aes(x = mnTort))+
-  geom_histogram()+
-  xlab("Mean Tortuosity")
-mnMvmt %>%
-  ggplot(aes(x = sdTort))+
-  geom_histogram()+
-  xlab("SD Tortuosity")
-
 ## MULTIVARIATE MOVEMENT METRIC --------------------------------------------
 ## All movement behavior information
 movementBehavior <- indsKUDAreas %>%
@@ -371,24 +357,25 @@ movementBehavior <- indsKUDAreas %>%
 
 ## Scale all predictor vars
 movementBehaviorScaled <- movementBehavior %>%
-  dplyr::select(c(trackId, meanDMD, meanDDT, shannon, propSwitch, coreArea, homeRange, coreAreaFidelity, MDFD, mnDailyMaxAlt, mnDailyPropOver1km, mostUsedRoostProp)) %>%
   mutate(across(-trackId, function(x) as.numeric(as.vector(scale(x)))))
 
-test <- movementBehavior %>%
-  dplyr::select(c(trackId, meanDMD, meanDDT, propSwitch, coreArea, homeRange, coreAreaFidelity, MDFD, mnDailyMaxAlt, mnDailyPropOver1km)) %>%
-  mutate(across(-trackId, function(x) as.numeric(as.vector(scale(x)))))
+movementBehaviorScaled_forPCA <- movementBehaviorScaled %>%dplyr::select(-c(mostUsedRoostProp, sdTort, mnDailyMnAlt, sdDMD, meanDFD, coreArea, propSwitch, mnDailyPropOver1km))
+M <- cor(movementBehaviorScaled_forPCA[,-1])
+corrplot(M, order = "AOE", type = "lower", diag = FALSE)
 
-# PCAs
-pca_br2022 <- prcomp(x = movementBehaviorScaled[,-1])
-testpca <- prcomp(x = test[,-1])
+# Mfull <- cor(movementBehaviorScaled[,-1])
+# corrplot(Mfull, order = "AOE", type = "lower", diag = FALSE)
+
+#PCAs
+pca_br2022 <- prcomp(x = movementBehaviorScaled_forPCA[,-1])
 
 autoplot(pca_br2022, loadings = T, loadings.label = T)+theme_classic()+ggtitle("Breeding season 2022")
-
-autoplot(testpca, loadings = T, loadings.label = T)+theme_classic()+ggtitle("(test) Breeding season 2022")
 
 contrib_br2022 <- get_pca_var(pca_br2022)$contrib
 fviz_screeplot(pca_br2022, addlabels = T)
 contrib_br2022[,1:3]
+
+# Kind of looks like our main axes are "movement range" and "amount of soaring/twisting/turning". Which kind of makes sense! # Okay but not anymore. Now they're something totally different and uninterpretable.
 
 # Exploring questions that come up from the PCA
 ## Why is shannon opposite to propSwitch?
