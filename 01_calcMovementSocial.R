@@ -15,6 +15,9 @@ library(ggfortify)
 library(factoextra)
 library(elevatr) # for getting elevation information
 library(raster) # for getting elevation information
+library(viridis)
+library(naniar)
+library(parallel) # for running long distance calculations in parallel
 
 ## Load data ---------------------------------------------------------------
 load("data/datAnnotCleaned.Rda")
@@ -98,11 +101,16 @@ hrList <- bs2022 %>%
   group_by(trackId) %>%
   group_split(.keep = T)
 
+testHR <- hrList[[3]]
+testHRSP <- SpatialPoints(testHR[,c("x", "y")])
+k <- kernelUD(testHRSP, h = "href", grid = 100, extent = 0.1)
+image(k)
+
 hrListSP <- map(hrList, ~SpatialPoints(.x[,c("x", "y")]))
 
 kuds <- map(hrListSP, ~{
   if(nrow(.x@coords)>= 5){
-    k <- kernelUD(.x, h = "href", grid = 100, extent = 3)}
+    k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
   else{
     k <- NULL
   }
@@ -111,7 +119,9 @@ kuds <- map(hrListSP, ~{
 inds <- map_dfr(hrList, ~.x[1, "trackId"])
 
 whichNotNull <- which(map_lgl(kuds, is.null) == F)
+(propNotNull <- length(whichNotNull)/length(kuds))
 kudsNotNull <- kuds[whichNotNull]
+walk(kudsNotNull, image)
 
 ### Core Area (50%) ---------------------------------------------------------
 kud_areas_50 <- map_dbl(kudsNotNull, ~kernel.area(.x, percent = 50), .progress =T)
@@ -128,16 +138,16 @@ indsKUDAreas <- indsKUDAreas %>%
 
 ### 3D Home Range: Altitude -------------------------------------------------
 # Get elevation information
-# elevs_z10 <- elevatr::get_elev_raster(bs2022 %>%
-#                                         st_transform(crs = "WGS84"),                                   z = 10)
-# save(elevs_z10, file = "data/elevs_z10.Rda")
+# elevs_z09 <- elevatr::get_elev_raster(bs2022 %>%
+#                                         st_transform(crs = "WGS84"),                                   z = 9)
+# save(elevs_z09, file = "data/elevs_z09.Rda")
 load("data/elevs_z10.Rda")
 
-bs2022$groundElev_z10 <- raster::extract(x = elevs_z10, 
+bs2022$groundElev_z09 <- raster::extract(x = elevs_z09, 
                                          y = bs2022 %>% 
                                            st_transform(crs = "WGS84"))
 bs2022 <- bs2022 %>%
-  mutate(height_above_ground = height_above_msl - groundElev_z10)
+  mutate(height_above_ground = height_above_msl - groundElev_z09)
 
 # set any negative differences to 0
 bs2022 <- bs2022 %>%
@@ -166,7 +176,7 @@ dailyAltitudesSumm <- dailyAltitudes %>%
 
 ## ROOST SITE USE ----------------------------------------------------------
 ## get roost locations
-# r <- get_roosts_df(df = bs, id = "trackId", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s") %>%
+# r <- get_roosts_df(df = bs2022, id = "trackId", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s") %>%
 #   st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
 #   st_set_crs("WGS84") %>%
 #   st_transform(32636)
@@ -218,18 +228,45 @@ shannon <- r %>%
                              TRUE ~ roostID)) %>%
   group_by(trackId) %>%
   summarize(nNights = n(),
-            uniqueVals = length(unique(roostID)),
+            uniqueRoosts = length(unique(roostID)),
             shannon = vegan::diversity(as.numeric(as.factor(roostID)), 
                                        index = "shannon")) %>%
-  dplyr::select(trackId, shannon)
+  dplyr::select(trackId, shannon, nNights, uniqueRoosts)
 
+
+## Roost ranking
+ranking <- r %>%
+  st_drop_geometry() %>%
+  mutate(roostID = as.character(roostID),
+         roostID = case_when(is.na(roostID) ~ paste(trackId, dateOnly, sep = "_"),
+                             TRUE ~ roostID)) %>%
+  dplyr::select(trackId, roostID, dateOnly) %>%
+  distinct() %>%
+  group_by(trackId) %>%
+  mutate(nNights = n()) %>%
+  ungroup() %>%
+  dplyr::select(-dateOnly) %>%
+  group_by(trackId, roostID, nNights) %>%
+  summarize(nightsUsed = n()) %>%
+  mutate(propUsed = nightsUsed/nNights) %>%
+  ungroup() %>%
+  group_by(trackId) %>%
+  arrange(desc(nightsUsed), .by_group = T) %>%
+  mutate(rank = 1:n())
+
+mostUsedRoostProp <- ranking %>%
+  group_by(trackId) %>%
+  filter(rank == 1) %>%
+  dplyr::select(trackId, "mostUsedRoostProp" = propUsed)
+
+ranking %>%
+  ggplot(aes(x = rank, y = propUsed, group = trackId))+
+  #geom_point()+
+  geom_line()
 
 ## MOVEMENT ----------------------------------------------------------------
-### Tortuosity --------------------------------------------------------------
-# XXX to do!
-
 ### Daily Flight Duration ---------------------------------------------------
-dfd <- bs2022%>%
+dfd <- bs2022 %>%
   st_drop_geometry() %>%
   group_by(trackId) %>%
   mutate(flight = ifelse(ground_speed > 5, T, F),
@@ -250,22 +287,57 @@ dfdSumm <- dfd %>%
             medDFD = median(totalFlightDuration, na.rm = T))
 
 ### Daily Distance Traveled/Mean Displacement -------------------------------
-dailyMovement <- bs2022%>%
-  group_by(trackId, dateOnly) %>%
-  summarize(displacement = st_distance(geometry, geometry[1]),
-            lead = geometry[row_number()+1],
-            difftime_s = difftime(timestamp, lag(timestamp), units = "secs"),
-            dist_m = st_distance(geometry, lead, by_element = T),
-            speed_ms = as.numeric(dist_m)/as.numeric(difftime_s),
-            dist_10minEquiv = speed_ms*600)
-save(dailyMovement, file = "data/dailyMovement.Rda")
-load("data/dailyMovement.Rda")
+
+# numCores <- parallel::detectCores() - 5
+# cl <- parallel::makeCluster(numCores)
+# 
+# ## XX should rarify data to only keep points every 10 minutes. 
+# dailyMovementList <- bs2022 %>%
+#   #dplyr::filter(trackId %in% c("A00w", "A03w")) %>% # for testing, just one indiv
+#   dplyr::group_by(trackId, dateOnly) %>%
+#   dplyr::group_split(.keep = T)
+# 
+# start.mc <- Sys.time()
+# mvmtList <- parallel::parLapply(dailyMovementList, function(x){
+#   out <- dplyr::mutate(x,
+#                        displacement = as.vector(sf::st_distance(geometry, geometry[1])),
+#                        dist_m = sf::st_distance(geometry, dplyr::lag(geometry), by_element = T),
+#                        difftime_s = difftime(timestamp, dplyr::lag(timestamp), units = "secs"),
+#                        speed_ms = as.numeric(dist_m)/as.numeric(difftime_s),
+#                        dist_10minEquiv = speed_ms*600,
+#                        endpointDist = sf::st_distance(geometry[1], geometry[dplyr::n()]))
+#   return(out)},  cl = cl)
+# dailyMovement <- data.table::rbindlist(mvmtList)
+# end.mc <- Sys.time()
+# end.mc - start.mc
+# head(dailyMovement)
+# dailyMovement %>% is.na() %>% colSums()
+# 
+# save(dailyMovement, file = "data/dailyMovement.Rda")
+load("data/dailyMovement.Rda") # we should only get one NA value per individual per day, which means that we should have as many individual*days as there are NA values. The only other way we could have an NA value here is if one of the geometries if NA, and I don't think there are any NA geometries. Also, the same rows should be NA for dist_m and difftime_s.
+
+dailyMovement %>% st_drop_geometry() %>% select(trackId, dateOnly) %>% distinct() %>% nrow() # okay good.
 
 dailyMovementSumm <- dailyMovement %>%
   sf::st_drop_geometry() %>%
   group_by(trackId, dateOnly) %>%
   summarize(dmd = max(as.numeric(displacement), na.rm = T),
-            ddt = sum(as.numeric(dist_m), na.rm = T))
+            ddt = sum(as.numeric(dist_m), na.rm = T),
+            endpointDist = as.numeric(endpointDist)[1],
+            tort = as.numeric(ddt)/as.numeric(endpointDist), .groups = "drop")
+
+mnMvmt <- dailyMovementSumm %>%
+  group_by(trackId) %>%
+  summarize(meanDMD = mean(dmd, na.rm = T),
+            meanDDT = mean(ddt, na.rm = T),
+            sdDMD = sd(dmd, na.rm =T),
+            sdDDT = sd(ddt, na.rm = T),
+            mnTort = mean(tort, na.rm = T),
+            sdTort = sd(tort, na.rm = T))
+
+mnMvmt %>% is.na() %>% colSums() # yessssssssssssssss
+dailyMovementSumm %>% is.na() %>% colSums() # also yessssss
+
 
 dailyMovementSumm %>%
   ggplot(aes(x = dmd))+
@@ -277,53 +349,74 @@ dailyMovementSumm %>%
   geom_histogram()+
   xlab("Daily Distance Traveled (m)")
 
+mnMvmt %>%
+  ggplot(aes(x = mnTort))+
+  geom_histogram()+
+  xlab("Mean Tortuosity")
+mnMvmt %>%
+  ggplot(aes(x = sdTort))+
+  geom_histogram()+
+  xlab("SD Tortuosity")
+
 ## MULTIVARIATE MOVEMENT METRIC --------------------------------------------
+## All movement behavior information
+movementBehavior <- indsKUDAreas %>%
+  left_join(., dailyAltitudesSumm, by = "trackId") %>%
+  left_join(., roostSwitches, by = "trackId") %>%
+  left_join(., shannon, by = "trackId") %>%
+  left_join(., mostUsedRoostProp, by = "trackId") %>%
+  left_join(., dfdSumm, by = "trackId") %>%
+  left_join(., mnMvmt, by = "trackId") %>%
+  na.omit()
+
 ## Scale all predictor vars
-allScaled <- all %>%
-  group_by(timePeriod, value, type) %>%
-  mutate(meanDMD = as.vector(scale(meanDMD)),
-         meanDDT = as.vector(scale(meanDDT)),
-         shannon = as.vector(scale(shannon)),
-         propSwitch = as.vector(scale(propSwitch)),
-         coreArea = as.vector(scale(coreArea)),
-         homeRange = as.vector(scale(homeRange)),
-         hr50_95 = as.vector(scale(hr50_95)))
+movementBehaviorScaled <- movementBehavior %>%
+  dplyr::select(c(trackId, meanDMD, meanDDT, shannon, propSwitch, coreArea, homeRange, coreAreaFidelity, MDFD, mnDailyMaxAlt, mnDailyPropOver1km, mostUsedRoostProp)) %>%
+  mutate(across(-trackId, function(x) as.numeric(as.vector(scale(x)))))
 
-allScaled_br2021_mat <- allScaled %>% 
-  filter(timePeriod == "season", value == 1) %>%
-  ungroup() %>%
-  dplyr::select(meanDMD, meanDDT, shannon, propSwitch, coreArea, 
-                homeRange, hr50_95) %>%
-  filter(!is.na(meanDMD)) %>%
-  filter(!is.na(hr50_95))
-
-allScaled_br2022_mat <- allScaled %>% 
-  filter(timePeriod == "season", value == 2) %>%
-  ungroup() %>%
-  dplyr::select(meanDMD, meanDDT, shannon, propSwitch, coreArea, 
-                homeRange, hr50_95) %>%
-  filter(!is.na(meanDMD)) %>%
-  filter(!is.na(hr50_95))
+test <- movementBehavior %>%
+  dplyr::select(c(trackId, meanDMD, meanDDT, propSwitch, coreArea, homeRange, coreAreaFidelity, MDFD, mnDailyMaxAlt, mnDailyPropOver1km)) %>%
+  mutate(across(-trackId, function(x) as.numeric(as.vector(scale(x)))))
 
 # PCAs
-pca_br2021 <- prcomp(x = allScaled_br2021_mat)
-pca_br2022 <- prcomp(x = allScaled_br2022_mat)
+pca_br2022 <- prcomp(x = movementBehaviorScaled[,-1])
+testpca <- prcomp(x = test[,-1])
 
-autoplot(pca_br2021, loadings = T, loadings.label = T)+theme_classic()+ggtitle("Breeding season 2021")
 autoplot(pca_br2022, loadings = T, loadings.label = T)+theme_classic()+ggtitle("Breeding season 2022")
 
-contrib_br2021 <- get_pca_var(pca_br2021)$contrib
-contrib_br2021[,1:3]
+autoplot(testpca, loadings = T, loadings.label = T)+theme_classic()+ggtitle("(test) Breeding season 2022")
+
 contrib_br2022 <- get_pca_var(pca_br2022)$contrib
+fviz_screeplot(pca_br2022, addlabels = T)
 contrib_br2022[,1:3]
 
 # Exploring questions that come up from the PCA
-## Shannon roost diversity vs. roost switching percentage
-all %>%
-  ggplot(aes(x = propSwitch, y = shannon))+
+## Why is shannon opposite to propSwitch?
+movementBehavior %>%
+  ungroup() %>%
+  ggplot(aes(x = propSwitch, y = shannon, col = as.numeric(uniqueRoosts)))+
+  scale_color_viridis()+
+  geom_point(size = 3)+
+  geom_smooth(method = "lm")+
+  theme_classic()# indeed, really strong relationship here. What's up with that? Individuals that switch roosts more often have lower roost diversity?
+
+movementBehavior %>%
+  ggplot(aes(x = uniqueRoosts/nNights, y = propSwitch))+
   geom_point()+
   geom_smooth(method = "lm")
 
+movementBehavior %>%
+  ggplot(aes(x = uniqueRoosts/nNights, y = shannon))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+movementBehavior %>%
+  ggplot(aes(x = propSwitch, y = shannon, col = mostUsedRoostProp))+
+  geom_point(size = 2)+
+  scale_color_viridis()+
+  geom_smooth(method = "lm")
+
+# Ok, the roost story isn't quite making sense to me, still. Let's come back to this and try to figure it out. I'm sure there's something to be learned if I look up the relationship between diversity and species richness for e.g. plant communities. 
 
 # Social Networks ---------------------------------------------------------
 load("data/datAnnotCleaned.Rda")
@@ -468,12 +561,6 @@ networkMetrics <- monthsData %>%
 
 
 # JOIN network metrics to movement data -----------------------------------
-mnMvmt <- dailyMovementSumm %>%
-  group_by(trackId) %>%
-  summarize(meanDMD = mean(dmd, na.rm = T),
-            sdDMD = sd(dmd, na.rm = T),
-            meanDDT = mean(ddt, na.rm = T),
-            sdDDT = sd(ddt, na.rm = T))
 
 # get number of days tracked for each individual
 daysTracked <- bs2022 %>%
@@ -482,7 +569,7 @@ daysTracked <- bs2022 %>%
   summarize(daysTracked = length(unique(dateOnly)))
 
 # JOIN
-all <- left_join(networkMetrics, mnMvmt, by = "trackId") %>% 
+all <- left_join(networkMetrics, dailyMovementSumm, by = "trackId") %>% 
   left_join(., shannon, by = "trackId") %>% 
   left_join(., roostSwitches, by = "trackId") %>%
   left_join(., indsKUDAreas, by = "trackId") %>%
