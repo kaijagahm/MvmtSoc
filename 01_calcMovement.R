@@ -1,4 +1,4 @@
-# Script for a preliminary investigation of movement metrics. So far, this analysis is only the 
+# Script for calculating movement metrics
 
 # Setup -------------------------------------------------------------------
 ## Load packages -----------------------------------------------------------
@@ -8,7 +8,6 @@ library(tidyverse)
 library(igraph)
 library(mapview) # for quick maps
 library(MASS) # for KDE
-library(vegan) # for Shannon diversity
 library(adehabitatHR)
 library(sp)
 library(ggfortify)
@@ -21,113 +20,55 @@ library(parallel) # for running long distance calculations in parallel
 library(corrplot)
 
 ## Load data ---------------------------------------------------------------
-load("data/datAnnotCleaned.Rda")
-roostPolygons <- sf::st_read("data/roosts25_cutOffRegion.kml") %>%
-  sf::st_set_crs("WGS84") %>%
-  sf::st_transform(32636)
-
-# Fix time zone so dates make sense ---------------------------------------
-## Overwrite the dateOnly column from the new times
-datAnnotCleaned <- datAnnotCleaned %>%
-  mutate(timestampIsrael = lubridate::with_tz(timestamp, tzone = "Israel"),
-         dateOnly = lubridate::date(timestampIsrael))
-
-# Time: restrict to 2022 breeding season -----------------------------
-bs2022 <- datAnnotCleaned %>%
-  filter(timestampIsrael > lubridate::ymd("2021-12-01"), 
-         timestampIsrael < lubridate::ymd("2022-07-01"))
-
-# Space: restrict to southern indivs --------------------------------------
-## Make it an sf object
-bs2022 <- bs2022 %>%
-  sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
-  sf::st_set_crs("WGS84") %>%
-  sf::st_transform(32636)
-
-centroids_bs2022 <- bs2022%>%
-  group_by(trackId) %>%
-  summarize(geometry = st_union(geometry)) %>%
-  st_centroid()
-#mapview(centroids_bs2022, zcol = "trackId")
-
-hist(st_coordinates(centroids_bs2022)[,2]) # plot y coords to find a good cutoff point
-
-## filter to only southern indivs
-southernIndivs <- centroids_bs2022 %>%
-  filter(st_coordinates(.)[,2] < 3550000) %>%
-  pull(trackId)
-
-bs2022 <- bs2022 %>%
-  filter(trackId %in% southernIndivs)
-
-# How many points per day per individual?
-bs2022 %>%
-  st_drop_geometry() %>%
-  group_by(trackId, dateOnly) %>%
-  summarize(nPoints = n()) %>%
-  ggplot(aes(x = nPoints))+
-  geom_histogram()
-
-# theoretically, should only have 72 points per day--12 hours, 6 points per hour. That should vary a bit. I don't really understand why so many individuals/days have more than 100 points per day, but let's proceed for now.
-# 72/3 = 24. For simplicity, let's restrict to individual/days with at least 25 points per day.
-bs2022 <- bs2022 %>%
-  group_by(trackId, dateOnly) %>%
-  filter(n() >= 25)
-
-## For how many days is each individual tracked (after filtering for points per day)?
-daysTracked_bs2022 <- bs2022 %>%
-  st_drop_geometry() %>%
-  group_by(trackId) %>%
-  summarize(nDaysTracked = length(unique(dateOnly)))
-
-totalTimePeriod <- as.numeric(max(bs2022$dateOnly) - min(bs2022$dateOnly))
-
-bs2022 <- bs2022 %>%
-  left_join(daysTracked_bs2022, by = "trackId") %>%
-  mutate(propDaysTracked = nDaysTracked/totalTimePeriod)
-
-# Exclude individuals tracked for less than 1/3 of the time
-bs2022 <- bs2022 %>%
-  filter(propDaysTracked >= 0.33)
+load("data/seasons.Rda")
+seasonNames <- map_chr(seasons, ~.x$seasonUnique[1])
 
 # Movement Behavior --------------------------------------------------------
-
 ## HOME RANGE ---------------------------------------------------------------
-hrList <- bs2022 %>%
-  ungroup() %>%
-  dplyr::select(trackId) %>%
-  st_transform(32636) %>%
-  mutate(x = st_coordinates(.)[,1], y = st_coordinates(.)[,2]) %>%
-  st_drop_geometry() %>%
-  group_by(trackId) %>%
-  group_split(.keep = T)
+## Individual home ranges
+hrList_indivs <- map(seasons, ~.x %>%
+                       dplyr::select(trackId) %>%
+                       st_transform(32636) %>%
+                       mutate(x = st_coordinates(.)[,1], 
+                              y = st_coordinates(.)[,2]) %>%
+                       st_drop_geometry() %>%
+                       group_by(trackId) %>%
+                       group_split(.keep = T) %>%
+                       map(., ~SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
 
-testHR <- hrList[[3]]
-testHRSP <- SpatialPoints(testHR[,c("x", "y")])
-k <- kernelUD(testHRSP, h = "href", grid = 100, extent = 0.1)
-image(k)
+hrList_indivs_days <- map(seasons, ~.x %>%
+                       dplyr::select(trackId, dateOnly) %>%
+                       st_transform(32636) %>%
+                       mutate(x = st_coordinates(.)[,1], 
+                              y = st_coordinates(.)[,2]) %>%
+                       st_drop_geometry() %>%
+                       group_by(trackId, dateOnly) %>%
+                       group_split(.keep = T) %>%
+                       map(., ~SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual on one day.
 
-hrListSP <- map(hrList, ~SpatialPoints(.x[,c("x", "y")]))
-
-kuds <- map(hrListSP, ~{
-  if(nrow(.x@coords)>= 5){
-    k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
-  else{
-    k <- NULL
-  }
-  return(k)}, .progress = T)
-
-inds <- map_dfr(hrList, ~.x[1, "trackId"])
-
-whichNotNull <- which(map_lgl(kuds, is.null) == F)
-(propNotNull <- length(whichNotNull)/length(kuds))
-kudsNotNull <- kuds[whichNotNull]
-walk(kudsNotNull, image)
+kuds_indivs <- map(hrList_indivs, ~map(.x, ~{
+  if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
+  else{k <- NULL}
+  return(k)}, .progress = T))
 
 ### Core Area (50%) ---------------------------------------------------------
-kud_areas_50 <- map_dbl(kudsNotNull, ~kernel.area(.x, percent = 50), .progress =T)
+coreAreas_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
+  if(!is.null(.x)){
+    area <- kernel.area(.x, percent = 50)}
+  else{area <- NA}
+  return(area)
+}))
+
 ### Home Range (95%) ---------------------------------------------------------
-kud_areas_95 <- map_dbl(kudsNotNull, ~kernel.area(.x, percent = 95), .progress = T)
+coreAreas_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
+  if(!is.null(.x)){
+    area <- kernel.area(.x, percent = 95)}
+  else{area <- NA}
+  return(area)
+}))
+
+### Assemble them
+
 
 indsKUDAreas <- inds[whichNotNull,] %>%
   bind_cols("coreArea" = kud_areas_50,
