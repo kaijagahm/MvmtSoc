@@ -23,22 +23,33 @@ library(corrplot)
 base::load("data/seasons.Rda")
 base::load("data/roosts_seasons.Rda")
 seasonNames <- map_chr(seasons, ~.x$seasonUnique[1])
-base::load("data/daysTracked_seasons.Rda")
 base::load("data/elevs_z09_seasons.Rda")
-roostPolygons <- sf::st_read("data/roosts25_cutOffRegion.kml")
+roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
+
+durs <- map_dbl(seasons, ~{
+  dates <- lubridate::ymd(.x$dateOnly)
+  dur <- difftime(max(dates), min(dates), units = "days")
+})
+
+# Get number of days tracked for each individual --------------------------
+daysTracked_seasons <- map2(seasons, durs, ~.x %>%
+                              st_drop_geometry() %>%
+                              group_by(Nili_id) %>%
+                              summarize(daysTracked = length(unique(dateOnly)),
+                                        propDaysTracked = daysTracked/.y))
 
 # Movement Behavior --------------------------------------------------------
 ## HOME RANGE ---------------------------------------------------------------
 ## Individual home ranges
 hrList_indivs <- map(seasons, ~.x %>%
-                       dplyr::select(trackId) %>%
+                       dplyr::select(Nili_id) %>%
                        st_transform(32636) %>%
                        mutate(x = st_coordinates(.)[,1], 
                               y = st_coordinates(.)[,2]) %>%
                        st_drop_geometry() %>%
-                       group_by(trackId) %>%
+                       group_by(Nili_id) %>%
                        group_split(.keep = T))
-indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$trackId[1]))
+indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
 
 kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
@@ -65,121 +76,124 @@ homeRanges_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
 ### Assemble them
 areas <- map2(coreAreas_indivs, homeRanges_indivs, 
               ~bind_cols("coreArea" = .x, "homeRange" = .y))
-indsKUDAreas <- map2(indivs, areas, ~bind_cols("trackId" = .x, .y))
-indsKUDAreas <- map2(indsKUDAreas, daysTracked_seasons, ~left_join(.x, .y, by = "trackId"))
+indsKUDAreas <- map2(indivs, areas, ~bind_cols("Nili_id" = .x, .y))
 
 ### Core Area Fidelity (50%/95%) --------------------------------------------
 indsKUDAreas <- map(indsKUDAreas, ~.x %>% 
-                      mutate(coreAreaFidelity = coreArea/homeRange) %>%
-                      mutate(coreArea_corrected = coreArea/propDaysTracked,
-                             homeRange_corrected = homeRange/propDaysTracked))
+                      mutate(coreAreaFidelity = coreArea/homeRange))
 
 ### 3D Home Range: Altitude -------------------------------------------------
 # daily altitude stats
 dailyAltitudes <- map(seasons, ~.x %>%
                         st_drop_geometry() %>%
-                        group_by(trackId, dateOnly) %>%
+                        group_by(Nili_id, dateOnly) %>%
                         summarize(meanAltitude = mean(height_above_ground, na.rm  =T),
                                   maxAltitude = max(height_above_ground, na.rm = T),
                                   medAltitude = median(height_above_ground, na.rm = T),
                                   propOver1km = sum(height_above_ground > 1000)/n()))
 
 dailyAltitudesSumm <- map(dailyAltitudes, ~.x %>%
-                            group_by(trackId) %>%
+                            group_by(Nili_id) %>%
                             summarize(mnDailyMaxAlt = mean(maxAltitude, na.rm = T),
                                       mnDailyMnAlt = mean(meanAltitude, na.rm = T),
                                       mnDailyPropOver1km = mean(propOver1km, na.rm = T),
                                       mnDailyMedAlt = mean(medAltitude, na.rm = T)))
 
 ## ROOST SITE USE ----------------------------------------------------------
-## Make roost locations fall into polygons
+# Make sure that each roost point intersects only one (or 0) roost (multi)polygon(s)
+table(unlist(map(roosts_seasons, ~as.numeric(lengths(st_intersects(.x, roostPolygons)))))) 
+
+# Get ID's of which polygon each roost location falls into
 roostIDs <- map(roosts_seasons, ~as.numeric(st_intersects(x = .x, y = roostPolygons)))
+
 roosts_seasons <- map2(roosts_seasons, roostIDs, ~.x %>% 
                          mutate(roostID = as.character(.y)) %>%
-                         mutate(roostID = case_when(is.na(roostID) ~ paste(trackId, dateOnly, sep = "_"), 
+                         mutate(roostID = case_when(is.na(roostID) ~ paste(Nili_id, roost_date, sep = "_"), 
                                                     TRUE ~ roostID)))
 
 ### Roost Switches ----------------------------------------------------------
 ## Calculate sequences of roost locations
 roostSequences <- map(roosts_seasons, ~.x %>%
                         st_drop_geometry() %>%
-                        dplyr::select(trackId, dateOnly, roostID) %>%
-                        arrange(trackId, dateOnly) %>%
-                        group_by(trackId) %>%
+                        dplyr::select(Nili_id, roost_date, roostID) %>%
+                        arrange(Nili_id, roost_date) %>%
+                        group_by(Nili_id) %>%
                         mutate(switch = case_when(roostID == lag(roostID) ~ F,
                                                   TRUE ~ T)))
 
 ## Calculate whether, on each night, they switch or stay at the same roost
 roostSwitches <- map(roostSequences, ~.x %>%
-                       group_by(trackId) %>%
+                       group_by(Nili_id) %>%
                        summarize(nSwitch = sum(switch),
                                  nStay = sum(!switch),
                                  nights = n(),
                                  propSwitch = nSwitch/nights) %>%
-                       dplyr::select(trackId, propSwitch))
+                       dplyr::select(Nili_id, propSwitch))
 
 ### Roost Diversity -------------------------------------------------------
 ## (Shannon index)
 shannon <- map(roosts_seasons, ~.x %>%
                  st_drop_geometry() %>%
                  mutate(roostID = as.character(roostID),
-                        roostID = case_when(is.na(roostID) ~ paste(trackId, dateOnly, sep = "_"),
+                        roostID = case_when(is.na(roostID) ~ 
+                                              paste(Nili_id, roost_date, sep = "_"),
                                             TRUE ~ roostID)) %>%
-                 group_by(trackId, roostID) %>%
+                 group_by(Nili_id, roostID) %>%
                  summarize(n = n()) %>%
                  ungroup() %>%
-                 group_by(trackId) %>%
-                 dplyr::select(trackId, roostID, n) %>%
+                 group_by(Nili_id) %>%
+                 dplyr::select(Nili_id, roostID, n) %>%
                  mutate(nNights = sum(n),
                         uniqueRoosts = length(unique(roostID))) %>%
                  mutate(prop = n/nNights,
                         lnProp = log(prop),
                         item = prop*lnProp) %>%
-                 group_by(trackId) %>%
+                 group_by(Nili_id) %>%
                  summarize(shannon = -sum(item)))
 
 ## Roost ranking
 ranking <- map(roosts_seasons, ~.x %>%
                  st_drop_geometry() %>%
                  mutate(roostID = as.character(roostID),
-                        roostID = case_when(is.na(roostID) ~ paste(trackId, dateOnly, sep = "_"),
+                        roostID = case_when(is.na(roostID) ~ 
+                                              paste(Nili_id, roost_date, sep = "_"),
                                             TRUE ~ roostID)) %>%
-                 dplyr::select(trackId, roostID, dateOnly) %>%
+                 dplyr::select(Nili_id, roostID, roost_date) %>%
                  distinct() %>%
-                 group_by(trackId) %>%
+                 group_by(Nili_id) %>%
                  mutate(nNights = n()) %>%
                  ungroup() %>%
-                 dplyr::select(-dateOnly) %>%
-                 group_by(trackId, roostID, nNights) %>%
+                 dplyr::select(-roost_date) %>%
+                 group_by(Nili_id, roostID, nNights) %>%
                  summarize(nightsUsed = n()) %>%
                  mutate(propUsed = nightsUsed/nNights) %>%
                  ungroup() %>%
-                 group_by(trackId) %>%
+                 group_by(Nili_id) %>%
                  arrange(desc(nightsUsed), .by_group = T) %>%
                  mutate(rank = 1:n()))
 
 mostUsedRoostProp <- map(ranking, ~.x %>%
-                           group_by(trackId) %>%
+                           group_by(Nili_id) %>%
                            filter(rank == 1) %>%
-                           dplyr::select(trackId, "mostUsedRoostProp" = propUsed))
+                           dplyr::select(Nili_id, "mostUsedRoostProp" = propUsed))
 
 ## MOVEMENT ----------------------------------------------------------------
 ### Daily Flight Duration ---------------------------------------------------
 dfd <- map(seasons, ~.x %>% 
              st_drop_geometry() %>%
-             group_by(trackId) %>%
+             group_by(Nili_id) %>%
              mutate(flight = ifelse(ground_speed > 5, T, F),
                     lagTimestamp = lag(timestamp),
                     lagFlight = lag(flight)) %>%
-             mutate(dur = case_when(flight & lagFlight ~ difftime(timestamp, lagTimestamp, units = "secs"),
+             mutate(dur = case_when(flight & lagFlight ~ as.numeric(difftime(timestamp, lagTimestamp, units = "secs")),
                                     flight & !lagFlight ~ 0,
-                                    !flight & lagFlight ~ difftime(timestamp, lagTimestamp, units = "secs"),
+                                    !flight & lagFlight ~ as.numeric(difftime(timestamp, lagTimestamp, units = "secs")),
                                     is.na(flight)|is.na(lagFlight) ~ 0)) %>%
-             group_by(trackId, dateOnly) %>%
+             group_by(Nili_id, dateOnly) %>%
              summarize(totalFlightDuration = as.numeric(sum(dur, na.rm = T))))
 
 dfdSumm <- map(dfd, ~.x %>%
-                 group_by(trackId) %>%
+                 group_by(Nili_id) %>%
                  summarize(meanDFD = mean(totalFlightDuration, na.rm = T),
                            minDFD = min(totalFlightDuration, na.rm = T),
                            maxDFD = max(totalFlightDuration, na.rm = T),
@@ -187,72 +201,82 @@ dfdSumm <- map(dfd, ~.x %>%
 
 ### Daily Distance Traveled/Mean Displacement -------------------------------
 
-# numCores <- parallel::detectCores() - 5
-# cl <- parallel::makeCluster(numCores)
+# # set up parallel backend with 4 sessions (change this to match your machine)
+# future::plan(multicore, workers = 4)
 # 
-# dailyMovementList_seasons <- vector(mode = "list", length = length(seasons))
-# for(i in 1:length(dailyMovementList_seasons)){
-#   dailyMovementList <- seasons[[i]] %>%
-#     dplyr::group_by(trackId, dateOnly) %>%
-#     dplyr::group_split(.keep = T)
-#   
-#   start.mc <- Sys.time()
-#   mvmtList <- parallel::parLapply(dailyMovementList, function(x){
-#     out <- dplyr::mutate(x,
-#                          displacement = as.vector(sf::st_distance(geometry, geometry[1])),
-#                          dist_m = sf::st_distance(geometry, dplyr::lag(geometry), by_element = T),
-#                          difftime_s = difftime(timestamp, dplyr::lag(timestamp), units = "secs"),
-#                          speed_ms = as.numeric(dist_m)/as.numeric(difftime_s),
-#                          dist_10minEquiv = speed_ms*600,
-#                          endpointDist = sf::st_distance(geometry[1], geometry[dplyr::n()]))
-#     return(out)
-#   }, 
-#   cl = cl)
-#   dailyMovement <- data.table::rbindlist(mvmtList)
-#   end.mc <- Sys.time()
-#   dur <- end.mc - start.mc
-#   dailyMovementList_seasons[[i]] <- dailyMovement
-#   cat(paste("Finished season", i, "in", dur, "seconds", "\n"))
+# # function to calculate displacements within a group
+# calc_displacements <- function(group) {
+#   start_point <- dplyr::first(group$geometry)
+#   group %>%
+#     dplyr::mutate(
+#       disp_from_start = as.vector(sf::st_distance(geometry, start_point)),
+#       dist_to_prev = as.vector(sf::st_distance(geometry, dplyr::lag(geometry, default = dplyr::first(geometry)), by_element = T))
+#     )
 # }
 # 
+# # function to calculate metrics for each individual and date
+# calc_metrics <- function(data){
+#   # split the data by Nili_id and dateOnly
+#   groups <- data %>%
+#     dplyr::group_split(Nili_id, dateOnly)
+#   
+#   # run the distance calculations in parallel using furrr::future_map()
+#   disp_data <- furrr::future_map_dfr(groups, calc_displacements)
+#   
+#   # group the data by Nili_id and dateOnly, and calculate the metrics
+#   result <- disp_data %>%
+#     sf::st_drop_geometry() %>%
+#     dplyr::group_by(Nili_id, dateOnly) %>%
+#     arrange(timestamp, .by_group = T) %>%
+#     mutate(csDist = cumsum(replace_na(dist_to_prev, 0))) %>%
+#     dplyr::summarise(
+#       dmd = max(disp_from_start, na.rm = T),
+#       ddt = sum(dist_to_prev, na.rm = T),
+#       distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
+#       tort_dmd = max(disp_from_start, na.rm = T)/distToMaxPt)
+#   
+#   return(result)
+# }
+# 
+# # apply the calc_metrics() function to each season in the list using purrr::map()
+# dailyMovementList_seasons <- purrr::map(seasons, calc_metrics)
+# 
 # save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
-load("data/dailyMovementList_seasons.Rda") # we should only get one NA value per individual per day, which means that we should have as many individual*days as there are NA values. The only other way we could have an NA value here is if one of the geometries if NA, and I don't think there are any NA geometries. Also, the same rows should be NA for dist_m and difftime_s.
+load("data/dailyMovementList_seasons.Rda") 
 
-dailyMovementSumm <- map(dailyMovementList_seasons, ~.x %>%
-                           sf::st_drop_geometry() %>%
-                           group_by(trackId, dateOnly) %>%
-                           summarize(dmd = max(as.numeric(displacement), na.rm = T),
-                                     ddt = sum(as.numeric(dist_m), na.rm = T),
-                                     endpointDist = as.numeric(endpointDist)[1],
-                                     tort = as.numeric(ddt)/as.numeric(endpointDist), .groups = "drop"))
-
-mnMvmt <- map(dailyMovementSumm, ~.x %>%
-                group_by(trackId) %>%
+mnMvmt <- map(dailyMovementList_seasons, ~.x %>%
+                group_by(Nili_id) %>%
                 summarize(meanDMD = mean(dmd, na.rm = T),
                           meanDDT = mean(ddt, na.rm = T),
-                          sdDMD = sd(dmd, na.rm =T),
-                          sdDDT = sd(ddt, na.rm = T),
-                          mnTort = mean(tort, na.rm = T),
-                          sdTort = sd(tort, na.rm = T)))
+                          mnTort = mean(tort_dmd, na.rm = T)))
 
 mnMvmt[[1]] %>% is.na() %>% colSums() # yessssssssssssssss
-dailyMovementSumm[[1]] %>% is.na() %>% colSums() # also yessssss
 
-## Compile all movement metrics --------------------------------------------
-movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by = "trackId")) %>%
-  map2(., roostSwitches, ~left_join(.x, .y, by = "trackId")) %>%
-  map2(., shannon, ~left_join(.x, .y, by = "trackId")) %>%
-  map2(., mostUsedRoostProp, ~left_join(.x, .y, by = "trackId")) %>%
-  map2(., dfdSumm, ~left_join(.x, .y, by = "trackId")) %>%
-  map2(., mnMvmt, ~left_join(.x, .y, by = "trackId")) %>%
-  map(., na.omit) %>%
-  map2(., .y = seasonNames, ~.x %>% mutate(seasonUnique = .y))
+## ALL (compile movement metrics) --------------------------------------------
+movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
+  map2(., roostSwitches, ~left_join(.x, .y, by = "Nili_id")) %>%
+  map2(., shannon, ~left_join(.x, .y, by = "Nili_id")) %>%
+  map2(., mostUsedRoostProp, ~left_join(.x, .y, by = "Nili_id")) %>%
+  map2(., dfdSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
+  map2(., mnMvmt, ~left_join(.x, .y, by = "Nili_id")) %>%
+  map2(., daysTracked_seasons, ~left_join(.x, .y, by = "Nili_id")) %>%
+  #map(., na.omit) %>%
+  map2(., .y = seasonNames, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id"))
+
+# Correct for proportion days tracked, when applicable --------------------
+movementBehavior <- map(movementBehavior, ~.x %>%
+                          mutate(coreAreaC = coreArea/propDaysTracked,
+                                 homeRangeC = homeRange/propDaysTracked,
+                                 coreAreaFidelityC = coreAreaC/homeRangeC))
 
 ## Scale vars
 movementBehaviorScaled <- map(movementBehavior, ~.x %>%
-                                mutate(across(-c(trackId, seasonUnique), function(x){
+                                mutate(across(-c(Nili_id, seasonUnique), function(x){
                                   as.numeric(as.vector(scale(x)))
                                 })))
+
+
+
 
 ## Save raw movement data ------------------------------------------------------
 save(movementBehavior, file = "data/movementBehavior.Rda")
