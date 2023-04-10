@@ -120,6 +120,17 @@ southernIndivs <- map(centroids, ~.x %>%
 ## Remove individuals not in the south
 seasons <- map2(.x = seasons, .y = southernIndivs, ~.x %>% filter(Nili_id %in% .y))
 
+# Save copies for soc analysis --------------------------------------------
+# We don't want to remove individuals with too few ppd or too few days tracked for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So, before I filter for ppd and for days tracked, going to save a copy to use for social analysis. 
+seasons_forSoc <- seasons
+roosts_seasons_forSoc <- purrr::map(seasons_forSoc, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
+roosts_seasons_forSoc <- roosts_seasons_forSoc %>%
+  map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat")))
+
+# Export the data
+save(seasons_forSoc, file = "data/seasons_forSoc.Rda") # XXX re-do this one
+save(roosts_seasons_forSoc, file = "data/roosts_seasons_forSoc.Rda")
+
 # Include only individuals with enough points per day ------------------------
 # How many points per day are we looking at?
 ppd <- map_dfr(seasons, ~.x %>%
