@@ -6,17 +6,15 @@ library(tidyverse)
 library(sf)
 
 ## Data ---------------------------------------------------------------
-load("data/seasons.Rda")
+load("data/seasons_forSoc.Rda")
 roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
-load("data/roosts_seasons.Rda")
-roosts_seasons <- map(roosts_seasons, ~.x %>% mutate(location_lat = st_coordinates(.)[1],
-                                                     location_long = st_coordinates(.)[2]))
-seasonNames <- map_chr(seasons, ~.x$seasonUnique[1])
+load("data/roosts_seasons_forSoc.Rda")
+seasonNames <- map_chr(seasons_forSoc, ~.x$seasonUnique[1])
 
 # Social Networks ---------------------------------------------------------
-flightSeasons <- map(seasons, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, return = "sri"))
-feedingSeasons <- map(seasons, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, return = "sri"))
-roostSeasons <- map(roosts_seasons, ~vultureUtils::getRoostEdges(.x, mode = "polygon", roostPolygons = roostPolygons, return = "sri", latCol = "location_lat", longCol = "location_long", idCol = "trackId", dateCol = "roost_date"))
+flightSeasons <- map(seasons_forSoc, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri")) # XXX start here
+feedingSeasons <- map(seasons_forSoc, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, return = "sri"))
+roostSeasons <- map(roosts_seasons_forSoc, ~vultureUtils::getRoostEdges(.x, mode = "polygon", roostPolygons = roostPolygons, return = "sri", latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "roost_date"))
 
 flightSeasons_g <- map(flightSeasons, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 feedingSeasons_g <- map(feedingSeasons,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
