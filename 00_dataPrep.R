@@ -125,7 +125,7 @@ seasons <- map2(.x = seasons, .y = southernIndivs, ~.x %>% filter(Nili_id %in% .
 seasons_forSoc <- seasons
 roosts_seasons_forSoc <- purrr::map(seasons_forSoc, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
 roosts_seasons_forSoc <- roosts_seasons_forSoc %>%
-  map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat")))
+  map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
 
 # Export the data
 save(seasons_forSoc, file = "data/seasons_forSoc.Rda") # XXX re-do this one
