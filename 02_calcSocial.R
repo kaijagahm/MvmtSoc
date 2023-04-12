@@ -24,7 +24,7 @@ networkMetrics <- map2_dfr(flightSeasons_g, seasonNames, ~{
   df <- data.frame(degree = igraph::degree(.x),
                    strength = igraph::strength(.x),
                    pageRank = igraph::page_rank(.x)$vector,
-                   trackId = names(degree(.x))) %>%
+                   Nili_id = names(degree(.x))) %>%
     bind_cols(season = .y,
               type = "flight")
   
@@ -34,7 +34,7 @@ networkMetrics <- map2_dfr(flightSeasons_g, seasonNames, ~{
     df <- data.frame(degree = igraph::degree(.x),
                      strength = igraph::strength(.x),
                      pageRank = igraph::page_rank(.x)$vector,
-                     trackId = names(degree(.x))) %>%
+                     Nili_id = names(degree(.x))) %>%
       bind_cols(season = .y,
                 type = "feeding")
     
@@ -44,7 +44,7 @@ networkMetrics <- map2_dfr(flightSeasons_g, seasonNames, ~{
     df <- data.frame(degree = igraph::degree(.x),
                      strength = igraph::strength(.x),
                      pageRank = igraph::page_rank(.x)$vector,
-                     trackId = names(degree(.x))) %>%
+                     Nili_id = names(degree(.x))) %>%
       bind_cols(season = .y,
                 type = "roosting")
     
@@ -60,7 +60,7 @@ networkMetrics <- networkMetrics %>%
          strengthRelative = strength/n,
          pageRankRelative = pageRank/n,
          sbd = strength/degree) %>%
-  dplyr::select(season, type, n, trackId, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative)
+  dplyr::select(season, type, n, Nili_id, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative)
 
 # Save network metrics ----------------------------------------------------
 save(networkMetrics, file = "data/networkMetrics.Rda")
