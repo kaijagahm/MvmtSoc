@@ -9,227 +9,150 @@ library(igraph)
 library(mapview) # for quick maps
 library(factoextra)
 library(corrplot)
+library(ggfortify)
+library(ggpmisc) # for more details on a linear regression plot
+
+feedingColor = "gold3";
+roostingColor = "brown1";
+flightColor = "skyblue3";
 
 ## Load data ------------------------------------------------------------
 load("data/movementBehavior.Rda")
 load("data/movementBehaviorScaled.Rda")
+load("data/networkMetrics.Rda")
+seasonNames <- map_chr(movementBehavior, ~.x$seasonUnique[1])
+all(networkMetrics$season %in% seasonNames) # check that season names match up--good.
 
-## Multivariate index of movement behavior ------------------------------
-## Testing this just on breeding season 2022
-movementBehaviorScaled_forPCA <- movementBehaviorScaled %>%
-  dplyr::select(-c(mostUsedRoostProp, sdTort, mnDailyMnAlt, sdDMD, meanDFD, coreArea, propSwitch, mnDailyPropOver1km))
-M <- cor(movementBehaviorScaled_forPCA[,-1])
-corrplot(M, order = "AOE", type = "lower", diag = FALSE)
+# Create a dataset with all seasons combined
+allMovementBehavior <- as.data.frame(data.table::rbindlist(movementBehavior))
+# Scale relative to all the seasons, not just one season (movementBehaviorScaled has vars scaled per season)
+allMovementBehavior_scaledAll <- allMovementBehavior %>%
+  mutate(across(-c(Nili_id, seasonUnique), function(x){as.numeric(as.vector(scale(x)))}))
 
-# Mfull <- cor(movementBehaviorScaled[,-1])
-# corrplot(Mfull, order = "AOE", type = "lower", diag = FALSE)
+# Multivariate index of movement behavior ------------------------------
+# Decided to create one single PCA for the full time range, and then apply those loadings to individual seasons as needed. Currently, the time range is from "2021-12-01 00:00" to "2023-03-31 11:59".
 
-#PCAs
-pca_br2022 <- prcomp(x = movementBehaviorScaled_forPCA[,-1])
+# Variables available:
+glimpse(movementBehavior)
+# HR
+# coreArea [keep]
+# homeRange [keep]
+# coreAreaFidelity [keep]
 
-autoplot(pca_br2022, loadings = T, loadings.label = T)+theme_classic()+ggtitle("Breeding season 2022")
+# Altitude
+# mnDailyMaxAlt [keep]
+# mnDailyMnAlt [remove -- redundant with mnDailyMedAlt]
+# mnDailyPropOver1km [remove--redundant with mnDailyMaxAlt]
+# mnDailyMedAlt [keep, but need justification for why we're keeping means for other traits but median here]
 
-contrib_br2022 <- get_pca_var(pca_br2022)$contrib
-fviz_screeplot(pca_br2022, addlabels = T)
-contrib_br2022[,1:3]
+# Roosts
+# propSwitch [keep]
+# shannon [keep]
+# mostUsedRoostProp [remove--redundant with Shannon]
 
+# Flight duration
+# meanDFD
+# minDFD [remove to be consistent with movement metrics]
+# maxDFD [remove to be consistent with movement metrics]
+# medDFD [remove to be consistent with movement metrics]
 
-# Linking movement and social ---------------------------------------------
+# Movement
+# meanDMD
+# meanDDT
+# mnTort
 
-# Analysis -------------------------------------------------------
-## For now, just looking at 2022 breeding season, which is the fourth season out of 6
-seasonNames <- map_chr(seasons, ~.x$seasonUnique[1])
+# Variables to use in the PCA
+# coreArea [HR]
+# homeRange [HR]
+# coreAreaFidelity [HR]
+# mnDailyMaxAlt [altitude]
+# mnDailyMedAlt [altitude]
+# propSwitch [roosts]
+# shannon [roosts]
+# meanDFD [movement]
+# meanDMD [movement]
+# meanDDT [movement]
+# mnTort [movement]
 
-# 2022 breeding season
-## Daily Max Displacement vs. Degree
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = meanDMD, y = degree, col = type))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  facet_wrap(~type)+
-  ylab("Degree centrality")+
-  xlab("Mean daily max displacement")+
+forOverallPCA <- allMovementBehavior_scaledAll %>%
+  dplyr::select(Nili_id, coreArea, homeRange, coreAreaFidelity, mnDailyMaxAlt, mnDailyMedAlt, propSwitch, shannon, meanDFD, meanDMD, meanDDT, mnTort)
+
+pca_all <- prcomp(x = forOverallPCA[,-1])
+autoplot(pca_all, loadings = T, loadings.label = T)+
   theme_classic()+
-  theme(legend.position = "none")
+  ggtitle("Overall PCA: Dec 2021-Mar 2023")
+contrib <- get_pca_var(pca_all)$contrib
+fviz_screeplot(pca_all, addLabels = T)+
+  ggtitle("Overall PCA: Dec 2021-Mar 2023")
 
-## Daily Max Displacement vs. Strength
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = meanDMD, y = strength, col = type))+
-  geom_point()+
+mvmtPCVals <- allMovementBehavior_scaledAll %>%
+  dplyr::select(Nili_id, seasonUnique) %>%
+  bind_cols(as.data.frame(pca_all$x[,1:3]))
+
+# join the raw movement behavior (just the metrics that we used for the PCA) to the PC scores, in case we want to do individual regressions later.
+mvmt <- allMovementBehavior %>%
+  dplyr::select(Nili_id, seasonUnique, coreArea, homeRange, coreAreaFidelity, mnDailyMaxAlt, mnDailyMedAlt, propSwitch, shannon, meanDFD, meanDMD, meanDDT, mnTort) %>%
+  left_join(mvmtPCVals, by = c("Nili_id", "seasonUnique"))
+
+# COMBINE movement and social data ---------------------------------------------
+linked <- networkMetrics %>%
+  left_join(mvmt, by = c("Nili_id", "season" = "seasonUnique")) %>%
+  mutate(year = factor(as.numeric(str_extract(season, "[0-9]{4}"))),
+         bnb = factor(str_extract(season, "[a-z]+")))
+
+# Regressions -------------------------------------------------------------
+## Doing this just with the two previous seasons, for now
+linked_2seasons <- linked %>%
+  filter(season %in% c("2022_b", "2022_nb"))
+
+# PC1
+linked_2seasons %>%
+  ggplot(aes(x = PC1, y = degreeRelative, col = type, lty = season))+
+  geom_point(aes(shape = season))+
   geom_smooth(method = "lm")+
-  facet_wrap(~type)+
-  ylab("Strength centrality")+
-  xlab("Mean daily max displacement")+
+  scale_color_manual(values = c(feedingColor, flightColor, roostingColor))+
+  facet_wrap(~type, scales = "free")+
   theme_classic()+
-  theme(legend.position = "none")
+  theme(text = element_text(size = 20))+
+  ylab("Relative degree")
 
-## Daily Max Displacement vs. Strength by Degree
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = meanDMD, y = sbd, col = type))+
-  geom_point()+
+linked_2seasons %>%
+  ggplot(aes(x = PC1, y = strengthRelative, col = type, lty = season))+
+  geom_point(aes(shape = season))+
   geom_smooth(method = "lm")+
-  facet_wrap(~type)+
-  ylab("Strength by degree")+
-  xlab("Mean daily max displacement")+
+  scale_color_manual(values = c(feedingColor, flightColor, roostingColor))+
+  facet_wrap(~type, scales = "free")+
   theme_classic()+
-  theme(legend.position = "none")
+  theme(text = element_text(size = 20))+
+  ylab("Relative strength")
 
-## Daily Distance Traveled vs. Degree
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = meanDDT, y = degree, col = type))+
-  geom_point()+
+# PC2
+linked_2seasons %>%
+  ggplot(aes(x = PC2, y = degreeRelative, col = type, lty = season))+
+  geom_point(aes(shape = season))+
   geom_smooth(method = "lm")+
-  facet_wrap(~type)+
-  ylab("Degree centrality")+
-  xlab("Mean daily distance traveled")+
+  scale_color_manual(values = c(feedingColor, flightColor, roostingColor))+
+  facet_wrap(~type, scales = "free")+
   theme_classic()+
-  theme(legend.position = "none")
+  theme(text = element_text(size = 20))+
+  ylab("Relative degree")
 
-## Daily Distance Traveled vs. Strength
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = meanDDT, y = strength, col = type))+
-  geom_point()+
+linked_2seasons %>%
+  ggplot(aes(x = PC2, y = strengthRelative, col = type, lty = season))+
+  geom_point(aes(shape = season))+
   geom_smooth(method = "lm")+
-  facet_wrap(~type)+
-  ylab("Strength centrality")+
-  xlab("Mean daily distance traveled")+
+  scale_color_manual(values = c(feedingColor, flightColor, roostingColor))+
+  facet_wrap(~type, scales = "free")+
   theme_classic()+
-  theme(legend.position = "none")
+  theme(text = element_text(size = 20))+
+  ylab("Relative strength")
 
-## Daily Distance Traveled vs. Strength by Degree
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = meanDDT, y = sbd, col = type))+
-  geom_point()+
+linked %>%
+  ggplot(aes(x = PC1, y = degreeRelative, col = year, lty = season))+
+  geom_point(aes(shape = season))+
   geom_smooth(method = "lm")+
-  facet_wrap(~type)+
-  ylab("Strength by degree")+
-  xlab("Mean daily distance traveled")+
+  scale_color_manual(values = c("orange2", "firebrick3"))+
+  facet_wrap(~type, scales = "free")+
   theme_classic()+
-  theme(legend.position = "none")
-
-## Log Home Range Size vs. Degree
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = log(homeRange), y = degree, col = type))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  facet_wrap(~type, scales = "free_y")+
-  ylab("Degree centrality")+
-  xlab("Log home range size")+
-  theme_classic()+
-  theme(legend.position = "none")
-
-## Log Home Range Size vs. Strength
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = log(homeRange), y = strength, col = type))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  facet_wrap(~type, scales = "free_y")+
-  ylab("Strength centrality")+
-  xlab("Log home range size")+
-  theme_classic()+
-  theme(legend.position = "none")
-
-## Log Home Range Size vs. Strength
-all %>%
-  filter(timePeriod == "season", value == 2) %>%
-  ggplot(aes(x = log(homeRange), y = sbd, col = type))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  facet_wrap(~type, scales = "free_y")+
-  ylab("Strength by degree")+
-  xlab("Log home range size")+
-  theme_classic()+
-  theme(legend.position = "none")
-
-## Daily Distance Traveled vs. Degree, 2021 and 2022 breeding seasons
-all %>%
-  filter(timePeriod == "season", value %in% 1:2) %>%
-  ggplot(aes(x = meanDDT, y = degreeRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  theme(text = element_text(size = 18))+
-  facet_wrap(~type, scales = "free_y")+
-  ylab("Relative degree")+
-  xlab("Mean daily distance traveled")
-
-## Daily Distance Traveled vs. Strength, 2021 and 2022 breeding seasons
-all %>%
-  filter(timePeriod == "season", value %in% 1:2) %>%
-  ggplot(aes(x = meanDDT, y = strengthRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  theme(text = element_text(size = 18))+
-  facet_wrap(~type, scales = "free_y")+
-  ylab("Relative strength")+
-  xlab("Mean daily distance traveled")
-
-## Daily Distance Traveled vs. Strength-by-degree, 2021 and 2022 breeding seasons
-all %>%
-  filter(timePeriod == "season", value %in% 1:2) %>%
-  ggplot(aes(x = meanDDT, y = sbd, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  theme(text = element_text(size = 18))+
-  facet_wrap(~type, scales = "free_y")+
-  ylab("Strength by degree")+
-  xlab("Mean daily distance traveled")
-
-
-
-
-
-
-
-
-
-
-all %>%
-  filter(timePeriod == "season", value %in% 1:2, type == "feeding") %>%
-  ggplot(aes(x = meanDDT, y = degreeRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  ggtitle("Co-feeding (breeding)")+
-  theme(text = element_text(size = 18))+
-  ylim(c(0, 1))+
-  ylab("Relative degree")+
-  xlab("Mean daily distance traveled")
-
-all %>%
-  filter(timePeriod == "season", value %in% 1:2, type == "flight") %>%
-  ggplot(aes(x = meanDDT, y = strengthRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  ggtitle("Co-flight (breeding)")+
-  theme(text = element_text(size = 18))+
-  ylab("Relative strength (strength/n)")+
-  xlab("Mean daily distance traveled")
-
-all %>%
-  filter(timePeriod == "season", value %in% 1:2, type == "feeding") %>%
-  ggplot(aes(x = meanDDT, y = strengthRelative, col = factor(value)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  scale_color_manual(name = "Year", values = c("red", "blue"))+
-  theme_classic()+
-  ggtitle("Co-feeding (breeding)")+
-  theme(text = element_text(size = 18))+
-  ylab("Relative strength (strength/n)")+
-  xlab("Mean daily distance traveled")
+  theme(text = element_text(size = 20))+
+  ylab("Relative strength")
