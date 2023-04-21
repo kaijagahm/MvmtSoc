@@ -50,29 +50,12 @@ hrList_indivs <- map(seasons, ~.x %>%
                        st_drop_geometry() %>%
                        group_by(Nili_id) %>%
                        group_split(.keep = T))
+save(hrList_indivs, file = "data/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
 indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
 
-# For AKDE's with ctmm, we need lat/long coordinates.
-hrList_indivs_forAKDEs <- map(seasons, ~.x %>%
-                                dplyr::select("individual.local.identifier" = Nili_id, timestamp) %>%
-                                mutate(location.long = st_coordinates(.)[,1],
-                                       location.lat = st_coordinates(.)[,2]) %>%
-                                st_drop_geometry() %>%
-                                group_by(individual.local.identifier) %>%
-                                group_split(.keep = T))
-
-
-telemetries <- map(hrList_indivs_forAKDEs, ~map(.x, ~as.telemetry(.x))) 
-
-# test <- telemetries[[10]][[5]]
-# test <- test[1:100,]
-# m.iid <- ctmm.fit(test) # no autocorrelation timescales. Inappropriate IID model, will give standard KDE result.
-# guess <- ctmm.guess(test)
-# m.ouf <- ctmm.fit(test, guess)
-
 kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
-  if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
+  if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = 5000, grid = 100, extent = 1)}
   else{k <- NULL}
   return(k)}, .progress = T))
 
@@ -296,9 +279,6 @@ movementBehaviorScaled <- map(movementBehavior, ~.x %>%
                                 mutate(across(-c(Nili_id, seasonUnique), function(x){
                                   as.numeric(as.vector(scale(x)))
                                 })))
-
-
-
 
 ## Save raw movement data ------------------------------------------------------
 save(movementBehavior, file = "data/movementBehavior.Rda")
