@@ -19,21 +19,22 @@ library(naniar)
 library(parallel) # for running long distance calculations in parallel
 library(corrplot)
 library(ctmm) # for AKDE home ranges/core areas
+library(future) # for parallel computing
 
 ## Load data ---------------------------------------------------------------
 base::load("data/seasons.Rda")
+base::load("data/seasons_10min.Rda") # data rarefied to 10 minute intervals
 base::load("data/roosts_seasons.Rda")
 seasonNames <- map_chr(seasons, ~.x$seasonUnique[1])
-base::load("data/elevs_z09_seasons.Rda")
 roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
 
-durs <- map_dbl(seasons, ~{
+durs <- map_dbl(seasons_10min, ~{
   dates <- lubridate::ymd(.x$dateOnly)
   dur <- difftime(max(dates), min(dates), units = "days")
 })
 
 # Get number of days tracked for each individual --------------------------
-daysTracked_seasons <- map2(seasons, durs, ~.x %>%
+daysTracked_seasons <- map2(seasons_10min, durs, ~.x %>%
                               st_drop_geometry() %>%
                               group_by(Nili_id) %>%
                               summarize(daysTracked = length(unique(dateOnly)),
@@ -42,7 +43,7 @@ daysTracked_seasons <- map2(seasons, durs, ~.x %>%
 # Movement Behavior --------------------------------------------------------
 ## HOME RANGE ---------------------------------------------------------------
 ## Individual home ranges
-hrList_indivs <- map(seasons, ~.x %>%
+hrList_indivs <- map(seasons_10min, ~.x %>%
                        dplyr::select(Nili_id) %>%
                        st_transform(32636) %>%
                        mutate(x = st_coordinates(.)[,1], 
@@ -55,8 +56,8 @@ indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
 
 kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
-  if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = 5000, grid = 100, extent = 1)}
-  else{k <- NULL}
+  if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
+  else{k <- NULL} # changed back to the href value here because Noa thinks that's better, but will need to discuss with Noa and Marta.
   return(k)}, .progress = T))
 
 ### Core Area (50%) ---------------------------------------------------------
@@ -164,7 +165,7 @@ mostUsedRoostProp <- map(ranking, ~.x %>%
 
 ## MOVEMENT ----------------------------------------------------------------
 ### Daily Flight Duration ---------------------------------------------------
-dfd <- map(seasons, ~.x %>% 
+dfd <- map(seasons_10min, ~.x %>%  # using the rarefied data, for consistency. Shouldn't really affect the estimates much.
              st_drop_geometry() %>%
              group_by(Nili_id) %>%
              mutate(flight = ifelse(ground_speed > 5, T, F),
@@ -204,10 +205,10 @@ dfdSumm <- map(dfd, ~.x %>%
 #   # split the data by Nili_id and dateOnly
 #   groups <- data %>%
 #     dplyr::group_split(Nili_id, dateOnly)
-#   
+# 
 #   # run the distance calculations in parallel using furrr::future_map()
 #   disp_data <- furrr::future_map_dfr(groups, calc_displacements)
-#   
+# 
 #   # group the data by Nili_id and dateOnly, and calculate the metrics
 #   result <- disp_data %>%
 #     sf::st_drop_geometry() %>%
@@ -219,13 +220,13 @@ dfdSumm <- map(dfd, ~.x %>%
 #       ddt = sum(dist_to_prev, na.rm = T),
 #       distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
 #       tort_dmd = max(disp_from_start, na.rm = T)/distToMaxPt)
-#   
+# 
 #   return(result)
 # }
 # 
 # # apply the calc_metrics() function to each season in the list using purrr::map()
-# dailyMovementList_seasons <- purrr::map(seasons, calc_metrics)
-# 
+# dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
+# # XXX START HERE
 # save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
 load("data/dailyMovementList_seasons.Rda") 
 
@@ -241,7 +242,7 @@ mnMvmt[[1]] %>% is.na() %>% colSums() # yessssssssssssssss
 # daily altitude stats
 # Note that I've already cleaned outlier altitudes in 00_dataPrep.R. 
 # Now just need to restrict to ground_speed > 5m/s
-dailyAltitudes <- map(seasons, ~.x %>%
+dailyAltitudes <- map(seasons_10min, ~.x %>%
                         st_drop_geometry() %>%
                         filter(ground_speed >= 5) %>%
                         group_by(Nili_id, dateOnly) %>%
@@ -268,15 +269,18 @@ movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by
   #map(., na.omit) %>%
   map2(., .y = seasonNames, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id"))
 
-# Correct for proportion days tracked, when applicable --------------------
-movementBehavior <- map(movementBehavior, ~.x %>%
-                          mutate(coreAreaC = coreArea/propDaysTracked,
-                                 homeRangeC = homeRange/propDaysTracked,
-                                 coreAreaFidelityC = coreAreaC/homeRangeC))
+## Add age and sex
+ageSex <- map(seasons, ~.x %>% st_drop_geometry() %>% 
+                dplyr::select(Nili_id, birth_year, sex) %>% 
+                distinct())
+
+
+movementBehavior <- map2(movementBehavior, ageSex, ~left_join(.x, .y, by = "Nili_id"))
+
 
 ## Scale vars
 movementBehaviorScaled <- map(movementBehavior, ~.x %>%
-                                mutate(across(-c(Nili_id, seasonUnique), function(x){
+                                mutate(across(-c(Nili_id, seasonUnique, birth_year, sex), function(x){
                                   as.numeric(as.vector(scale(x)))
                                 })))
 
