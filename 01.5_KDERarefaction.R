@@ -6,6 +6,8 @@ library(sp)
 library(raster)
 
 load("data/hrList_indivs.Rda")
+load("data/seasons.Rda")
+s <- map_chr(seasons, ~.x$seasonUnique[1])
 
 # For starters, let's see what href values we get when we run home range KUDs naively
 getH <- function(df){
@@ -14,12 +16,12 @@ getH <- function(df){
   h <- k@h$h
 }
 
-hs <- map_dbl(hrList_indivs[[2]], getH)
+hs <- map_dbl(hrList_indivs[[3]], getH)
 hist(hs) # looks like our mean is a little over 5000. That gives me an idea of what ballpark to be in.
 summary(hs)
 
 # Some sample plots to visualize data
-## test individual
+## test one individual
 df <- hrList_indivs[[2]][[25]]
 sp <- SpatialPoints(df[,c("x", "y")])
 k <- kernelUD(sp, h = "href", grid = 100, extent = 1)
@@ -27,163 +29,111 @@ j <- kernelUD(sp, h = 10000, grid = 100, extent = 1)
 
 image(k)
 poly <- getverticeshr(k, percent = 95) 
-plot(poly, add = TRUE) # for some reason it won't let me plot this. What's going on?
+plot(poly, add = TRUE)
 plot(sp, add = TRUE, cex = 0.01) # with image, this looks like a really bad representation, but with the 95% kernel it's a lot better.
 
-polyj <- getverticeshr(j, percent = 95)
-image(j)
-plot(polyj, add = T)
-plot(sp, add = TRUE, cex = 0.01)
+# okay, this is always going to be somewhat arbitrary. But maybe let's just go with 4000 for now?
+load("data/seasons_10min.Rda")
+load("data/seasons_20min.Rda")
+load("data/seasons_30min.Rda")
+load("data/seasons_60min.Rda")
+load("data/seasons_120min.Rda")
 
-# okay, this is always going to be somewhat arbitrary. But maybe let's just go with 5000 for now?
-
-### XXX MARTA'S SUBSAMPLING CODE
-AllGV <- AllGV[order(AllGV$Nili_id, AllGV$timestamp),]
-
-AllGV$burst <- seq(from = 1, to = nrow(AllGV))
-
-temp.dif <- difftime(AllGV$timestamp[2:nrow(AllGV)], AllGV$timestamp[(1:(nrow(AllGV)-1))], units = "mins")
-AllGV$dif <- c(1, temp.dif)
-AllGV$dif <- if_else(duplicated(as.character(AllGV$Nili_id))==FALSE, 1, AllGV$dif)
-
-AllGV.10min = AllGV[1,]
-
-for(i in 1:(nrow(AllGV)-1)) {
-  if(AllGV$burst[i] <= tail(AllGV.10min$burst, n=1)) {next}
-  print(i)
-  if(AllGV$dif[i] > 9){
-    AllGV.10min <-  rbind(AllGV.10min, AllGV[i,])
-  } else {
-    ix <- length(which(cumsum(AllGV$dif[i:nrow(AllGV)]) <= 9))
-    AllGV.10min <-  rbind(AllGV.10min , AllGV[i+ix,])
-    if (sum(AllGV$dif[i:nrow(AllGV)]) <= 9) { break }
-  }
-}
-
-
-## Rarefaction test: random subsampling at different levels
-## generate data
-inds <- hrList_indivs[[2]][1:10] # just use one season for this, and reduce to 10 individuals for speed
-props <- seq(from = 1, to = 0.1, by = -0.2)
-reps <- 25 # reduced from 50, for speed
-
-indsData <- vector(mode = "list", length = length(inds))
-for(i in 1:length(inds)){
-  cat("individual", i, "\n")
-  ind <- inds[[i]]
-  propsData <- vector(mode = "list", length = length(props))
-  for(p in 1:length(props)){
-    prop <- props[p]
-    repsList <- vector(mode = "list", length = reps)
-    for(r in 1:reps){
-      subsampledData <- slice_sample(ind, prop = prop)
-      repsList[[r]] <- subsampledData
-    }
-    propsData[[p]] <- repsList
-  }
-  indsData[[i]] <- propsData
-}
-
-# Now we have a data structure: 69 individuals, each of which has 5 lists (different proportions), each of which has 50 replicates at that proportion level.
-length(indsData) # 69
-length(indsData[[1]]) # 10
-length(indsData[[1]][[1]]) # 50
-
-# Now, calculate the observed 95% home ranges
-sps <- map(inds, ~SpatialPoints(.x[,c("x", "y")]))
-kObs <- map(sps, ~kernelUD(.x, h = 5000, grid = 100, extent = 1))
-obsHRs_95 <- map_dbl(kObs, ~kernel.area(.x, percent = 95))
-
-# Function to calculate home range
-calcHR <- function(df, pct){
+# Function to calculate home range size
+calcHR <- function(df, pct, h = 4000, idCol = "Nili_id"){
+  id <- df[[idCol]][1]
   sp <- SpatialPoints(df[,c("x", "y")])
-  k <- kernelUD(sp, h = 5000, grid = 100, extent = 1)
-  hr95 <- kernel.area(k, percent = pct)
-  return(hr95)
+  k <- kernelUD(sp, h = h, grid = 100, extent = 1)
+  hr <- kernel.area(k, percent = pct)
+  n <- nrow(df)
+  return(data.frame(id = id, n = n, pct = pct, area = hr))
 }
 
-#Use map to apply that function to the crazy complex data structure
-indsHRSizes_95 <- map(indsData, ~map_dfc(.x, ~map_dbl(.x, ~calcHR(.x, pct = 95)),
-                                      .progress = T),
-                   .progress = T)
+getHRs <- function(list){
+  cat("Preparing data\n")
+  indivs <- map(list, ~.x %>%
+                  dplyr::select(Nili_id) %>%
+                  st_transform(32636) %>%
+                  mutate(x = st_coordinates(.)[,1], 
+                         y = st_coordinates(.)[,2]) %>%
+                  st_drop_geometry() %>%
+                  group_by(Nili_id) %>%
+                  group_split(.keep = T))
+  cat("Calculating 95% home ranges\n")
+  hr95 <- map(indivs, 
+              ~map_dfr(.x, ~calcHR(.x, pct = 95), .progress = T)) %>%
+    map2_dfr(., .y = s, ~.x %>% mutate(seasonUnique = .y))
+  cat("Calculating 50% home ranges\n")
+  hr50 <- map(indivs, 
+              ~map_dfr(.x, ~calcHR(.x, pct = 50), .progress = T)) %>%
+    map2_dfr(., .y = s, ~.x %>% mutate(seasonUnique = .y))
+  
+  out <- bind_rows(hr95, hr50)
+  return(out)
+}
 
-indsHRSizes_50 <- map(indsData, ~map_dfc(.x, ~map_dbl(.x, ~calcHR(.x, pct = 50)),
-                                         .progress = T),
-                      .progress = T)
+# none <- getHRs(list = seasons) %>% mutate(rarefaction = "none")
+# r10min <- getHRs(list = seasons_10min) %>% mutate(rarefaction = "10min")
+# r20min <- getHRs(list = seasons_20min) %>% mutate(rarefaction = "20min")
+# r30min <- getHRs(list = seasons_30min) %>% mutate(rarefaction = "30min")
+# r60min <- getHRs(list = seasons_60min) %>% mutate(rarefaction = "60min")
+# r120min <- getHRs(list = seasons_120min) %>% mutate(rarefaction = "120min")
+# 
+# allHRs <- bind_rows(none, r10min, r20min, r30min, r60min, r120min) %>%
+#   mutate(rarefaction = factor(rarefaction, levels = c("120min", "60min", "30min", "20min", "10min", "none"))) %>%
+#   mutate(areaRel = area/n) %>%
+#   group_by(seasonUnique, id, pct) %>%
+#   arrange(desc(rarefaction), .by_group = T) %>%
+#   mutate(areaVsAll = area/area[1],
+#          areaRelVsAll = areaRel/areaRel[1])
+# save(allHRs, file = "data/allHRs.Rda")
+load("data/allHRs.Rda")
 
-save(indsHRSizes_95, file = "data/indsHRSizes_95.Rda")
-save(indsHRSizes_50, file = "data/indsHRSizes_50.Rda")
-load("data/indsHRSizes_95.Rda")
-load("data/indsHRSizes_50.Rda")
-
-areaData_95 <- map2(.x = indsHRSizes_95, .y = map_chr(inds, ~.x$Nili_id[1]), ~{
-  df <- .x
-  names(df) <- paste0("prop_", as.character(props))
-  df$Nili_id <- .y
-  return(df)
-}) %>% data.table::rbindlist() %>% 
-  as.data.frame() %>%
-  mutate(rep = 1:nrow(.)) %>%
-  pivot_longer(cols = -c("Nili_id", "rep"), names_to = "prop", values_to = "area") %>%
-  mutate(prop = as.numeric(str_remove(prop, "prop_")),
-         hrProp = 0.95)
-
-areaData_50 <- map2(.x = indsHRSizes_50, .y = map_chr(inds, ~.x$Nili_id[1]), ~{
-  df <- .x
-  names(df) <- paste0("prop_", as.character(props))
-  df$Nili_id <- .y
-  return(df)
-}) %>% data.table::rbindlist() %>% 
-  as.data.frame() %>%
-  mutate(rep = 1:nrow(.)) %>%
-  pivot_longer(cols = -c("Nili_id", "rep"), names_to = "prop", values_to = "area") %>%
-  mutate(prop = as.numeric(str_remove(prop, "prop_")),
-         hrProp = 0.50)
-
-areaData <- bind_rows(areaData_95, areaData_50)
-
-# Summarize the data for each individual
-areaData <- areaData %>%
-  group_by(Nili_id, hrProp, rep) %>%
-  mutate(prop_of_1 = area/area[1]) %>%
-  ungroup()
-rarefactionSummary <- areaData %>%
-  group_by(Nili_id, prop) %>%
-  mutate(mnProp_of_1 = mean(prop_of_1)) %>%
-  ungroup()
-
-# rarefaction curves
-areaData %>%
-  ggplot(aes(x = jitter(prop), y = prop_of_1, group = Nili_id))+
-  geom_point(alpha = 0.1)+
-  geom_smooth(se = F, linewidth = 0.5)+
+(kdeRarefactions <- allHRs %>% 
+  filter(areaVsAll < 1.5, areaVsAll > 0.6) %>% # eliminate some outliers
+  ggplot(aes(x = rarefaction, y = areaVsAll, fill = factor(pct)))+
+  geom_boxplot()+
   theme_classic()+
-  ylab("HR size (vs. with 100% of points)")+
-  xlab("Proportion of points retained")+
-  geom_hline(aes(yintercept = 1), lty = 2)+
-  facet_wrap(~hrProp) # interesting! This looks fairly unbiased, though it varies a lot for different individuals. Looks like if we take 50-100% of the data, we get approximately the same home range as if we use 100% of the data, and the variability lessens. 
+  scale_fill_manual(values = c("blue3", "darkorange2"))+
+  theme(legend.position = "none")+
+  facet_grid(rows = vars(pct), cols = vars(seasonUnique), scales = "free")+
+  ylab("Area (rarefied vs. all pts)")+
+  xlab("Rarefaction level")+
+  theme(text = element_text(size = 18)))
+ggsave(kdeRarefactions, file = "fig/kdeRarefactions.png", width = 13, height = 7, dpi = 800)
 
-# Looking at absolute instead of relative sizes:
-areaData %>%
-  filter(hrProp == 0.95) %>%
-  ggplot(aes(x = prop, y = area, group = Nili_id))+
-  geom_point(alpha = 0.1)+
-  geom_smooth(se = T, linewidth = 0.5)+
+# does number of points affect things?
+allHRs %>%
+  group_by(seasonUnique, rarefaction, pct) %>%
+  mutate(nPts_scaled = scale(n)) %>%
+  filter(area < 10000000, rarefaction %in% c("10min", "30min", "120min")) %>%
+  filter(pct == 95) %>%
+  ggplot(aes(x = nPts_scaled, y = area, col = rarefaction))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  theme_minimal()+
+  facet_grid(rows = vars(rarefaction), cols = vars(seasonUnique))
+# no matter what rarefaction level we use, the number of points itself doesn't seem to really affect the KDE area. This is good! Means we don't actually have to scale area by number of points.
+
+# Any difference when we look at core areas (50%) instead of home ranges (95%)?
+allHRs %>% 
+  filter(pct == 50) %>%
+  filter(areaVsAll < 1.5, areaVsAll > 0.6) %>%
+  ggplot(aes(x = rarefaction, y = areaVsAll))+
+  geom_line(aes(group = id))+
   theme_classic()+
-  ylab("HR size")+
-  ggtitle("95% hr")+
-  xlab("Proportion of points retained")+
-  facet_wrap(~Nili_id, scales = "free_y") # no consistent patterns here, though note that a bit of weirdness is created by having so many points at 100% of the data (since they will all be the same, by definition)
+  theme(legend.position = "none")+
+  facet_wrap(~seasonUnique)
 
-areaData %>%
-  filter(hrProp == 0.50) %>%
-  ggplot(aes(x = prop, y = area, group = Nili_id))+
-  geom_point(alpha = 0.1)+
-  geom_smooth(se = T, linewidth = 0.5)+
-  theme_classic()+
-  ylab("HR size")+
-  ggtitle("50% hr")+
-  xlab("Proportion of points retained")+
-  facet_wrap(~Nili_id, scales = "free_y")
+allHRs %>%
+  group_by(seasonUnique, rarefaction, pct) %>%
+  mutate(nPts_scaled = scale(n)) %>%
+  filter(area < 10000000, rarefaction %in% c("10min", "30min", "120min")) %>%
+  filter(pct == 50) %>%
+  ggplot(aes(x = nPts_scaled, y = area, col = rarefaction))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  theme_minimal()+
+  facet_grid(rows = vars(rarefaction), cols = vars(seasonUnique))
 
-# I think I'm going to go ahead and use a consistent parameter of h = 5000 across individuals, but then try this rarefaction again with downsampling the data frequency after I get Marta's code for that.
+# Using h = 4000 vs the automatic h value doesn't seem to make a big difference.
