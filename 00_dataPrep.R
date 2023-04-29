@@ -87,7 +87,7 @@ datAnnot <- datAnnot3 # a hack so the rest of the code will work
 ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
 mask <- sf::st_read("data/CutOffRegion.kml")
 # XXX START HERE--will need to re-download vultureUtils, I think.
-datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 0.33, removeVars = F, idCol = "Nili_id", downsample = T)
+datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 0.33, removeVars = F, idCol = "Nili_id", downsample = F)
 save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
 
 ## Load data ---------------------------------------------------------------
@@ -208,3 +208,29 @@ seasons <- map2(.x = seasons, .y = groundElev_z09,
 # Export the data
 save(seasons, file = "data/seasons.Rda")
 save(roosts_seasons, file = "data/roosts_seasons.Rda")
+
+# Downsample the data and save the downsampled data
+subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 10){
+  sub <- df %>%
+    arrange(idCol, timestampCol) %>%
+    group_by(.data[[idCol]]) %>%
+    mutate(tc = cut(.data[[timestampCol]], breaks = paste(as.character(mins), "min", sep = " "))) %>%
+    group_by(.data[[idCol]], "d" = lubridate::date(.data[[timestampCol]]), tc) %>%
+    slice(1) %>%
+    ungroup() %>%
+    dplyr::select(-c("d", "tc"))
+  return(sub)
+}
+
+# create downsampled data
+seasons_10min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # XXX start here--put this in the data prep section.
+seasons_20min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 20), .progress = T)
+seasons_30min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 30), .progress = T)
+seasons_60min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 60), .progress = T)
+seasons_120min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 120), .progress = T)
+
+save(seasons_10min, file = "data/seasons_10min.Rda")
+save(seasons_20min, file = "data/seasons_20min.Rda")
+save(seasons_30min, file = "data/seasons_30min.Rda")
+save(seasons_60min, file = "data/seasons_60min.Rda")
+save(seasons_120min, file = "data/seasons_120min.Rda")
