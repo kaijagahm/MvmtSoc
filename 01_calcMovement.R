@@ -18,14 +18,12 @@ library(viridis)
 library(naniar)
 library(parallel) # for running long distance calculations in parallel
 library(corrplot)
-library(ctmm) # for AKDE home ranges/core areas
 library(future) # for parallel computing
 
 ## Load data ---------------------------------------------------------------
-base::load("data/seasons.Rda")
-base::load("data/seasons_10min.Rda") # data rarefied to 10 minute intervals
+base::load("data/seasons_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
 base::load("data/roosts_seasons.Rda")
-seasonNames <- map_chr(seasons, ~.x$seasonUnique[1])
+seasonNames <- map_chr(seasons_10min, ~.x$seasonUnique[1])
 roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
 
 durs <- map_dbl(seasons_10min, ~{
@@ -135,7 +133,8 @@ shannon <- map(roosts_seasons, ~.x %>%
                         lnProp = log(prop),
                         item = prop*lnProp) %>%
                  group_by(Nili_id) %>%
-                 summarize(shannon = -sum(item)))
+                 summarize(shannon = -sum(item),
+                           uniqueRoosts = uniqueRoosts[1]))
 
 ## Roost ranking
 ranking <- map(roosts_seasons, ~.x %>%
@@ -270,7 +269,7 @@ movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by
   map2(., .y = seasonNames, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id"))
 
 ## Add age and sex
-ageSex <- map(seasons, ~.x %>% st_drop_geometry() %>% 
+ageSex <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% 
                 dplyr::select(Nili_id, birth_year, sex) %>% 
                 distinct())
 
