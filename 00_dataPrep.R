@@ -10,11 +10,11 @@ library(readxl)
 
 ## Download data from movebank
 # download data from movebank (just a subset of the times for now)
-# base::load("movebankCredentials/pw.Rda")
-# MB.LoginObject <- move::movebankLogin(username = "kaijagahm", password = pw)
-# rm(pw)
+base::load("movebankCredentials/pw.Rda")
+MB.LoginObject <- move::movebankLogin(username = "kaijagahm", password = pw)
+rm(pw)
 
-# dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = "2021-12-01 00:00", dateTimeEndUTC = "2023-03-31 11:59")
+# dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = "2020-09-01 00:00", dateTimeEndUTC = "2022-11-30 11:59")
 # write_feather(dat, "data/dat.feather")
 dat <- read_feather("data/dat.feather")
 ## fix trackId
@@ -86,7 +86,6 @@ datAnnot <- datAnnot3 # a hack so the rest of the code will work
 # Clean the data
 ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
 mask <- sf::st_read("data/CutOffRegion.kml")
-# XXX START HERE--will need to re-download vultureUtils, I think.
 datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 0.33, removeVars = F, idCol = "Nili_id", downsample = F)
 save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
 
