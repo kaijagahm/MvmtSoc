@@ -11,7 +11,6 @@ library(rstatix) # for adding p-values to boxplots
 library(easystats) # for modeling and comparisons
 library(performance) # for modeling and comparisons
 library(lmerTest) # for p-values in mixed models?
-library(ade4)
 library(glmmTMB) # more complicated than lme4
 
 load("data/linked.Rda")
@@ -117,6 +116,26 @@ linked %>%
   ylab("Value")+
   xlab("Season") # no immediate obvious differences, but there probably are some.
 
+## differences in PC values by season
+long <- linked %>%
+  dplyr::select(Nili_id, season, age, age_group, sex, PC1, PC2, PC3) %>%
+  pivot_longer(cols = c("PC1", "PC2", "PC3"), values_to = "value", 
+               names_to = "PC")
+stat.test <- long %>%
+  group_by(PC) %>%
+  t_test(value ~ season) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance() %>% 
+  add_xy_position(x = "season")
+
+bxp <- ggboxplot(
+  long, x = "season", y = "value", 
+  fill = "season", 
+  palette = c("black", "gray"),
+  facet.by = "PC"
+) + stat_pvalue_manual(stat.test)
+bxp
+
 # Mixed models -------------------------------------------------------------------
 # Using the `performance` package that Noa showed me
 # Starting with CO-FLIGHT
@@ -136,14 +155,43 @@ linked %>%
 # Nili_id (random effect) (1|Nili_id)
 flight <- linked %>%
   filter(type == "flight")
+feeding <- linked %>%
+  filter(type == "feeding")
+roosting <- linked %>%
+  filter(type == "roosting")
 
 # FLIGHT: RELATIVE DEGREE
+# I thought we couldn't include random effects if they had fewer than 5 levels, but maybe you can? https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8784019/
 
-# include everything, with interactions between age and sex, season and year
-fd_max <- lmer(degreeRelative ~ age_group*PC1 + age_group*PC2 + age_group + season*year + (1|Nili_id), 
-               data = flight)
+# include everything, with interactions between plausible things to interact
+fd_max <- lmer(degreeRelative ~ age_group*PC1 + age_group*PC2 + age_group*season + season*PC1 + season*PC2 + age_group + season + (1|Nili_id) + (1|year), data = flight)
 check_model(fd_max)
+summary(fd_max)
 
+# Remove interaction between age group and season
+fd_2 <- lmer(degreeRelative ~ age_group*PC1 + age_group*PC2 + season*PC1 + season*PC2 + age_group + season + (1|Nili_id) + (1|year), data = flight)
+check_model(fd_2)
+summary(fd_2)
 
-fd_comp <- compare_performance(fd_max, fd_2, fd_3, fd_4, fd_5, fd_6, fd_7, rank = TRUE, verbose = FALSE)
+# Remove interaction between season and PC2
+fd_3 <- lmer(degreeRelative ~ age_group*PC1 + age_group*PC2 + season*PC1 + age_group + season + (1|Nili_id) + (1|year), data = flight)
+check_model(fd_3)
+summary(fd_3)
+
+fd_comp <- compare_performance(fd_max, fd_2, fd_3, fd_4, fd_5, fd_7, rank = TRUE, verbose = FALSE)
+fd_comp
 summary(fd_4)
+
+# FLIGHT: RELATIVE STRENGTH
+
+# include everything, with interactions between plausible things to interact
+fs_max <- lmer(strengthRelative ~ age_group*PC1 + age_group*PC2 + age_group*season + season*PC1 + season*PC2 + age_group + season + (1|Nili_id) + (1|year), data = flight)
+check_model(fs_max) # beautiful!
+summary(fs_max) # oh hello significance!! We love that.
+
+# FLIGHT: STRENGTH BY DEGREE
+
+# include everything, with interactions between plausible things to interact
+fb_max <- lmer(sbd ~ age_group*PC1 + age_group*PC2 + age_group*season + season*PC1 + season*PC2 + age_group + season + (1|Nili_id) + (1|year), data = flight)
+check_model(fb_max) # also gorgeous!
+summary(fb_max) # yay significance!
