@@ -186,47 +186,47 @@ dfdSumm <- map(dfd, ~.x %>%
 
 ### Daily Distance Traveled/Mean Displacement -------------------------------
 
-# # set up parallel backend with 4 sessions (change this to match your machine)
-# future::plan(multicore, workers = 4)
-# 
-# # function to calculate displacements within a group
-# calc_displacements <- function(group) {
-#   start_point <- dplyr::first(group$geometry)
-#   group %>%
-#     dplyr::mutate(
-#       disp_from_start = as.vector(sf::st_distance(geometry, start_point)),
-#       dist_to_prev = as.vector(sf::st_distance(geometry, dplyr::lag(geometry, default = dplyr::first(geometry)), by_element = T))
-#     )
-# }
-# 
-# # function to calculate metrics for each individual and date
-# calc_metrics <- function(data){
-#   # split the data by Nili_id and dateOnly
-#   groups <- data %>%
-#     dplyr::group_split(Nili_id, dateOnly)
-# 
-#   # run the distance calculations in parallel using furrr::future_map()
-#   disp_data <- furrr::future_map_dfr(groups, calc_displacements)
-# 
-#   # group the data by Nili_id and dateOnly, and calculate the metrics
-#   result <- disp_data %>%
-#     sf::st_drop_geometry() %>%
-#     dplyr::group_by(Nili_id, dateOnly) %>%
-#     arrange(timestamp, .by_group = T) %>%
-#     mutate(csDist = cumsum(replace_na(dist_to_prev, 0))) %>%
-#     dplyr::summarise(
-#       dmd = max(disp_from_start, na.rm = T),
-#       ddt = sum(dist_to_prev, na.rm = T),
-#       distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
-#       tort_dmd = max(disp_from_start, na.rm = T)/distToMaxPt)
-# 
-#   return(result)
-# }
-# 
-# # apply the calc_metrics() function to each season in the list using purrr::map()
-# dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
-# # XXX START HERE
-# save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
+# set up parallel backend with 4 sessions (change this to match your machine)
+future::plan(multicore, workers = 4)
+
+# function to calculate displacements within a group
+calc_displacements <- function(group) {
+  start_point <- dplyr::first(group$geometry)
+  group %>%
+    dplyr::mutate(
+      disp_from_start = as.vector(sf::st_distance(geometry, start_point)),
+      dist_to_prev = as.vector(sf::st_distance(geometry, dplyr::lag(geometry, default = dplyr::first(geometry)), by_element = T))
+    )
+}
+
+# function to calculate metrics for each individual and date
+calc_metrics <- function(data){
+  # split the data by Nili_id and dateOnly
+  groups <- data %>%
+    dplyr::group_split(Nili_id, dateOnly)
+
+  # run the distance calculations in parallel using furrr::future_map()
+  disp_data <- furrr::future_map_dfr(groups, calc_displacements)
+
+  # group the data by Nili_id and dateOnly, and calculate the metrics
+  result <- disp_data %>%
+    sf::st_drop_geometry() %>%
+    dplyr::group_by(Nili_id, dateOnly) %>%
+    arrange(timestamp, .by_group = T) %>%
+    mutate(csDist = cumsum(replace_na(dist_to_prev, 0))) %>%
+    dplyr::summarise(
+      dmd = max(disp_from_start, na.rm = T),
+      ddt = sum(dist_to_prev, na.rm = T),
+      distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
+      tort_dmd = max(disp_from_start, na.rm = T)/distToMaxPt)
+
+  return(result)
+}
+
+# apply the calc_metrics() function to each season in the list using purrr::map()
+dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
+# XXX START HERE
+save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
 load("data/dailyMovementList_seasons.Rda") 
 
 mnMvmt <- map(dailyMovementList_seasons, ~.x %>%
