@@ -161,7 +161,7 @@ ppd <- map_dfr(seasons, ~.x %>%
 ppd %>%
   ggplot(aes(x = n))+
   geom_histogram()+
-  facet_wrap(~seasonUnique)+
+  facet_wrap(~seasonUnique, scales ="free")+
   theme_classic() # XXX start here--how to identify too few ppd?
 
 ## Theoretically, should only have 72 points per day--12 hours, 6 points per hour. That should vary a bit. I don't really understand why so many individuals/days have more than 100 points per day, but let's proceed for now.
@@ -174,7 +174,7 @@ seasons <- map(seasons, ~.x %>%
                  ungroup())
 
 # Include only individuals with enough days tracked -----------------------
-## Must be tracked for at least 1/3 of the number of days in the season.
+## Must be tracked for at least 1/4 of the number of days in the season.
 durs <- map_dbl(seasons, ~length(unique(.x$dateOnly)))
 
 indivsToKeep <- map2(.x = seasons, .y = durs, ~.x %>%
@@ -182,7 +182,7 @@ indivsToKeep <- map2(.x = seasons, .y = durs, ~.x %>%
                        group_by(Nili_id) %>%
                        summarize(nDaysTracked = length(unique(dateOnly)),
                                  propDaysTracked = nDaysTracked/.y) %>%
-                       filter(propDaysTracked >= 0.33) %>%
+                       filter(propDaysTracked >= 0.25) %>%
                        pull(Nili_id))
 
 ## remove the individuals not tracked for long enough
