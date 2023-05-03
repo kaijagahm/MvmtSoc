@@ -8,6 +8,7 @@ library(tidyverse)
 library(igraph)
 library(mapview) # for quick maps
 library(factoextra)
+library(ade4)
 
 feedingColor = "gold3";
 roostingColor = "brown1";
@@ -115,3 +116,14 @@ linked$sex[linked$sex == "NA"] <- NA
 colSums(is.na(linked))
 
 save(linked, file = "data/linked.Rda")
+
+# Exploring ---------------------------------------------------------------
+# Orr wants to know whether higher tortuosity is correlated to a higher ratio between DDT and DMD. It should be.
+linked %>%
+  ggplot(aes(x = meanDDT/meanDMD, y = mnTort))+
+  geom_point()+
+  geom_smooth()+
+  theme_classic()+
+  facet_wrap(~season) # this is opposite, and it doesn't really make sense...
+
+
