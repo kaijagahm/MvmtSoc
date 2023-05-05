@@ -218,7 +218,7 @@ calc_metrics <- function(data){
       dmd = max(disp_from_start, na.rm = T),
       ddt = sum(dist_to_prev, na.rm = T),
       distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
-      tort_dmd = max(disp_from_start, na.rm = T)/distToMaxPt)
+      tort_dmd = distToMaxPt/dmd) # YIKES
 
   return(result)
 }
