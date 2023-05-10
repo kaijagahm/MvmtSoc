@@ -72,16 +72,7 @@ datAnnot2 <- datAnnot %>%
   left_join(as, by = "Nili_id")
 nrow(datAnnot2) == nrow(datAnnot)
 
-datAnnot3 <- datAnnot2 %>%
-  mutate(age = lubridate::year(timestamp) - birth_year,
-         age_group = case_when(age == 0 ~ "juv",
-                               age >= 1 & age <= 4 ~ "sub",
-                               age >= 5 ~ "adult",
-                               TRUE ~ NA),
-         sex = case_when(sex == "f/m" ~ "u",
-                         TRUE ~ sex))
-
-datAnnot <- datAnnot3 # a hack so the rest of the code will work
+datAnnot <- datAnnot2 # a hack so the rest of the code will work
 
 # Clean the data
 ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
@@ -96,24 +87,54 @@ load("data/datAnnotCleaned.Rda")
 ## Overwrite the dateOnly column from the new times
 datAnnotCleaned <- datAnnotCleaned %>%
   mutate(timestampIsrael = lubridate::with_tz(timestamp, tzone = "Israel"),
-         dateOnly = lubridate::date(timestampIsrael))
+         dateOnly = lubridate::date(timestampIsrael),
+         month = lubridate::month(dateOnly),
+         year = lubridate::year(dateOnly))
 
-# Split into seasons ------------------------------------------------------
-datAnnotCleaned <- datAnnotCleaned %>%
-  mutate(month = lubridate::month(timestampIsrael),
-         year = lubridate::year(timestampIsrael),
-         season = case_when(month %in% 7:11 ~ "nb",
-                            month %in% c(12, 1:6) ~ "b"),
-         seasonUnique = case_when(season == "nb" ~ paste(year, season, sep = "_"),
-                                  season == "b" & month == 12 ~ 
-                                    paste(year+1, season, sep = "_"),
-                                  TRUE ~ paste(year, season, sep = "_")))
+# Split into Marta's 3 seasons --------------------------------------------
+s1 <- datAnnotCleaned %>%
+  mutate(start_breeding = ifelse(month %in% c(1:5),
+                                 paste(as.character(year-1), "-", "12", "-", "15", sep = ""),
+                                 paste(as.character(year), "-", "12", "-", "15", sep = "")),
+         start_summer = ifelse(month == 12,
+                               paste(as.character(year + 1), "-", "05", "-", "15", sep = ""),
+                               paste(as.character(year), "-", "05", "-", "15", sep = "")),
+         start_fall = as.Date(paste(as.character(year), "-", "09", "-", "15", sep = "")),
+         start_breeding = as.Date(start_breeding),
+         start_summer = as.Date(start_summer),
+         season = case_when(
+           dateOnly >= start_breeding & dateOnly < start_summer ~ "breeding",
+           dateOnly >= start_summer & dateOnly <= start_fall ~ "summer",
+           dateOnly >= start_fall & dateOnly < start_breeding ~ "fall"))
+
+s2 <- s1 %>%
+  mutate(age = year - birth_year,
+         sex = case_when(sex == "f/m" ~ "u",
+                         TRUE ~ sex)) %>%
+  mutate(age = ifelse(season == "breeding" & month %in% c(1, 12), age + 1, age)) %>%
+  group_by(Nili_id, year, month) %>%
+  mutate(age = ifelse(month == 2, min(age) + 1, age)) %>%
+  mutate(age_group = case_when(age == 0 ~ "juv",
+                               age >= 1 & age <= 4 ~ "sub",
+                               age >= 5 ~ "adult",
+                               TRUE ~ NA)) %>%
+  mutate(seasonUnique = case_when(season %in% c("fall", "summer") ~ paste(year, season, sep = "_"),
+                                  season == "breeding" & month == 12 ~ paste(year + 1, season, sep = "_"),
+                                  season == "breeding" & month != 12 ~ paste(year, season, sep = "_"))) %>%
+  # explicitly set the factor levels in temporal order
+  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall")),
+         season = factor(season, levels = c("breeding", "summer", "fall")))
+
+# remove columns that were used in the season calculation
+s3 <- s2 %>%
+  dplyr::select(-c(month, start_breeding, start_summer, start_fall))
 
 # Separate the seasons -----------------------------
-seasons <- datAnnotCleaned %>%
+seasons <- s3 %>%
   group_by(seasonUnique) %>%
   group_split(.keep = T)
-seasonNames <- map_chr(seasons, ~.x$seasonUnique[1])
+# extract the season names in case we need a separate vector at some point.
+seasonNames <- map_chr(seasons, ~as.character(.x$seasonUnique[1])) # ok good, these are in the right order
 
 # Restrict to southern individuals ----------------------------------------
 # Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (in ITM)
@@ -141,7 +162,7 @@ southernIndivs <- map(centroids, ~.x %>%
 seasons <- map2(.x = seasons, .y = southernIndivs, ~.x %>% filter(Nili_id %in% .y))
 
 # Save copies for soc analysis --------------------------------------------
-# We don't want to remove individuals with too few ppd or too few days tracked for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So, before I filter for ppd and for days tracked, going to save a copy to use for social analysis. 
+# The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So, before I filter for ppd and for days tracked, going to save a copy to use for social analysis. 
 seasons_forSoc <- seasons
 roosts_seasons_forSoc <- purrr::map(seasons_forSoc, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
 roosts_seasons_forSoc <- roosts_seasons_forSoc %>%
@@ -155,23 +176,93 @@ save(roosts_seasons_forSoc, file = "data/roosts_seasons_forSoc.Rda")
 # How many points per day are we looking at?
 ppd <- map_dfr(seasons, ~.x %>%
              st_drop_geometry() %>%
-             group_by(seasonUnique, Nili_id, dateOnly) %>%
+             group_by(seasonUnique, season, Nili_id, dateOnly) %>%
              summarize(n = n()))
 
-ppd %>%
-  ggplot(aes(x = n))+
-  geom_histogram()+
-  facet_wrap(~seasonUnique, scales ="free")+
-  theme_classic() # XXX start here--how to identify too few ppd?
+## Theoretically, should only have 72 points per day--12 hours, 6 points per hour. That should vary a bit. I don't really understand why so many individuals/days have more than 100 points per day, but let's proceed for now: going to downsample that to 10 minue intervals anyway, so it won't matter.
 
-## Theoretically, should only have 72 points per day--12 hours, 6 points per hour. That should vary a bit. I don't really understand why so many individuals/days have more than 100 points per day, but let's proceed for now.
-# Orr suggests to just restrict to individuals with >30 points per day.
+# Orr suggests to just restrict to vulture*days with >30 points per day. Let's see what that would look like.
+ppd %>%
+  mutate(Status = ifelse(n < 30, "removed", "kept")) %>%
+  ggplot(aes(x = n))+
+  geom_histogram(aes(fill = Status))+
+  facet_wrap(~seasonUnique, scales ="free")+
+  geom_vline(aes(xintercept = 30), col = "red")+
+  scale_fill_manual(values = c("darkgray", "red"))+
+  theme_classic()+
+  ylab("# vulture*days")+
+  xlab("# points per vulture*day")
+
+ppd <- ppd %>%
+  ungroup() %>%
+  mutate(removed = ifelse(n < 30, T, F))
+
+# what proportion of vulture*days are removed overall?
+(propRemoved <- ppd %>%
+    group_by(seasonUnique, season) %>%
+    summarize(nTot = n(),
+              nRemoved = sum(removed),
+              propRemoved = nRemoved/nTot))
+propRemoved %>%
+  ggplot(aes(x = seasonUnique, y = propRemoved, col = season))+
+  geom_point(size = 10)+
+  theme_classic()+
+  scale_color_manual(values = c("blue", "red", "darkorange"))
+
+# I'm a bit concerned about this because it removes more data for the breeding season than for the non-breeding seasons (likely because less sunlight during those seasons)
+
+# what about by individual over each season?
+ppd %>%
+  group_by(seasonUnique, season, Nili_id) %>%
+  summarize(propRemoved = sum(removed)/n()) %>%
+  ggplot(aes(x = seasonUnique, y = propRemoved))+
+  geom_boxplot(aes(group = seasonUnique, fill = season))+
+  geom_jitter(width = 0.2, alpha = 0.3, size = 2)+
+  scale_fill_manual(name = "Season", values = c("blue", "red", "darkorange"))+
+  theme_classic()+ # tells the same story
+  ylab("Proportion of days removed")+
+  xlab("")
+
+# Remove nighttime points -------------------------------------------------
+seasons <- map(seasons, ~{
+  times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
+                                     lat = 31.434306, lon = 34.991889,
+                                     keep = c("sunrise", "sunset")) %>%
+    dplyr::select("dateOnly" = date, sunrise, sunset)
+  
+  .x <- .x %>%
+    dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
+    dplyr::left_join(times, by = "dateOnly") %>%
+    dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
+    dplyr::select(-c(sunrise, sunset)) %>%
+    dplyr::filter(daylight == "day")
+})
+
+# re-calculate ppd
+ppd <- map_dfr(seasons, ~.x %>%
+                 st_drop_geometry() %>%
+                 group_by(seasonUnique, season, Nili_id, dateOnly) %>%
+                 summarize(n = n()))
+
+ppd %>% # visualize ppd
+  mutate(Status = ifelse(n < 30, "removed", "kept")) %>%
+  ggplot(aes(x = n))+
+  geom_histogram(aes(fill = Status))+
+  facet_wrap(~seasonUnique, scales ="free")+
+  geom_vline(aes(xintercept = 30), col = "red")+
+  scale_fill_manual(values = c("darkgray", "red"))+
+  theme_classic()+
+  ylab("# vulture*days")+
+  xlab("# points per vulture*day")
+
+# Now most individuals have fewer than 100 points per day. I still see some really high ppd values for 2020 summer, which is probably because there were more burst sampling occasions in that season. Those will be removed when we downsample.
 
 ## Remove days on which individuals don't have at least 30 points.
-seasons <- map(seasons, ~.x %>%
-                 group_by(Nili_id, dateOnly) %>%
-                 filter(n() >= 30) %>%
-                 ungroup())
+# XXX DID NOT RUN THIS PART!
+# seasons <- map(seasons, ~.x %>%
+#                  group_by(Nili_id, dateOnly) %>%
+#                  filter(n() >= 30) %>%
+#                  ungroup())
 
 # Include only individuals with enough days tracked -----------------------
 ## Must be tracked for at least 1/4 of the number of days in the season.
