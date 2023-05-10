@@ -28,6 +28,8 @@ colSums(is.na(allMovementBehavior))
 # Scale relative to all the seasons, not just one season (movementBehaviorScaled has vars scaled per season)
 allMovementBehavior_scaledAll <- allMovementBehavior %>%
   mutate(across(-c(Nili_id, seasonUnique, birth_year, sex), function(x){as.numeric(as.vector(scale(x)))}))
+allMovementBehavior_scaledAll <- allMovementBehavior_scaledAll[complete.cases(allMovementBehavior_scaledAll),] # remove a couple NA values
+colSums(is.na(allMovementBehavior_scaledAll))
 
 # Multivariate index of movement behavior (PCA) ------------------------------
 # Decided to create one single PCA for the full time range, and then apply those loadings to individual seasons as needed. Currently, the time range is from "2021-12-01 00:00" to "2023-03-31 11:59".
@@ -86,8 +88,7 @@ fviz_pca_biplot(pca_all, axes = c(1,2),
   theme_classic()+
   ggtitle("Overall PCA: Sep 2020-Nov 2022") # at some point will want to reverse the direction of the PC1 loadings.
 contrib <- round(pca_all$rotation[,1:3]*100, 2) %>%
-  as.data.frame() %>% 
-  mutate(PC1_rev = -1*PC1) # reversed PC1 so it's not so annoying
+  as.data.frame()
 contrib
 
 fviz_screeplot(pca_all, addLabels = T)+
@@ -124,6 +125,4 @@ linked %>%
   geom_point()+
   geom_smooth()+
   theme_classic()+
-  facet_wrap(~season) # this is opposite, and it doesn't really make sense...
-
-
+  facet_wrap(~season) # makes sense! As the DDT/DMD ratio increases, so does tortuosity. As expected. Good thing we fixed the tortuosity.
