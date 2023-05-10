@@ -22,8 +22,17 @@ library(future) # for parallel computing
 
 ## Load data ---------------------------------------------------------------
 base::load("data/seasons_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
-base::load("data/roosts_seasons.Rda")
-seasonNames <- map_chr(seasons_10min, ~.x$seasonUnique[1])
+# add number of points per day
+seasons_10min <- map(seasons_10min, ~.x %>% group_by(Nili_id, dateOnly) %>% mutate(ppd = length(unique(timestamp))) %>% ungroup() %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))) %>% ungroup())
+
+ppd <- map(seasons_10min, ~.x %>% # points per day
+             st_drop_geometry() %>%
+             dplyr::select(Nili_id, dateOnly, ppd) %>%
+             distinct())
+
+base::load("data/roosts_seasons.Rda") # don't need a separate roost dataset for the rarefied data, because roosts are only once per day, and it makes sense to use the most detailed dataset possible.
+roosts_seasons <- map(roosts_seasons, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
+seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
 roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
 
 durs <- map_dbl(seasons_10min, ~{
@@ -50,12 +59,13 @@ hrList_indivs <- map(seasons_10min, ~.x %>%
                        group_by(Nili_id) %>%
                        group_split(.keep = T))
 save(hrList_indivs, file = "data/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
+
 indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
 
 kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
   if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
-  else{k <- NULL} # changed back to the href value here because Noa thinks that's better, but will need to discuss with Noa and Marta.
+  else{k <- NULL} # changed back to the href value here--important to have different h for individuals with different numbers of points, and the fact that we'll take percentages of the resulting errors should mean that it comes out in the wash anyway.
   return(k)}, .progress = T))
 
 ### Core Area (50%) ---------------------------------------------------------
@@ -85,7 +95,7 @@ indsKUDAreas <- map(indsKUDAreas, ~.x %>%
 
 ## ROOST SITE USE ----------------------------------------------------------
 # Make sure that each roost point intersects only one (or 0) roost (multi)polygon(s)
-table(unlist(map(roosts_seasons, ~as.numeric(lengths(st_intersects(.x, roostPolygons)))))) 
+table(unlist(map(roosts_seasons, ~as.numeric(lengths(st_intersects(.x, roostPolygons)))))) # should be only 0 or 1. Good!
 
 # Get ID's of which polygon each roost location falls into
 roostIDs <- map(roosts_seasons, ~as.numeric(st_intersects(x = .x, y = roostPolygons)))
@@ -162,11 +172,14 @@ mostUsedRoostProp <- map(ranking, ~.x %>%
                            filter(rank == 1) %>%
                            dplyr::select(Nili_id, "mostUsedRoostProp" = propUsed))
 
+# How do these relate to numbers of days tracked?
+
 ## MOVEMENT ----------------------------------------------------------------
 ### Daily Flight Duration ---------------------------------------------------
-dfd <- map(seasons_10min, ~.x %>%  # using the rarefied data, for consistency. Shouldn't really affect the estimates much.
+dfd <- map(seasons_10min, ~.x %>%  # using the 10-minute rarefied data, for consistency. Shouldn't really affect the estimates much.
              st_drop_geometry() %>%
-             group_by(Nili_id) %>%
+             group_by(Nili_id, dateOnly) %>%
+             arrange(timestamp, .by_group = T) %>%
              mutate(flight = ifelse(ground_speed > 5, T, F),
                     lagTimestamp = lag(timestamp),
                     lagFlight = lag(flight)) %>%
@@ -174,8 +187,47 @@ dfd <- map(seasons_10min, ~.x %>%  # using the rarefied data, for consistency. S
                                     flight & !lagFlight ~ 0,
                                     !flight & lagFlight ~ as.numeric(difftime(timestamp, lagTimestamp, units = "secs")),
                                     is.na(flight)|is.na(lagFlight) ~ 0)) %>%
-             group_by(Nili_id, dateOnly) %>%
+             group_by(Nili_id, dateOnly, ppd) %>%
              summarize(totalFlightDuration = as.numeric(sum(dur, na.rm = T))))
+
+# Sanity check for dfd: should always be <86400 and should never be negative
+purrr::list_rbind(dfd) %>%
+  ggplot(aes(x = totalFlightDuration))+
+  geom_histogram() # okay, that looks gorgeous. Just to make sure, let's look at a summary
+purrr::list_rbind(dfd) %>%
+  pull(totalFlightDuration) %>%
+  summary() # yay! no negative values, and nothing over 50000 (or very rarely.) Median is 13208, which is around 3.66 hours of flight per day. 40000, which is in the tail, is 11 hours of flight per day. That doesn't make sense. Even 30000 is 8.3 hours of flight per day, which still seems really high but isn't utterly out of the question biologically... or maybe it is? I wonder if I need to look into doing something about this. 
+# I assume this just happens when you have one point far away from the others that's a flight point, and the previous one was also a flight point, so all of that time gets counted as flight. This may just need to count as error; I don't think there's something *fundamentally* wrong in how I'm doing the calculation.
+
+purrr::list_rbind(dfd) %>%
+  filter(totalFlightDuration < 0)
+
+## Does daily flight duration depend on the number of points?
+walk(dfd, ~{
+  p <- .x %>% 
+    ggplot(aes(x = ppd, y = totalFlightDuration))+
+    geom_point()+
+    geom_smooth(method = "lm")
+  print(p)}) # maybe a relationship, but need to deal with weird outlier values first.
+
+# Why do we still have individuals with so many points per day when it was supposed to be rarefied?? Go back to data prep and check on this. For now, let's look at a graph with those ones removed:
+walk(dfd, ~{
+  p <- .x %>% 
+    filter(ppd < 75) %>%
+    ggplot(aes(x = ppd, y = totalFlightDuration))+
+    geom_point()+
+    geom_smooth(method = "lm")
+  print(p)})
+# ok, we do have a pretty strong relationship here between number of points per day and daily flight duration. But I don't think that will be fixed by removing the individuals under 30. 
+
+walk(dfd, ~{
+  p <- .x %>% 
+    filter(ppd < 75, ppd > 30) %>%
+    ggplot(aes(x = ppd, y = totalFlightDuration))+
+    geom_point()+
+    geom_smooth(method = "lm")
+  print(p)})
+# yeah, confirmed, this doesn't do much to change the relationship. May just need to correct DFD by points per day before taking the mean. XXX
 
 dfdSumm <- map(dfd, ~.x %>%
                  group_by(Nili_id) %>%
@@ -186,48 +238,59 @@ dfdSumm <- map(dfd, ~.x %>%
 
 ### Daily Distance Traveled/Mean Displacement -------------------------------
 
-# set up parallel backend with 4 sessions (change this to match your machine)
-future::plan(multicore, workers = 4)
-
-# function to calculate displacements within a group
-calc_displacements <- function(group) {
-  start_point <- dplyr::first(group$geometry)
-  group %>%
-    dplyr::mutate(
-      disp_from_start = as.vector(sf::st_distance(geometry, start_point)),
-      dist_to_prev = as.vector(sf::st_distance(geometry, dplyr::lag(geometry, default = dplyr::first(geometry)), by_element = T))
-    )
-}
-
-# function to calculate metrics for each individual and date
-calc_metrics <- function(data){
-  # split the data by Nili_id and dateOnly
-  groups <- data %>%
-    dplyr::group_split(Nili_id, dateOnly)
-
-  # run the distance calculations in parallel using furrr::future_map()
-  disp_data <- furrr::future_map_dfr(groups, calc_displacements)
-
-  # group the data by Nili_id and dateOnly, and calculate the metrics
-  result <- disp_data %>%
-    sf::st_drop_geometry() %>%
-    dplyr::group_by(Nili_id, dateOnly) %>%
-    arrange(timestamp, .by_group = T) %>%
-    mutate(csDist = cumsum(replace_na(dist_to_prev, 0))) %>%
-    dplyr::summarise(
-      dmd = max(disp_from_start, na.rm = T),
-      ddt = sum(dist_to_prev, na.rm = T),
-      distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
-      tort_dmd = distToMaxPt/dmd) # YIKES
-
-  return(result)
-}
-
-# apply the calc_metrics() function to each season in the list using purrr::map()
-dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
-# XXX START HERE
-save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
+# # set up parallel backend with 4 sessions (change this to match your machine)
+# future::plan(multicore, workers = 4)
+# 
+# # function to calculate displacements within a group
+# calc_displacements <- function(group) {
+#   start_point <- dplyr::first(group$geometry)
+#   group %>%
+#     dplyr::mutate(
+#       disp_from_start = as.vector(sf::st_distance(geometry, start_point)),
+#       dist_to_prev = as.vector(sf::st_distance(geometry, dplyr::lag(geometry, default = dplyr::first(geometry)), by_element = T))
+#     )
+# }
+# 
+# # function to calculate metrics for each individual and date
+# calc_metrics <- function(data){
+#   # split the data by Nili_id and dateOnly
+#   groups <- data %>%
+#     dplyr::group_split(Nili_id, dateOnly)
+# 
+#   # run the distance calculations in parallel using furrr::future_map()
+#   disp_data <- furrr::future_map_dfr(groups, calc_displacements)
+# 
+#   # group the data by Nili_id and dateOnly, and calculate the metrics
+#   result <- disp_data %>%
+#     sf::st_drop_geometry() %>%
+#     dplyr::group_by(Nili_id, dateOnly) %>%
+#     arrange(timestamp, .by_group = T) %>%
+#     mutate(csDist = cumsum(replace_na(dist_to_prev, 0))) %>%
+#     dplyr::summarise(
+#       dmd = max(disp_from_start, na.rm = T),
+#       ddt = sum(dist_to_prev, na.rm = T),
+#       distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
+#       tort_dmd = distToMaxPt/dmd) # YIKES
+# 
+#   return(result)
+# }
+# 
+# # apply the calc_metrics() function to each season in the list using purrr::map()
+# dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
+# save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
 load("data/dailyMovementList_seasons.Rda") 
+dailyMovementList_seasons <- map2(dailyMovementList_seasons, ppd, ~.x %>%
+                                    left_join(.y)) # join points per day (ppd)
+
+# Investigate relationship between movement metrics and ppd
+names(dailyMovementList_seasons) <- seasonNames
+purrr::list_rbind(dailyMovementList_seasons, names_to = "seasonUnique") %>%
+  pivot_longer(cols = c("dmd", "ddt", "tort_dmd"), names_to = "metric", values_to = "value") %>%
+  ggplot(aes(x = ppd, y = value, col = seasonUnique))+
+  geom_point(size = 0.2)+
+  facet_wrap(~metric, scales = "free")+
+  geom_smooth(method = "lm")+
+  theme_classic() # ok, once again, the movement metrics are strongly correlated with the number of points, but I don't think removing the ppd under 30 will really change that.
 
 mnMvmt <- map(dailyMovementList_seasons, ~.x %>%
                 group_by(Nili_id) %>%
@@ -248,7 +311,14 @@ dailyAltitudes <- map(seasons_10min, ~.x %>%
                         summarize(meanAltitude = mean(height_above_ground, na.rm  =T),
                                   maxAltitude = max(height_above_ground, na.rm = T),
                                   medAltitude = median(height_above_ground, na.rm = T),
-                                  propOver1km = sum(height_above_ground > 1000)/n()))
+                                  propOver1km = sum(height_above_ground > 1000)/n())) %>%
+  map2(., ppd, ~.x %>% left_join(.y))
+names(dailyAltitudes) <- seasonNames
+dailyAltitudes %>% purrr::list_rbind(., names_to = "seasonUnique") %>%
+  ggplot(aes(x = ppd, y = maxAltitude, col = seasonUnique))+
+  geom_smooth(method = "lm")+
+  geom_point(size = 0.2)+
+  theme_classic()
 
 dailyAltitudesSumm <- map(dailyAltitudes, ~.x %>%
                             group_by(Nili_id) %>%
@@ -272,7 +342,6 @@ movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by
 ageSex <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% 
                 dplyr::select(Nili_id, birth_year, sex) %>% 
                 distinct())
-
 
 movementBehavior <- map2(movementBehavior, ageSex, ~left_join(.x, .y, by = "Nili_id"))
 
