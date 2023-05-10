@@ -9,7 +9,7 @@ library(sf)
 load("data/seasons_forSoc.Rda")
 roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
 load("data/roosts_seasons_forSoc.Rda")
-seasonNames <- map_chr(seasons_forSoc, ~.x$seasonUnique[1])
+seasonNames <- map_chr(seasons_forSoc, ~as.character(.x$seasonUnique[1]))
 
 # Social Networks ---------------------------------------------------------
 flightSeasons <- map(seasons_forSoc, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri")) # XXX start here
