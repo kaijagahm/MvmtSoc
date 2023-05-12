@@ -172,6 +172,13 @@ roosts_seasons_forSoc <- roosts_seasons_forSoc %>%
 save(seasons_forSoc, file = "data/seasons_forSoc.Rda") # XXX re-do this one
 save(roosts_seasons_forSoc, file = "data/roosts_seasons_forSoc.Rda")
 
+# Get roosts for each season ----------------------------------------------
+roosts_seasons <- purrr::map(seasons, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
+
+roosts_seasons <- roosts_seasons %>%
+  map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat")))
+save(roosts_seasons, file = "data/roosts_seasons.Rda")
+
 # Include only individuals with enough points per day ------------------------
 # How many points per day are we looking at?
 ppd <- map_dfr(seasons, ~.x %>%
@@ -245,11 +252,11 @@ ppd <- map_dfr(seasons, ~.x %>%
                  summarize(n = n()))
 
 ppd %>% # visualize ppd
-  mutate(Status = ifelse(n < 30, "removed", "kept")) %>%
+  mutate(Status = ifelse(n < 10, "removed", "kept")) %>%
   ggplot(aes(x = n))+
   geom_histogram(aes(fill = Status))+
   facet_wrap(~seasonUnique, scales ="free")+
-  geom_vline(aes(xintercept = 30), col = "red")+
+  geom_vline(aes(xintercept = 10), col = "red")+
   scale_fill_manual(values = c("darkgray", "red"))+
   theme_classic()+
   ylab("# vulture*days")+
@@ -257,12 +264,11 @@ ppd %>% # visualize ppd
 
 # Now most individuals have fewer than 100 points per day. I still see some really high ppd values for 2020 summer, which is probably because there were more burst sampling occasions in that season. Those will be removed when we downsample.
 
-## Remove days on which individuals don't have at least 30 points.
-# XXX DID NOT RUN THIS PART!
-# seasons <- map(seasons, ~.x %>%
-#                  group_by(Nili_id, dateOnly) %>%
-#                  filter(n() >= 30) %>%
-#                  ungroup())
+## Remove days on which individuals don't have at least 10 points.
+seasons <- map(seasons, ~.x %>%
+                 group_by(Nili_id, dateOnly) %>%
+                 filter(n() >= 10) %>%
+                 ungroup())
 
 # Include only individuals with enough days tracked -----------------------
 ## Must be tracked for at least 1/4 of the number of days in the season.
@@ -276,20 +282,15 @@ indivsToKeep <- map2(.x = seasons, .y = durs, ~.x %>%
                        filter(propDaysTracked >= 0.25) %>%
                        pull(Nili_id))
 
-## remove the individuals not tracked for long enough
+## remove those individuals not tracked for enough days
 seasons <- map2(.x = seasons, .y = indivsToKeep, ~.x %>% filter(Nili_id %in% .y))
-
-# Get roosts for each season ----------------------------------------------
-roosts_seasons <- purrr::map(seasons, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
-
-roosts_seasons <- roosts_seasons %>%
-  map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat")))
 
 # Get elevation rasters ---------------------------------------------------
 elevs_z09_seasons <- map(seasons, ~elevatr::get_elev_raster(.x %>% st_transform(crs = "WGS84"), z = 9))
 
 groundElev_z09 <- map2(elevs_z09_seasons, seasons, ~raster::extract(x = .x, y = .y %>% st_transform(crs = "WGS84")))
 
+## use elevation rasters to calculate height above ground level
 seasons <- map2(.x = seasons, .y = groundElev_z09, 
                 ~.x %>% mutate(height_above_ground = .y,
                                height_above_ground = case_when(height_above_ground <0 ~ 0,
@@ -297,23 +298,24 @@ seasons <- map2(.x = seasons, .y = groundElev_z09,
 
 # Export the data
 save(seasons, file = "data/seasons.Rda")
-save(roosts_seasons, file = "data/roosts_seasons.Rda")
 
 # Downsample the data and save the downsampled data
 subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 10){
   sub <- df %>%
     arrange(idCol, timestampCol) %>%
     group_by(.data[[idCol]]) %>%
-    mutate(tc = cut(.data[[timestampCol]], breaks = paste(as.character(mins), "min", sep = " "))) %>%
-    group_by(.data[[idCol]], "d" = lubridate::date(.data[[timestampCol]]), tc) %>%
+    mutate(tc = cut(.data[[timestampCol]], 
+                    breaks = paste(as.character(mins), "min", sep = " "))) %>%
+    group_by(.data[[idCol]], 
+             "d" = lubridate::date(.data[[timestampCol]]), tc) %>%
     slice(1) %>%
     ungroup() %>%
     dplyr::select(-c("d", "tc"))
   return(sub)
 }
 
-# create downsampled data
-seasons_10min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # XXX start here--put this in the data prep section.
+# create and save downsampled datasets for later use
+seasons_10min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T)
 seasons_20min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 20), .progress = T)
 seasons_30min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 30), .progress = T)
 seasons_60min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 60), .progress = T)
@@ -324,3 +326,5 @@ save(seasons_20min, file = "data/seasons_20min.Rda")
 save(seasons_30min, file = "data/seasons_30min.Rda")
 save(seasons_60min, file = "data/seasons_60min.Rda")
 save(seasons_120min, file = "data/seasons_120min.Rda")
+
+# no need to calculate roosts for the downsampled data because in theory there's only one point per night.
