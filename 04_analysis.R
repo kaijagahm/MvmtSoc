@@ -152,8 +152,6 @@ bxp <- ggboxplot(
 bxp # we definitely have seasonal differences in movement! As expected.
 
 # Mixed models -------------------------------------------------------------------
-# Starting with CO-FLIGHT
-
 # Response variables:
 # Relative degree
 # Relative strength
@@ -166,6 +164,7 @@ bxp # we definitely have seasonal differences in movement! As expected.
 # sex (cat: m/f)
 # season (cat: b/nb)
 # year (cat)
+# mean points per day (continuous)
 # Nili_id (random effect) (1|Nili_id)
 flight <- linked %>%
   filter(type == "flight")
@@ -174,7 +173,9 @@ feeding <- linked %>%
 roosting <- linked %>%
   filter(type == "roosting")
 
-# FLIGHT: RELATIVE DEGREE
+
+# FLIGHT ------------------------------------------------------------------
+## Degree ------------------------------------------------------------------
 # I thought we couldn't include random effects if they had fewer than 5 levels, but maybe you can? https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8784019/
 # First, fit a model that includes all the predictors but no interaction effects, to check the VIF, which will tell us whether the predictors are correlated within the model.
 # Don't want to do year as a random effect--Marta argues that this would be like trying to make a boxplot with 3 data points. Doesn't make sense. See also https://stats.stackexchange.com/questions/464157/year-as-a-fixed-or-random-effect-in-glm-with-only-two-levels.
@@ -244,7 +245,7 @@ compare_performance(fd_noint, fd_4, fd_6, fd_7, fd_8, rank = T) # fd_8 is best, 
 # Compare performance of everything regardless of reasonable fit
 compare_performance(fd_noint, fd_max, fd_2, fd_3, fd_4, fd_5, fd_6, fd_7, fd_8, fd_9, rank = T) # model 9 (without PC1) does better, followed by model 8. On principle I don't really want to remove PC1, so maybe we'll keep model 8.
 
-# FLIGHT: RELATIVE STRENGTH
+## Strength ------------------------------------------------------------------
 # Theoretically we might want to do the same model selection for strength as for degree (same models in same order), but just to see, I'm going to do the process as if it were its own thing.
 # I think gaussian is still reasonable here:
 flight %>% ggplot(aes(x = strengthRelative))+geom_histogram() # yeah that's decently normal-shaped.
@@ -315,3 +316,43 @@ summary(fs_9)
 compare_performance(fs_noint, fs_4, fs_6, fs_7, fs_8, rank = T) # fs_6 is the best: strengthRelative ~ PC1*age_group + PC2 + year + mnPPD + (1|Nili_id)
 # Compare performance of everything regardless of reasonable fit
 compare_performance(fs_noint, fs_max, fs_2, fs_3, fs_4, fs_5, fs_6, fs_7, fs_8, fs_9, rank = T) # interesting--fs_3 wins and fs_6 is nowhere near the best.
+
+# FEEDING -----------------------------------------------------------------
+## Degree ------------------------------------------------------------------
+feeding %>% ggplot(aes(x = degreeRelative))+geom_histogram() # yeesh, this does not look very normal. But I'm still going to start by using a gaussian and see how it goes.
+
+es_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + 
+                   mnPPD + (1|Nili_id), data = feeding)
+summary(es_noint) 
+check_model(es_noint) # not bad!
+so_es_noint <- simulateResiduals(fittedModel = es_noint, plot = F)
+plot(so_es_noint) # yucky squiggles again :(. Maybe to be expected because relative degree.
+testDispersion(es_noint) # not bad! Pretty great actually.
+plotResiduals(es_noint, form = feeding$season) # bad
+plotResiduals(es_noint, form = feeding$PC1) # not too bad!
+plotResiduals(es_noint, form = feeding$PC2) # bad, but not as terrible as for flight
+plotResiduals(es_noint, form = feeding$age_group) # bad but not terrible
+plotResiduals(es_noint, form = feeding$year) # pretty good!
+plot_model(es_noint, type = "pred", term = "PC2", show.data = TRUE) # pretty bad fit
+plot_model(es_noint, type = "pred", term = "PC1", show.data = TRUE) # also pretty bad fit
+
+es_max <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = feeding)
+check_model(es_max) # really bad VIFs. Not candidate.
+summary(es_max) 
+vif(es_max) # season*mnPPD is the worst.
+
+es_2 <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = feeding)
+check_model(es_2) # VIes slightly improved but still really bad. Not candidate.
+vif(es_2) #PC1*season is the worst, so let's remove that. (still same as degree model)
+summary(es_2)
+
+
+# Lingering questions
+# 0. When I do performance::compare_performance, should I only include models that have already been deemed to fit the data fairly well, or should I include all of them? I can see arguments either way. Unclear to me whether compare_performance also takes into account the model diagnostics when evaluating performance, or if it only computes AIC and assumes you've already decided the diagnostics are met. I think it's the latter, but I'm not sure.
+# 0.5. Why does DHARMa sometimes show bad diagnostic plots even when check_model shows that things are fine?
+# 1. If I see that there are relationships between predictor variables in the pre-modeling plots, such as the age*PC boxplots I made at the top, does that mean I *should* or *shouldn't* include an interaction term? I thought it meant I should, but those all ended up needing to get removed, and now it's occurring to me that maybe that just means that they were correlated at first. Case in point: mean ppd * season always ends up having a super high VIF.
+# 2. Should I use the same model selection process or an independent one for each of the 9 models I need to make?
+# 3. Should I refrain from removing the PC's from the model if they are the variables of interest, or is an absence of a significant effect a result in itself?
+# 4. If I use different model selection processes (or the same one), what is the best way to compare effect sizes and which model is chosen between different models?
+# 5. These effect sizes seem really small... but maybe that's just because the relative degree and relative strength values are so small? Would multiply by the number of vultures for each season to think about the difference in real terms.
+# 6. Just generally, a little confused as to which things constitute results that I can talk about: 1) which models fit the data decently well as per the model checks, 2) which variables are retained in the best-fitting model of the candidates, and 3) the actual effect sizes and directions and p values of the best-fitting model. 
