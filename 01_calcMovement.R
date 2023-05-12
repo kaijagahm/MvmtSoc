@@ -25,6 +25,14 @@ base::load("data/seasons_10min.Rda") # data rarefied to 10 minute intervals. Goi
 # add number of points per day
 seasons_10min <- map(seasons_10min, ~.x %>% group_by(Nili_id, dateOnly) %>% mutate(ppd = length(unique(timestamp))) %>% ungroup() %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))) %>% ungroup())
 
+mnPPD <- seasons_10min %>%
+  purrr::list_rbind() %>%
+  group_by(seasonUnique, Nili_id, dateOnly) %>%
+  summarize(ppd = ppd[1]) %>%
+  group_by(seasonUnique, Nili_id) %>%
+  summarize(mnPPD = mean(ppd))
+save(mnPPD, file = "data/mnPPD.Rda")
+
 ppd <- map(seasons_10min, ~.x %>% # points per day
              st_drop_geometry() %>%
              dplyr::select(Nili_id, dateOnly, ppd) %>%
@@ -274,10 +282,10 @@ dfdSumm <- map(dfd, ~.x %>%
 # 
 #   return(result)
 # }
-# 
-# # apply the calc_metrics() function to each season in the list using purrr::map()
-# dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
-# save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
+
+# apply the calc_metrics() function to each season in the list using purrr::map()
+dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
+save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
 load("data/dailyMovementList_seasons.Rda") 
 dailyMovementList_seasons <- map2(dailyMovementList_seasons, ppd, ~.x %>%
                                     left_join(.y)) # join points per day (ppd)
