@@ -246,4 +246,72 @@ compare_performance(fd_noint, fd_max, fd_2, fd_3, fd_4, fd_5, fd_6, fd_7, fd_8, 
 
 # FLIGHT: RELATIVE STRENGTH
 # Theoretically we might want to do the same model selection for strength as for degree (same models in same order), but just to see, I'm going to do the process as if it were its own thing.
+# I think gaussian is still reasonable here:
+flight %>% ggplot(aes(x = strengthRelative))+geom_histogram() # yeah that's decently normal-shaped.
 
+fs_noint <- lmer(strengthRelative ~ PC1 + PC2 + age_group + season + year + 
+                   mnPPD + (1|Nili_id), data = flight)
+summary(fs_noint) # oh weird, no season effect here! Also no PC2, though PC1 is more significant. Age group does show up this time, and ppd remains not that significant.
+check_model(fs_noint) # oh wow this actually looks perfect!!! Candidate.
+# What does DHARMa think?
+so_fs_noint <- simulateResiduals(fittedModel = fs_noint, plot = F)
+plot(so_fs_noint) # holy moly that's so nice! Yesssss
+# No evidence of multicollinearity.
+testDispersion(fs_noint) # beautiful
+plotResiduals(fs_noint, form = flight$season) # beautiful
+plotResiduals(fs_noint, form = flight$PC1) # meh but not terrible
+plotResiduals(fs_noint, form = flight$PC2) # meh but not quite as bad as the other one
+plotResiduals(fs_noint, form = flight$age_group) # not terrible
+plotResiduals(fs_noint, form = flight$year) # yay!
+plot_model(fs_noint, type = "pred", term = "PC2", show.data = TRUE) # Again, a pretty bad fit; might want a nonlinear term.
+plot_model(fs_noint, type = "pred", term = "PC1", show.data = TRUE) # also kind of bad
+
+fs_max <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+check_model(fs_max) # really bad VIFs. Not candidate.
+summary(fs_max) # let's start by taking out season*mnPPD (so far, this is the same as the degree model.)
+vif(fs_max)
+
+fs_2 <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fs_2) # VIFs slightly improved but still really bad. Not candidate.
+vif(fs_2) #PC1*season is the worst, so let's remove that. (still same as degree model)
+summary(fs_2)
+
+fs_3 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fs_3) # okay, getting better, but not candidate (same as degree)
+vif(fs_3)
+
+# remove PC2*age_group*season interaction (same as degree)
+fs_4 <- lmer(strengthRelative ~ PC1*age_group + PC2 + season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fs_4) # waaay better on the VIF front. Candidate. Looks great. Same as degree
+vif(fs_4) # these look fine.
+
+# I don't love that I had to take out the interactions of the PCs with season, though. What about putting back PC2*season? (same as degree)
+fs_5 <- lmer(strengthRelative ~ PC1*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
+vif(fs_5) # not great
+check_model(fs_5) # not candidate--vif too high. (same as degree).
+
+# Going back to fs_4, the vif values all look totally fine. Let's look at the summary to decide what to remove next.
+summary(fs_4) # Here we diverge from the degree model. No effect of season at all. Marginal effects of mnPPD and PC1*age_group. Also no PC2 effect! Strange. Get rid of season...
+fs_6 <- lmer(strengthRelative ~ PC1*age_group + PC2 + year + mnPPD + (1|Nili_id), data = flight)
+check_model(fs_6) # looks great! candidate.
+summary(fs_6)
+
+# Same as for degree, the PC1*age_group effect is only marginally significant (it was n.s. for degree). Let's remove it. (I'm avoiding removing PC2 until the end.)
+fs_7 <- lmer(strengthRelative ~ PC1 + PC2 + age_group + year + (1|Nili_id), data = flight)
+check_model(fs_7) # looks good. Candidate.
+summary(fs_7) # age is now n.s. Remove it...
+
+# remove age_group
+fs_8 <- lmer(strengthRelative ~ PC1 + PC2 + year + (1|Nili_id), data = flight)
+check_model(fs_8)  # candidate
+summary(fs_8) # Now PC2 is n.s.
+
+# remove PC2
+fs_9 <- lmer(strengthRelative ~ PC1 + year + (1|Nili_id), data = flight)
+check_model(fs_9) # has some bad influential observations, plus I don't really want to get rid of the PCs conceptually, so not candidate.
+summary(fs_9)
+
+# Compare performance of only the models with a reasonable fit
+compare_performance(fs_noint, fs_4, fs_6, fs_7, fs_8, rank = T) # fs_6 is the best: strengthRelative ~ PC1*age_group + PC2 + year + mnPPD + (1|Nili_id)
+# Compare performance of everything regardless of reasonable fit
+compare_performance(fs_noint, fs_max, fs_2, fs_3, fs_4, fs_5, fs_6, fs_7, fs_8, fs_9, rank = T) # interesting--fs_3 wins and fs_6 is nowhere near the best.
