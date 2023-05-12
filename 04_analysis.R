@@ -177,153 +177,73 @@ roosting <- linked %>%
 # FLIGHT: RELATIVE DEGREE
 # I thought we couldn't include random effects if they had fewer than 5 levels, but maybe you can? https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8784019/
 # First, fit a model that includes all the predictors but no interaction effects, to check the VIF, which will tell us whether the predictors are correlated within the model.
-fd_noint <- glmmTMB(degreeRelative ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), 
-                    data = flight, family = beta_family()) # link function transforms your variable
-#vif(fd_noint) # can't calculate vif on beta-distribution models i guess?
+# Don't want to do year as a random effect--Marta argues that this would be like trying to make a boxplot with 3 data points. Doesn't make sense. See also https://stats.stackexchange.com/questions/464157/year-as-a-fixed-or-random-effect-in-glm-with-only-two-levels.
+fd_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + 
+                   mnPPD + (1|Nili_id), data = flight)
 summary(fd_noint) # age group comes out the least significant.
 # use DHARMa to check the model
 so_fd_noint <- simulateResiduals(fittedModel = fd_noint, plot = F)
-plot(so_fd_noint) # okay this looks pretty bad, actually. What do we do about that?
-testDispersion(so_fd_noint)
-plotResiduals(so_fd_noint, form = flight$season)
-plotResiduals(so_fd_noint, form = flight$PC1)
-plotResiduals(so_fd_noint, form = flight$PC2)
-plotResiduals(so_fd_noint, form = flight$age_group)
-plotResiduals(so_fd_noint, form = flight$year)
-# okay literally *ALL* of these are bad. What do I do??
-# Seems like the model is underdispersed, based on comparing it to the DHARMa examples. This would suggest that the model is too complicated... Let's begin removing things.
-testDispersion(so_fd_noint) # looks like it's underdispersed?
+plot(so_fd_noint) # this looks bad
+check_model(fd_noint) # this looks fine, actually! Candidate
+# why does DHARMa look terrible when check_model looks fine?
+# Anyway, no evidence of multicollinearity, judging from the VIFs. So we should be okay continuing to use these params in the model.
+testDispersion(fd_noint) # this is actually pretty good!
+plotResiduals(fd_noint, form = flight$season)
+plotResiduals(fd_noint, form = flight$PC1)
+plotResiduals(fd_noint, form = flight$PC2)
+plotResiduals(fd_noint, form = flight$age_group)
+plotResiduals(fd_noint, form = flight$year)
+plot_model(fd_noint, type = "pred", term = "PC2", show.data = TRUE) # this is a pretty bad fit. Marta suggests a nonlinear term here.
 
-fd_max <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_max <- simulateResiduals(fittedModel = fd_max, plot = F)
-plot(so_fd_max)
-summary(fd_max) # almost nothing here is significant. Can start by removing the three-way interaction with PC1.
+fd_max <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+check_model(fd_max) # oof those VIFs are baaad. Not candidate
+summary(fd_max) # let's start by taking out season*mnPPD
+vif(fd_max)
 
-plotResiduals(so_fd_max, form = flight$PC1)
-plotResiduals(so_fd_max, form = flight$PC2)
-plotResiduals(so_fd_max, form = flight$age_group)
-plotResiduals(so_fd_max, form = flight$year)
-
-fd_2 <- glmmTMB(degreeRelative ~ PC1*age_group + PC1*season + PC2*age_group*season + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_2 <- simulateResiduals(fittedModel = fd_2, plot = F)
-plot(so_fd_2)
-summary(fd_2) # interactions between PC1 and age and season are not significant
-
-fd_3 <- glmmTMB(degreeRelative ~ PC1 + PC1*season + PC2*age_group*season + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_3 <- simulateResiduals(fittedModel = fd_3, plot = F)
-plot(so_fd_3) # yuck
-summary(fd_3) # yep, can still remove PC1*season
-
-fd_4 <- glmmTMB(degreeRelative ~ PC1 + PC2*age_group*season + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_4 <- simulateResiduals(fittedModel = fd_4, plot = F)
-plot(so_fd_4)
-summary(fd_4) # okay, not loving the age group *season effect
-
-fd_5 <- glmmTMB(degreeRelative ~ PC1 + PC2*age_group + PC2*season + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_5 <- simulateResiduals(fittedModel = fd_5, plot = F)
-plot(so_fd_5) # this fit is still really really bad!
-summary(fd_5) # now none of the interactions with PC2 are any good. Let's remove one at at time.
-
-fd_6 <- glmmTMB(degreeRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_6 <- simulateResiduals(fittedModel = fd_6, plot = F)
-plot(so_fd_6) 
-summary(fd_6)
-
-fd_7 <- glmmTMB(degreeRelative ~ PC1 + PC2*season + age_group + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_7 <- simulateResiduals(fittedModel = fd_7, plot = F)
-plot(so_fd_7) 
-summary(fd_7)
-
-# the next step would be to remove both interactions, and that would get us back to the fd_noint model. For good measure, going to include two models with the PC1 interactions but without PC2 interactions. Expect these both to be bad.
-
-fd_8 <- glmmTMB(degreeRelative ~ PC2 + PC1*age_group + season + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_8 <- simulateResiduals(fittedModel = fd_8, plot = F)
-plot(so_fd_8) 
-summary(fd_8) # yeah, non-signif and it didn't improve the fit.
-
-fd_9 <- glmmTMB(degreeRelative ~ PC2 + PC1*season + age_group + year + (1|Nili_id), family = beta_family(), data = flight)
-so_fd_9 <- simulateResiduals(fittedModel = fd_9, plot = F)
-plot(so_fd_9) 
-summary(fd_9) # likewise, non-signif, and didn't improve the fit. Ah well.
-
-# Now we move on to removing main effects.
-summary(fd_noint) # interestingly, age group is the first to go.
-
-fd_10 <- glmmTMB(degreeRelative ~ PC1 + PC2 + season + year + (1 | Nili_id), family = beta_family(), data = flight)
-so_fd_10 <- simulateResiduals(fittedModel = fd_10, plot = F)
-plot(so_fd_10) # the fit still looks bad. What is going on??
-summary(fd_10) # everything is significant now; I don't really want to remove anything else.
-
-# It's not a good thing that year is significant... really would like that to be a random effect. Arghh... 
-
-# Which one of these is the best so far?
-compare_performance(fd_noint, fd_max, fd_2, fd_3, fd_4, fd_5, fd_6, fd_7, fd_8, fd_9, fd_10, rank = T)
-# ok, fd_10 is the best so far (age group removed, no interactions). But I don't trust this; everything's still underdispersed
-testDispersion(fd_noint)
-
-# Don't want to do year as a random effect--Marta argues that this would be like trying to make a boxplot with 3 data points. Doesn't make sense. See also https://stats.stackexchange.com/questions/464157/year-as-a-fixed-or-random-effect-in-glm-with-only-two-levels.
-
-# Maybe try all of this again with a gaussian instead of a beta? Or look into the link function--log instead of logit?
-
-fd_noint_g <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = flight)
-summary(fd_noint_g) # age group comes out the least significant.
-# use DHARMa to check the model
-so_fd_noint_g <- simulateResiduals(fittedModel = fd_noint_g, plot = F)
-plot(so_fd_noint_g) # still really bad.
-check_model(fd_noint_g) # No evidence of multicollinearity in the model without interaction terms. So the inflated VIF's shown in the other models are the result of the interactions, I guess.
-testDispersion(fd_noint_g)
-plotResiduals(fd_noint_g, form = flight$season)
-plotResiduals(fd_noint_g, form = flight$PC1)
-plotResiduals(fd_noint_g, form = flight$PC2)
-plotResiduals(fd_noint_g, form = flight$age_group)
-plotResiduals(fd_noint_g, form = flight$year)
-plot_model(fd_noint_g, type = "pred", term = "PC2", show.data = TRUE)
-
-fd_max_g <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_max_g) # this is kind of a disaster with the inflated VIF due to multiple interaction terms.
-summary(fd_max_g)
-
-fd_2_g <- glmmTMB(degreeRelative ~ PC1*age_group + PC1*season + PC2*age_group*season + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_2_g) # better, but still inflated vif.
+fd_2 <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_2) # VIFs slightly improved but still really bad. Not candidate.
+vif(fd_2) #PC1*season is the worst, so let's remove that.
 summary(fd_2)
 
-fd_3_g <- glmmTMB(degreeRelative ~ PC1 + PC1*season + PC2*age_group*season + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_3_g) # still bad
-summary(fd_3_g)
+fd_3 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_3) # okay, getting better. Not candidate.
+vif(fd_3)
 
-fd_4_g <- glmmTMB(degreeRelative ~ PC1 + PC2*age_group*season + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_4_g) # VIF's still bad, and the rest of the diagnostics are also bad.
-summary(fd_4) 
+fd_4 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_4) # waaay better on the VIF front. Candidate
+vif(fd_4)
 
-fd_5_g <- glmmTMB(degreeRelative ~ PC1 + PC2*age_group + PC2*season + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_5_g) # oh hey this is getting better! Some of the diagnostics are still kind of rough, but at least the VIF is back in a normal range.
-summary(fd_5)
+# I don't love that I had to take out the interactions of the PCs with season, though. What about putting back PC2*season?
+fd_5 <- lmer(degreeRelative ~ PC1*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
+vif(fd_5)
+check_model(fd_5) # not candidate
 
-fd_6_g <- glmmTMB(degreeRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_6_g) # all VIF's are good now. The other diagnostics aren't wonderful, but not terrible either.
+# Going back to fd_4, the vif values all look totally fine. Let's look at the summary to decide what to remove next.
+summary(fd_4) # okay, no effect of either PC1*age_group or mnPPD. Let's get rid of mnPPD first, because it's less interpretable.
+fd_6 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id), data = flight)
+check_model(fd_6) # ok, reasonable. Candidate.
 summary(fd_6)
 
-fd_7_g <- glmmTMB(degreeRelative ~ PC1 + PC2*season + age_group + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_7_g) # VIF is worse again here.
-summary(fd_7)
+# Now we can get rid of the PC1*age_group effect. This is the same as fd_noint except without mnPPD.
+fd_7 <- lmer(degreeRelative ~ PC1 + PC2 + season + age_group + year + (1|Nili_id), data = flight)
+check_model(fd_7) # candidate
+summary(fd_7) # next to go is age
 
-# the next step would be to remove both interactions, and that would get us back to the fd_noint model. For good measure, going to include two models with the PC1 interactions but without PC2 interactions. Expect these both to be bad.
-
-fd_8_g <- glmmTMB(degreeRelative ~ PC2 + PC1*age_group + season + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_8_g) # back to being happier
+# remove age_group
+fd_8 <- lmer(degreeRelative ~ PC1 + PC2 + season + year + (1|Nili_id), data = flight)
+check_model(fd_8) # candidate
 summary(fd_8)
 
-fd_9_g <- glmmTMB(degreeRelative ~ PC2 + PC1*season + age_group + year + (1|Nili_id), family = gaussian(), data = flight)
-check_model(fd_9_g)
-summary(fd_9) 
+# remove PC1
+fd_9 <- lmer(degreeRelative ~ PC2 + season + year + (1|Nili_id), data = flight)
+check_model(fd_9) # this has some bad influential observations, plus I don't really want to get rid of PC1 conceptually, so I think I won't include it. Not candidate.
+summary(fd_9)
 
-# Now we move on to removing main effects.
-summary(fd_noint_g) # interestingly, age group is the first to go.
+# Compare performance of only the models with a reasonable fit
+compare_performance(fd_noint, fd_4, fd_6, fd_7, fd_8, rank = T) # fd_8 is best, score 87.5%, r2 conditional = 0.64
+# Compare performance of everything regardless of reasonable fit
+compare_performance(fd_noint, fd_max, fd_2, fd_3, fd_4, fd_5, fd_6, fd_7, fd_8, fd_9, rank = T) # model 9 (without PC1) does better, followed by model 8. On principle I don't really want to remove PC1, so maybe we'll keep model 8.
 
-fd_10_g <- glmmTMB(degreeRelative ~ PC1 + PC2 + season + year + (1 | Nili_id), family = gaussian(), data = flight)
-check_model(fd_10_g) # looks about the same?
-summary(fd_10) # wow okay!
+# FLIGHT: RELATIVE STRENGTH
+# Theoretically we might want to do the same model selection for strength as for degree (same models in same order), but just to see, I'm going to do the process as if it were its own thing.
 
-compare_performance(fd_noint_g, fd_max_g, fd_2_g, fd_3_g, fd_4_g, fd_5_g, fd_6_g, fd_7_g, fd_8_g, fd_9_g, fd_10_g, rank = T)
-# 3, 4, then 10. 
-# ? Is it even reasonable to do this check including models that have a bad fit according to the diagnostic plots?
