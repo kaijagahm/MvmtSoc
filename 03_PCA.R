@@ -16,11 +16,14 @@ flightColor = "skyblue3";
 
 ## Load data ------------------------------------------------------------
 load("data/movementBehavior.Rda")
-load("data/movementBehaviorScaled.Rda")
+#load("data/movementBehaviorScaled.Rda")
 load("data/networkMetrics.Rda")
 seasonNames <- map_chr(movementBehavior, ~.x$seasonUnique[1])
 all(networkMetrics$season %in% seasonNames) # check that season names match up--good.
 load("data/seasons_10min.Rda")
+
+# The summer season is mid-May through mid-September, but in 2020 we only have data starting September 4th. So I'm going to exclude summer 2020, since I don't think it's well represented.
+movementBehavior <- movementBehavior[seasonNames != "2020_summer"]
 
 # Create a dataset with all seasons combined
 allMovementBehavior <- purrr::list_rbind(movementBehavior)
@@ -32,7 +35,7 @@ allMovementBehavior_scaledAll <- allMovementBehavior_scaledAll[complete.cases(al
 colSums(is.na(allMovementBehavior_scaledAll))
 
 # Multivariate index of movement behavior (PCA) ------------------------------
-# Decided to create one single PCA for the full time range, and then apply those loadings to individual seasons as needed. Currently, the time range is from "2021-12-01 00:00" to "2023-03-31 11:59".
+# Decided to create one single PCA for the full time range, and then apply those loadings to individual seasons as needed. 
 
 # Variables available:
 glimpse(movementBehavior)
