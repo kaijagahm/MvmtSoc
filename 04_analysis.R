@@ -230,16 +230,15 @@ check_model(fd_7) # Looks good! candidate.
 summary(fd_7) # nice!
 
 # Compare performance of only the models with a reasonable fit
-compare_performance(fd_noint, fd_4, fd_5, fd_6, fd_7, rank = T) # fd_7 wins here.
+compare_performance(fd_noint, fd_4, fd_5, fd_6, fd_7, rank = T) # fd_7 wins here: degreeRelative ~ PC1 + season + poly(PC2, 2) + year + (1|Nili_id)
 
 ## Strength ------------------------------------------------------------------
 # Theoretically we might want to do the same model selection for strength as for degree (same models in same order), but just to see, I'm going to do the process as if it were its own thing.
 # I think gaussian is still reasonable here:
 flight %>% ggplot(aes(x = strengthRelative))+geom_histogram() # yeah that's decently normal-shaped.
 
-fs_noint <- lmer(strengthRelative ~ PC1 + PC2 + age_group + season + year + 
-                   mnPPD + (1|Nili_id), data = flight)
-summary(fs_noint) # oh weird, no season effect here! Also no PC2, though PC1 is more significant. Age group does show up this time, and ppd remains not that significant.
+fs_noint <- lmer(strengthRelative ~ PC1 + poly(PC2, 2) + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
+summary(fs_noint) # oh weird, no season effect here! 
 check_model(fs_noint) # oh wow this actually looks perfect!!! Candidate.
 # What does DHARMa think?
 so_fs_noint <- simulateResiduals(fittedModel = fs_noint, plot = F)
@@ -248,89 +247,75 @@ plot(so_fs_noint) # holy moly that's so nice! Yesssss
 testDispersion(fs_noint) # beautiful
 plotResiduals(fs_noint, form = flight$season) # beautiful
 plotResiduals(fs_noint, form = flight$PC1) # meh but not terrible
-plotResiduals(fs_noint, form = flight$PC2) # meh but not quite as bad as the other one
+plotResiduals(fs_noint, form = flight$PC2) # wait this one is actually good now that we included the quadratic term for PC2!
 plotResiduals(fs_noint, form = flight$age_group) # not terrible
 plotResiduals(fs_noint, form = flight$year) # yay!
-plot_model(fs_noint, type = "pred", term = "PC2", show.data = TRUE) # Again, a pretty bad fit; might want a nonlinear term.
-plot_model(fs_noint, type = "pred", term = "PC1", show.data = TRUE) # also kind of bad
+plot_model(fs_noint, type = "pred", term = "PC2 [all]", show.data = TRUE) # Much better fit than the linear.
+plot_model(fs_noint, type = "pred", term = "PC1", show.data = TRUE) # Yuck.
 
-fs_max <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+fs_max <- lmer(strengthRelative ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
 check_model(fs_max) # really bad VIFs. Not candidate.
-summary(fs_max) # let's start by taking out season*mnPPD (so far, this is the same as the degree model.)
-vif(fs_max)
+vif(fs_max) # start by removing age*season*PC2
 
-fs_2 <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+fs_2 <- lmer(strengthRelative ~ PC1*age_group*season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
 check_model(fs_2) # VIFs slightly improved but still really bad. Not candidate.
-vif(fs_2) #PC1*season is the worst, so let's remove that. (still same as degree model)
+vif(fs_2) # PC1*season is the worst
 summary(fs_2)
 
-fs_3 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fs_3) # okay, getting better, but not candidate (same as degree)
-vif(fs_3)
+fs_3 <- lmer(strengthRelative ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fs_3) # this looks better! Candidate.
+vif(fs_3) # golden
+summary(fs_3) # can remove mnPPD
 
-# remove PC2*age_group*season interaction (same as degree)
-fs_4 <- lmer(strengthRelative ~ PC1*age_group + PC2 + season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fs_4) # waaay better on the VIF front. Candidate. Looks great. Same as degree
-vif(fs_4) # these look fine.
+fs_4 <- lmer(strengthRelative ~ PC1*age_group + season + poly(PC2, 2) + year + (1|Nili_id), data = flight)
+check_model(fs_4) # candidate.
+summary(fs_4) # can remove mnPPD
 
-# I don't love that I had to take out the interactions of the PCs with season, though. What about putting back PC2*season? (same as degree)
-fs_5 <- lmer(strengthRelative ~ PC1*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
-vif(fs_5) # not great
-check_model(fs_5) # not candidate--vif too high. (same as degree).
-
-# Going back to fs_4, the vif values all look totally fine. Let's look at the summary to decide what to remove next.
-summary(fs_4) # Here we diverge from the degree model. No effect of season at all. Marginal effects of mnPPD and PC1*age_group. Also no PC2 effect! Strange. Get rid of season...
-fs_6 <- lmer(strengthRelative ~ PC1*age_group + PC2 + year + mnPPD + (1|Nili_id), data = flight)
-check_model(fs_6) # looks great! candidate.
-summary(fs_6)
-
-# Same as for degree, the PC1*age_group effect is only marginally significant (it was n.s. for degree). Let's remove it. (I'm avoiding removing PC2 until the end.)
-fs_7 <- lmer(strengthRelative ~ PC1 + PC2 + age_group + year + (1|Nili_id), data = flight)
-check_model(fs_7) # looks good. Candidate.
-summary(fs_7) # age is now n.s. Remove it...
-
-# remove age_group
-fs_8 <- lmer(strengthRelative ~ PC1 + PC2 + year + (1|Nili_id), data = flight)
-check_model(fs_8)  # candidate
-summary(fs_8) # Now PC2 is n.s.
-
-# remove PC2
-fs_9 <- lmer(strengthRelative ~ PC1 + year + (1|Nili_id), data = flight)
-check_model(fs_9) # has some bad influential observations, plus I don't really want to get rid of the PCs conceptually, so not candidate.
-summary(fs_9)
+# Remove season
+fs_5 <- lmer(strengthRelative ~ PC1 + age_group + poly(PC2, 2) + year + (1|Nili_id), data = flight)
+check_model(fs_5) # candidate.
+summary(fs_5)
 
 # Compare performance of only the models with a reasonable fit
-compare_performance(fs_noint, fs_4, fs_6, fs_7, fs_8, rank = T) # fs_6 is the best: strengthRelative ~ PC1*age_group + PC2 + year + mnPPD + (1|Nili_id)
+compare_performance(fs_noint, fs_3, fs_4, fs_5, rank = T) # fs_3 wins: strengthRelative ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id)
 
-# FEEDING -----------------------------------------------------------------
-## Degree ------------------------------------------------------------------
-feeding %>% ggplot(aes(x = degreeRelative))+geom_histogram() # yeesh, this does not look very normal. But I'm still going to start by using a gaussian and see how it goes.
+## Strength by degree ------------------------------------------------------
+fb_noint <- lmer(sbd ~ PC1 + poly(PC2, 2) + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
+check_model(fb_noint) # Looks okay! Not ideal, but fine. Candidate.
+# What does DHARMa think?
+so_fb_noint <- simulateResiduals(fittedModel = fb_noint, plot = F)
+plot(so_fb_noint) # weird. Less bad than degree, but worse than strength.
+testDispersion(fb_noint) # beautiful
+plotResiduals(fb_noint, form = flight$season) # ok
+plotResiduals(fb_noint, form = flight$PC1) # not bad!
+plotResiduals(fb_noint, form = flight$PC2) # nice!
+plotResiduals(fb_noint, form = flight$age_group) # ok
+plotResiduals(fb_noint, form = flight$year) # ok
+plot_model(fb_noint, type = "pred", term = "PC2 [all]", show.data = TRUE) # huh, weeeeird.
+plot_model(fb_noint, type = "pred", term = "PC1 [all]", show.data = TRUE) # this one looks fine actually.
 
-es_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + 
-                   mnPPD + (1|Nili_id), data = feeding)
-summary(es_noint) 
-check_model(es_noint) # not bad!
-so_es_noint <- simulateResiduals(fittedModel = es_noint, plot = F)
-plot(so_es_noint) # yucky squiggles again :(. Maybe to be expected because relative degree.
-testDispersion(es_noint) # not bad! Pretty great actually.
-plotResiduals(es_noint, form = feeding$season) # bad
-plotResiduals(es_noint, form = feeding$PC1) # not too bad!
-plotResiduals(es_noint, form = feeding$PC2) # bad, but not as terrible as for flight
-plotResiduals(es_noint, form = feeding$age_group) # bad but not terrible
-plotResiduals(es_noint, form = feeding$year) # pretty good!
-plot_model(es_noint, type = "pred", term = "PC2", show.data = TRUE) # pretty bad fit
-plot_model(es_noint, type = "pred", term = "PC1", show.data = TRUE) # also pretty bad fit
+fb_max <- lmer(sbd ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+check_model(fb_max) # aaaaah. Not candidate.
+vif(fb_max) # the worst is age_group*season_PC2
 
-es_max <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = feeding)
-check_model(es_max) # really bad VIFs. Not candidate.
-summary(es_max) 
-vif(es_max) # season*mnPPD is the worst.
+fb_2 <- lmer(sbd ~ PC1*age_group*season + poly(PC2, 2) + mnPPD*season + year + (1|Nili_id), data = flight)
+check_model(fb_2)  # still awful
+vif(fb_2) # get rid of season(mnPPD)
 
-es_2 <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = feeding)
-check_model(es_2) # VIes slightly improved but still really bad. Not candidate.
-vif(es_2) #PC1*season is the worst, so let's remove that. (still same as degree model)
-summary(es_2)
+fb_3 <- lmer(sbd ~ PC1*age_group*season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fb_3)  # still bad.
+vif(fb_3) # PC1*season is the next worst
 
+fb_4 <- lmer(sbd ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fb_4) # candidate!
+vif(fb_4)  # gorgeous
+summary(fb_4) # removing PC1*age_group would give us fb_noint. What else should go?
+summary(fb_noint) # Looks like maybe we don't need the quadratic term for PC2.
+
+# remove PC1*age_group
+fb_4 <- lmer(sbd ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fb_4) # candidate!
+summary(fb_4)
 
 # Lingering questions
 # 0. When I do performance::compare_performance, should I only include models that have already been deemed to fit the data fairly well, or should I include all of them? I can see arguments either way. Unclear to me whether compare_performance also takes into account the model diagnostics when evaluating performance, or if it only computes AIC and assumes you've already decided the diagnostics are met. I think it's the latter, but I'm not sure.
