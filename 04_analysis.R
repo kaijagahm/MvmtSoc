@@ -202,67 +202,35 @@ vif(fd_max)
 
 fd_2 <- lmer(degreeRelative ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
 check_model(fd_2) # VIFs slightly improved but still really bad. Not candidate.
-vif(fd_2) #PC1*season is the worst, so let's remove that.
+vif(fd_2) #PC2*season*age_group is the worst, so let's remove that.
 summary(fd_2)
 
-fd_3 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fd_3) # okay, getting better. Not candidate.
-vif(fd_3)
+fd_3 <- lmer(degreeRelative ~ PC1*age_group*season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_3) # still really high VIF
+vif(fd_3) # highest is PC1*season, so we'll remove that next. Not candidate.
+summary(fd_3)
 
-fd_4 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fd_4) # waaay better on the VIF front. Candidate
-vif(fd_4)
-so_fd_4 <- simulateResiduals(fittedModel = fd_4, plot = F)
-plot(so_fd_4)
+fd_4 <- lmer(degreeRelative ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_4) # all VIF's look good, and the rest of the fit is fine. Candidate.
+vif(fd_4) # brilliant
+summary(fd_4) # next we can get rid of PC1*age group
 
-# I don't love that I had to take out the interactions of the PCs with season, though. What about putting back PC2*season?
-fd_5 <- lmer(degreeRelative ~ PC1*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
-vif(fd_5)
-check_model(fd_5) # not candidate
+fd_5 <- lmer(degreeRelative ~ PC1 + age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_5) # Looks good! candidate.
+summary(fd_5) # looking nice. mnPPD and age group are still non-significant.
 
-# Going back to fd_4, the vif values all look totally fine. Let's look at the summary to decide what to remove next.
-summary(fd_4) # okay, no effect of either PC1*age_group or mnPPD. Let's get rid of mnPPD first, because it's less interpretable.
-fd_6 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id), data = flight)
-check_model(fd_6) # ok, reasonable. Candidate.
-summary(fd_6)
+# remove mnPPD
+fd_6 <- lmer(degreeRelative ~ PC1 + age_group + season + poly(PC2, 2) + year + (1|Nili_id), data = flight)
+check_model(fd_6) # Looks good! candidate.
+summary(fd_6) # remove age group
 
-# Now we can get rid of the PC1*age_group effect. This is the same as fd_noint except without mnPPD.
-fd_7 <- lmer(degreeRelative ~ PC1 + PC2 + season + age_group + year + (1|Nili_id), data = flight)
-check_model(fd_7) # candidate
-summary(fd_7) # next to go is age
-
-# remove age_group
-fd_8 <- lmer(degreeRelative ~ PC1 + PC2 + season + year + (1|Nili_id), data = flight)
-check_model(fd_8) # candidate
-summary(fd_8)
-
-# remove PC1
-fd_9 <- lmer(degreeRelative ~ PC2 + season + year + (1|Nili_id), data = flight)
-check_model(fd_9) # this has some bad influential observations, plus I don't really want to get rid of PC1 conceptually, so I think I won't include it. Not candidate.
-summary(fd_9)
-
-# Let's try a model with no interactions but with a quadratic term
-fd_10 <- lmer(degreeRelative ~ PC1 + poly(PC2, 2) + season + age_group + year + (1|Nili_id), data = flight)
-check_model(fd_10)
-check_model(fd_noint) # huh, not that different
-# I'm specifically wondering about the PC2 plot, so let's look at DHARMa
-so_fd_10 <- simulateResiduals(fittedModel = fd_10, plot = F)
-plot(so_fd_10) # this is still really bad, even with the quadratic term
-testDispersion(so_fd_10) # good
-plotResiduals(fd_10, form = flight$PC2) # this looks better!
-plot_model(fd_10, type = "pred", term = "PC2", show.data = TRUE) # this seems like a better fit
-
-# Try specifying with I() instead of poly()
-fd_11 <- lmer(degreeRelative ~ PC1 + I(PC2^2) + season + age_group + year + (1|Nili_id), data = flight)
-check_model(fd_11) # looks about the same as the others
-so_fd_11 <- simulateResiduals(fittedModel = fd_11, plot = F)
-plot(so_fd_11) # still really bad; looks basically the same as the others
-testDispersion(so_fd_11) # good
-plotResiduals(fd_11, form = flight$PC2) # looks worse than the poly() model.
-plot_model(fd_11, type = "pred", term = "PC2", show.data = TRUE) # this is a really bad fit. not candidate.
+# remove age group
+fd_7 <- lmer(degreeRelative ~ PC1 + season + poly(PC2, 2) + year + (1|Nili_id), data = flight)
+check_model(fd_7) # Looks good! candidate.
+summary(fd_7) # nice!
 
 # Compare performance of only the models with a reasonable fit
-compare_performance(fd_noint, fd_4, fd_6, fd_7, fd_8, fd_10, rank = T) # fd_8 is best, score 87.5%, r2 conditional = 0.64
+compare_performance(fd_noint, fd_4, fd_5, fd_6, fd_7, rank = T) # fd_7 wins here.
 
 ## Strength ------------------------------------------------------------------
 # Theoretically we might want to do the same model selection for strength as for degree (same models in same order), but just to see, I'm going to do the process as if it were its own thing.
