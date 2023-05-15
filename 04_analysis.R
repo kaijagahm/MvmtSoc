@@ -173,13 +173,12 @@ feeding <- linked %>%
 roosting <- linked %>%
   filter(type == "roosting")
 
-
 # FLIGHT ------------------------------------------------------------------
 ## Degree ------------------------------------------------------------------
 # I thought we couldn't include random effects if they had fewer than 5 levels, but maybe you can? https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8784019/
 # First, fit a model that includes all the predictors but no interaction effects, to check the VIF, which will tell us whether the predictors are correlated within the model.
 # Don't want to do year as a random effect--Marta argues that this would be like trying to make a boxplot with 3 data points. Doesn't make sense. See also https://stats.stackexchange.com/questions/464157/year-as-a-fixed-or-random-effect-in-glm-with-only-two-levels.
-fd_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + 
+fd_noint <- lmer(degreeRelative ~ PC1 + poly(PC2, 2) + age_group + season + year + 
                    mnPPD + (1|Nili_id), data = flight)
 summary(fd_noint) # age group comes out the least significant.
 # use DHARMa to check the model
@@ -194,14 +193,14 @@ plotResiduals(fd_noint, form = flight$PC1)
 plotResiduals(fd_noint, form = flight$PC2)
 plotResiduals(fd_noint, form = flight$age_group)
 plotResiduals(fd_noint, form = flight$year)
-plot_model(fd_noint, type = "pred", term = "PC2", show.data = TRUE) # this is a pretty bad fit. Marta suggests a nonlinear term here.
+plot_model(fd_noint, type = "pred", term = "PC2", show.data = TRUE) # better fit than with just the linear term, but I worry that this will become the entire story because it has an easily interpretable shape...
 
-fd_max <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+fd_max <- lmer(degreeRelative ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
 check_model(fd_max) # oof those VIFs are baaad. Not candidate
 summary(fd_max) # let's start by taking out season*mnPPD
 vif(fd_max)
 
-fd_2 <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+fd_2 <- lmer(degreeRelative ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
 check_model(fd_2) # VIFs slightly improved but still really bad. Not candidate.
 vif(fd_2) #PC1*season is the worst, so let's remove that.
 summary(fd_2)
@@ -213,6 +212,8 @@ vif(fd_3)
 fd_4 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + mnPPD + year + (1|Nili_id), data = flight)
 check_model(fd_4) # waaay better on the VIF front. Candidate
 vif(fd_4)
+so_fd_4 <- simulateResiduals(fittedModel = fd_4, plot = F)
+plot(so_fd_4)
 
 # I don't love that I had to take out the interactions of the PCs with season, though. What about putting back PC2*season?
 fd_5 <- lmer(degreeRelative ~ PC1*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
@@ -240,10 +241,28 @@ fd_9 <- lmer(degreeRelative ~ PC2 + season + year + (1|Nili_id), data = flight)
 check_model(fd_9) # this has some bad influential observations, plus I don't really want to get rid of PC1 conceptually, so I think I won't include it. Not candidate.
 summary(fd_9)
 
+# Let's try a model with no interactions but with a quadratic term
+fd_10 <- lmer(degreeRelative ~ PC1 + poly(PC2, 2) + season + age_group + year + (1|Nili_id), data = flight)
+check_model(fd_10)
+check_model(fd_noint) # huh, not that different
+# I'm specifically wondering about the PC2 plot, so let's look at DHARMa
+so_fd_10 <- simulateResiduals(fittedModel = fd_10, plot = F)
+plot(so_fd_10) # this is still really bad, even with the quadratic term
+testDispersion(so_fd_10) # good
+plotResiduals(fd_10, form = flight$PC2) # this looks better!
+plot_model(fd_10, type = "pred", term = "PC2", show.data = TRUE) # this seems like a better fit
+
+# Try specifying with I() instead of poly()
+fd_11 <- lmer(degreeRelative ~ PC1 + I(PC2^2) + season + age_group + year + (1|Nili_id), data = flight)
+check_model(fd_11) # looks about the same as the others
+so_fd_11 <- simulateResiduals(fittedModel = fd_11, plot = F)
+plot(so_fd_11) # still really bad; looks basically the same as the others
+testDispersion(so_fd_11) # good
+plotResiduals(fd_11, form = flight$PC2) # looks worse than the poly() model.
+plot_model(fd_11, type = "pred", term = "PC2", show.data = TRUE) # this is a really bad fit. not candidate.
+
 # Compare performance of only the models with a reasonable fit
-compare_performance(fd_noint, fd_4, fd_6, fd_7, fd_8, rank = T) # fd_8 is best, score 87.5%, r2 conditional = 0.64
-# Compare performance of everything regardless of reasonable fit
-compare_performance(fd_noint, fd_max, fd_2, fd_3, fd_4, fd_5, fd_6, fd_7, fd_8, fd_9, rank = T) # model 9 (without PC1) does better, followed by model 8. On principle I don't really want to remove PC1, so maybe we'll keep model 8.
+compare_performance(fd_noint, fd_4, fd_6, fd_7, fd_8, fd_10, rank = T) # fd_8 is best, score 87.5%, r2 conditional = 0.64
 
 ## Strength ------------------------------------------------------------------
 # Theoretically we might want to do the same model selection for strength as for degree (same models in same order), but just to see, I'm going to do the process as if it were its own thing.
@@ -314,8 +333,6 @@ summary(fs_9)
 
 # Compare performance of only the models with a reasonable fit
 compare_performance(fs_noint, fs_4, fs_6, fs_7, fs_8, rank = T) # fs_6 is the best: strengthRelative ~ PC1*age_group + PC2 + year + mnPPD + (1|Nili_id)
-# Compare performance of everything regardless of reasonable fit
-compare_performance(fs_noint, fs_max, fs_2, fs_3, fs_4, fs_5, fs_6, fs_7, fs_8, fs_9, rank = T) # interesting--fs_3 wins and fs_6 is nowhere near the best.
 
 # FEEDING -----------------------------------------------------------------
 ## Degree ------------------------------------------------------------------
@@ -349,10 +366,18 @@ summary(es_2)
 
 # Lingering questions
 # 0. When I do performance::compare_performance, should I only include models that have already been deemed to fit the data fairly well, or should I include all of them? I can see arguments either way. Unclear to me whether compare_performance also takes into account the model diagnostics when evaluating performance, or if it only computes AIC and assumes you've already decided the diagnostics are met. I think it's the latter, but I'm not sure.
+# - Correct, but if it's borderline then you can include it.
 # 0.5. Why does DHARMa sometimes show bad diagnostic plots even when check_model shows that things are fine?
+# -Conner doesn't know, but thinks that the DHARMa thing isn't a core assumption
 # 1. If I see that there are relationships between predictor variables in the pre-modeling plots, such as the age*PC boxplots I made at the top, does that mean I *should* or *shouldn't* include an interaction term? I thought it meant I should, but those all ended up needing to get removed, and now it's occurring to me that maybe that just means that they were correlated at first. Case in point: mean ppd * season always ends up having a super high VIF.
 # 2. Should I use the same model selection process or an independent one for each of the 9 models I need to make?
+# - can use a different process each time
 # 3. Should I refrain from removing the PC's from the model if they are the variables of interest, or is an absence of a significant effect a result in itself?
 # 4. If I use different model selection processes (or the same one), what is the best way to compare effect sizes and which model is chosen between different models?
+# - part r2 allows you to partition the marginal and conditional r2 for each of the models--can use that to compare
 # 5. These effect sizes seem really small... but maybe that's just because the relative degree and relative strength values are so small? Would multiply by the number of vultures for each season to think about the difference in real terms.
 # 6. Just generally, a little confused as to which things constitute results that I can talk about: 1) which models fit the data decently well as per the model checks, 2) which variables are retained in the best-fitting model of the candidates, and 3) the actual effect sizes and directions and p values of the best-fitting model. 
+# 7. If I decide that adding a quadratic term is good, does that then mean that I need to re-fit all of the models with the quadratic term included?
+# - just decide to add it
+
+# -google the predicted vs. residuals plot and figure out what it actually means. 
