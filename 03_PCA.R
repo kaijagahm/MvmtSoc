@@ -93,6 +93,7 @@ fviz_pca_biplot(pca_all, axes = c(1,2),
 contrib <- round(pca_all$rotation[,1:3]*100, 2) %>%
   as.data.frame()
 contrib
+save(contrib, file = "data/contrib.Rda")
 
 fviz_screeplot(pca_all, addLabels = T)+
   ggtitle("Overall PCA: Sep 2020-Nov 2022")
