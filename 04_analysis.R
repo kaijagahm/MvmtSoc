@@ -280,7 +280,7 @@ summary(fs_5)
 compare_performance(fs_noint, fs_3, fs_4, fs_5, rank = T) # fs_3 wins: strengthRelative ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id)
 
 ## Strength by degree ------------------------------------------------------
-fb_noint <- lmer(sbd ~ PC1 + poly(PC2, 2) + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
+fb_noint <- lmer(sbd ~ PC1 + PC2 + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
 check_model(fb_noint) # Looks okay! Not ideal, but fine. Candidate.
 # What does DHARMa think?
 so_fb_noint <- simulateResiduals(fittedModel = fb_noint, plot = F)
@@ -291,31 +291,36 @@ plotResiduals(fb_noint, form = flight$PC1) # not bad!
 plotResiduals(fb_noint, form = flight$PC2) # nice!
 plotResiduals(fb_noint, form = flight$age_group) # ok
 plotResiduals(fb_noint, form = flight$year) # ok
-plot_model(fb_noint, type = "pred", term = "PC2 [all]", show.data = TRUE) # huh, weeeeird.
+plot_model(fb_noint, type = "pred", term = "PC2 [all]", show.data = TRUE) # looks fine
 plot_model(fb_noint, type = "pred", term = "PC1 [all]", show.data = TRUE) # this one looks fine actually.
 
-fb_max <- lmer(sbd ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+fb_max <- lmer(sbd ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
 check_model(fb_max) # aaaaah. Not candidate.
-vif(fb_max) # the worst is age_group*season_PC2
+vif(fb_max) # worst is season*mnPPD
 
-fb_2 <- lmer(sbd ~ PC1*age_group*season + poly(PC2, 2) + mnPPD*season + year + (1|Nili_id), data = flight)
-check_model(fb_2)  # still awful
-vif(fb_2) # get rid of season(mnPPD)
+fb_2 <- lmer(sbd ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fb_2) # still bad
+vif(fb_2) # now the worst is PC1*season
 
-fb_3 <- lmer(sbd ~ PC1*age_group*season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fb_3)  # still bad.
-vif(fb_3) # PC1*season is the next worst
+fb_3 <- lmer(sbd ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fb_3) # still bad but getting better
+vif(fb_3) # age*PC2*season is bad
 
-fb_4 <- lmer(sbd ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fb_4) # candidate!
-vif(fb_4)  # gorgeous
-summary(fb_4) # removing PC1*age_group would give us fb_noint. What else should go?
-summary(fb_noint) # Looks like maybe we don't need the quadratic term for PC2.
+fb_4 <- lmer(sbd ~ PC1*age_group + PC2*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fb_4) # moderately elevated VIF but not terrible. candidate.
+vif(fb_4) # the worst is PC2*season
 
-# remove PC1*age_group
-fb_4 <- lmer(sbd ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fb_4) # candidate!
-summary(fb_4)
+fb_5 <- lmer(sbd ~ PC1*age_group + PC2*age_group + season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fb_5) # candidate
+vif(fb_5) # golden!
+summary(fb_5) # next thing to remove is PC1*age group
+
+fb_6 <- lmer(sbd ~ PC1+ PC2*age_group + season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fb_6) # fine
+summary(fb_6) # next we would remove PC2 but I don't want to do that. I think we can stop.
+
+compare_performance(fb_noint, fb_4, fb_5, fb_6, rank = T) # fb_6 wins: sbd ~ PC1+ PC2*age_group + season + mnPPD + year + (1|Nili_id)
+
 
 # Lingering questions
 # 0. When I do performance::compare_performance, should I only include models that have already been deemed to fit the data fairly well, or should I include all of them? I can see arguments either way. Unclear to me whether compare_performance also takes into account the model diagnostics when evaluating performance, or if it only computes AIC and assumes you've already decided the diagnostics are met. I think it's the latter, but I'm not sure.
