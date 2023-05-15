@@ -16,6 +16,12 @@ library(DHARMa) # for testing glmmTMB models
 # https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
 library(sjPlot)
 
+# Set ggplot theme to classic
+theme_set(theme_classic())
+
+# Set season colors
+seasonColors <- c("#2FF8CA", "#CA2FF8", "#F8CA2F")
+
 # Here's an interesting reference article for some modeling stuff: https://biol607.github.io/lab/12_gzlm.html
 
 load("data/linked.Rda")
@@ -79,7 +85,6 @@ long %>%
   ggplot(aes(x = age, y = value, col = PC))+
   geom_point(size = 1.5, alpha = 0.7)+
   geom_smooth(method = "lm")+
-  theme_classic()+
   scale_color_viridis_d(option = "D")+
   theme(text = element_text(size = 18))+
   ylab("Value")+
@@ -124,7 +129,7 @@ linked %>%
   ggplot(aes(x = season, y = value, fill = season))+
   geom_boxplot()+
   theme_minimal()+
-  scale_fill_manual(values = c("blue", "red", "darkorange"))+
+  scale_fill_manual(values = seasonColors)+
   theme(legend.position = "none")+
   facet_wrap(facets = vars(type, socialPositionMeasure), 
              nrow = 3, ncol = 3, scales= "free")+
@@ -146,7 +151,7 @@ stat.test <- long %>%
 bxp <- ggboxplot(
   long, x = "season", y = "value", 
   fill = "season", 
-  palette = c("blue", "red", "darkorange"),
+  palette = seasonColors,
   facet.by = "PC"
 ) + stat_pvalue_manual(stat.test)
 bxp # we definitely have seasonal differences in movement! As expected.
@@ -231,6 +236,7 @@ summary(fd_7) # nice!
 
 # Compare performance of only the models with a reasonable fit
 compare_performance(fd_noint, fd_4, fd_5, fd_6, fd_7, rank = T) # fd_7 wins here: degreeRelative ~ PC1 + season + poly(PC2, 2) + year + (1|Nili_id)
+fd_mod <- fd_7
 
 ## Strength ------------------------------------------------------------------
 # Theoretically we might want to do the same model selection for strength as for degree (same models in same order), but just to see, I'm going to do the process as if it were its own thing.
@@ -278,6 +284,7 @@ summary(fs_5)
 
 # Compare performance of only the models with a reasonable fit
 compare_performance(fs_noint, fs_3, fs_4, fs_5, rank = T) # fs_3 wins: strengthRelative ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id)
+fs_mod <- fs_3
 
 ## Strength by degree ------------------------------------------------------
 fb_noint <- lmer(sbd ~ PC1 + PC2 + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
@@ -320,7 +327,7 @@ check_model(fb_6) # fine
 summary(fb_6) # next we would remove PC2 but I don't want to do that. I think we can stop.
 
 compare_performance(fb_noint, fb_4, fb_5, fb_6, rank = T) # fb_6 wins: sbd ~ PC1+ PC2*age_group + season + mnPPD + year + (1|Nili_id)
-
+fb_mod <- fb_6
 
 # Lingering questions
 # 0. When I do performance::compare_performance, should I only include models that have already been deemed to fit the data fairly well, or should I include all of them? I can see arguments either way. Unclear to me whether compare_performance also takes into account the model diagnostics when evaluating performance, or if it only computes AIC and assumes you've already decided the diagnostics are met. I think it's the latter, but I'm not sure.
@@ -337,5 +344,36 @@ compare_performance(fb_noint, fb_4, fb_5, fb_6, rank = T) # fb_6 wins: sbd ~ PC1
 # 6. Just generally, a little confused as to which things constitute results that I can talk about: 1) which models fit the data decently well as per the model checks, 2) which variables are retained in the best-fitting model of the candidates, and 3) the actual effect sizes and directions and p values of the best-fitting model. 
 # 7. If I decide that adding a quadratic term is good, does that then mean that I need to re-fit all of the models with the quadratic term included?
 # - just decide to add it
-
 # -google the predicted vs. residuals plot and figure out what it actually means. 
+
+# Marginal effect plots ---------------------------------------------------
+(formula(fd_mod))
+(formula(fs_mod))
+(formula(fb_mod))
+
+# to aid in the interpretation, let's look at the variable contributions again
+load("data/contrib.Rda")
+
+## Degree ------------------------------------------------------------------
+plot_model(fd_mod) # largest effect is with PC2
+plot_model(fd_mod, type = "pred", terms = c("PC1 [all]", "season"), 
+           colors = seasonColors, line.size = 1.5)
+plot_model(fd_mod, type = "pred", terms = c("PC2 [all]", "season"), 
+           colors = seasonColors, line.size = 1.5)
+plot_model(fd_mod, type = "pred", terms = c("year [all]", "season"), 
+           colors = seasonColors)
+plot_model(fd_mod, type = "pred", terms = c("PC1 [all]", "season", "year"), 
+           colors = seasonColors, line.size = 1.5)
+plot_model(fd_mod, type = "pred", terms = c("PC2 [all]", "season", "year"),
+           colors = seasonColors, line.size = 1.5)
+
+## Strength ------------------------------------------------------------------
+plot_model(fs_mod) # tiny effects, basically negligible
+plot_model(fs_mod, type = "pred", terms = c("PC1 [all]", "age_group")) # not really significant
+plot_model(fs_mod, type = "pred", terms = c("PC1 [all]", "age_group", "season"))
+plot_model(fs_mod, type = "pred", terms = "PC1 [all]") # non-significant
+plot_model(fs_mod, type = "pred", terms = "age_group") # significant
+plot_model(fs_mod, type = "pred", terms = "PC2 [all]")
+plot_model(fs_mod, type = "pred", terms = "mnPPD") # non-significant
+plot_model(fs_mod, type = "pred", terms = "year")
+plot_model(fs_mod, type = "pred", terms = "season [all]")
