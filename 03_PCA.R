@@ -120,6 +120,10 @@ linked <- networkMetrics %>%
 linked$sex[linked$sex == "NA"] <- NA
 colSums(is.na(linked))
 
+# Flip PC1 so it's more interpretable
+contrib # almost all the PC1 values are negative
+
+linked$PC1 <- linked$PC1*(-1)
 save(linked, file = "data/linked.Rda")
 
 # Exploring ---------------------------------------------------------------
@@ -130,3 +134,4 @@ linked %>%
   geom_smooth()+
   theme_classic()+
   facet_wrap(~season) # makes sense! As the DDT/DMD ratio increases, so does tortuosity. As expected. Good thing we fixed the tortuosity.
+
