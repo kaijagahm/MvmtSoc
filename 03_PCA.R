@@ -87,13 +87,20 @@ pca_all <- prcomp(x = forOverallPCA[,-1])
 pca_all_princomp <- princomp(x = forOverallPCA[,-1])
 pca_all_dudi <- dudi.pca(df = forOverallPCA[,-1], nf = 3, scannf = FALSE)
 fviz_pca_biplot(pca_all, axes = c(1,2), 
-                geom = c("point"), alpha.ind = 0.5)+
+                geom = c("point"), 
+                alpha.ind = 0.3,
+                col.ind = "white",
+                col.var = "white",
+                repel = T)+
   theme_classic()+
-  ggtitle("Overall PCA: Sep 2020-Nov 2022") # at some point will want to reverse the direction of the PC1 loadings.
+  ggtitle("")+
+  theme(panel.background = element_rect(fill = "#666666"),
+        plot.background = element_rect(fill = "#666666"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"))
 contrib <- round(pca_all$rotation[,1:3]*100, 2) %>%
   as.data.frame()
 contrib
-save(contrib, file = "data/contrib.Rda")
 
 fviz_screeplot(pca_all, addLabels = T)+
   ggtitle("Overall PCA: Sep 2020-Nov 2022")
@@ -125,6 +132,8 @@ contrib # almost all the PC1 values are negative
 
 linked$PC1 <- linked$PC1*(-1)
 save(linked, file = "data/linked.Rda")
+contrib$PC1 <- contrib$PC1*(-1)
+save(contrib, file = "data/contrib.Rda")
 
 # Exploring ---------------------------------------------------------------
 # Orr wants to know whether higher tortuosity is correlated to a higher ratio between DDT and DMD. It should be.
