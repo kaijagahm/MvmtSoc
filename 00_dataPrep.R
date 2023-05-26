@@ -82,12 +82,116 @@ length(unique(datAnnot$Nili_id))
 nrow(dat2)
 nrow(datAnnot)
 
+# Identify and remove capture dates using Marta's code --------------------
+## To identify the capture dates, first we need to classify the roosts (now using the get_roosts() function). Then, if the bird roosted within 500 m of the capture site, it was considered to be captured and that day, and the following day, are excluded from the dataset. This has been validated. Note: this protocol doesn't work for the Carmel because of the position of the roost sites relative to cages. But we're just dealing with southern individuals, so that's okay.
+#roosts <- get_roosts_df(df = datAnnot, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
+#save(roosts, file = "data/roosts.Rda")
+load("data/roosts.Rda")
+
+# Identify the period of time during which the capture sites are open (when we need to do this exclusion)
+start.day <- 01
+start.month <- 08
+end.day <-  30
+end.month <- 11
+distance <- 500 # distance, in meters, to calculate from the cage
+
+# Load the information about the capture sites
+sites <- read.csv("data/capture_sites.csv")
+
+# Subset the roost dataset with the start and end dates for the capture period
+sub.roosts <- roosts %>%
+  mutate(start_date = as.Date(paste(start.day, start.month, lubridate::year(date), sep="-"),
+                              format="%d-%m-%Y"),
+         end_date = as.Date(paste(end.day, end.month, lubridate::year(date), sep="-"),
+                            format="%d-%m-%Y")) %>%
+  filter(date >= start_date & date <= end_date)
+
+unique(lubridate::month(sub.roosts$date)) # now only includes the fall months, which is the capture season.
+
+# then we need to calculate the roost distance to each of the capture cages. if it is less than 500m, keep that line
+crds <- matrix(c(sub.roosts$location_long, sub.roosts$location_lat), 
+               nrow = nrow(sub.roosts), ncol = 2) # get roost locations as simple lat/long coordinates
+
+DistanceMat <- matrix(ncol = nrow(sites), nrow = nrow(crds)) 
+colnames(DistanceMat) <- unique(sites$name)
+
+for(i in 1:nrow(crds)){ # for each roost point...
+  DistanceMat[i,] <- round(geosphere::distm(crds[i,], sites[,c(3,2)]), 2) # calculate distance using geosphere::distm
+  print(i)
+}
+
+ClosestCaptureSite <- colnames(DistanceMat)[apply(DistanceMat,1,which.min)] # ID of closest capture site
+ClosestCaptureDist <- apply(DistanceMat,1,min) # Distance from closest capture site
+
+sub.roosts <- cbind(sub.roosts, ClosestCaptureSite, ClosestCaptureDist) 
+sub.roosts$Captured <- ifelse(sub.roosts$ClosestCaptureDist <= distance, "Yes", "No")
+
+sub.captured <- subset(sub.roosts, Captured == "Yes") # get list of dates which the bird was inside the cage 
+
+sub.captured.dates <- subset(sub.captured, 
+                             select = c("Nili_id",
+                                        "date", 
+                                        "ClosestCaptureSite",
+                                        "ClosestCaptureDist", 
+                                        "Captured"))
+
+## This, however, does not work for the Carmel, because the roosts are within 500m of the cage and very often the birds roost on top of the cage without actually being inside it. So for the Carmel captures, we will use another protocol: if the birds were sleeping within 50m of the cage and it was a capture day (or 3 days before the release day), we consider the birds were captured and we remove the data
+
+sub.captured.no.carmel <- subset(sub.captured.dates, ClosestCaptureSite != "Carmel")
+sub.captured.carmel <- subset(sub.captured.dates, ClosestCaptureSite == "Carmel")
+
+AllCarmelDates <- read.csv("data/all_captures_carmel_2010-2021.csv")
+AllCarmelDates$Date <- as.Date(AllCarmelDates$Date, format = "%d/%m/%Y")
+
+AllCarmelDates.1 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-1)))
+AllCarmelDates.2 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-2)))
+AllCarmelDates.3 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-3)))
+
+AllCarmelDates.all <- rbind(AllCarmelDates, AllCarmelDates.1, AllCarmelDates.2, AllCarmelDates.3)
+
+sub.captured.carmel <- sub.captured.carmel %>%
+  mutate(known_capture = ifelse(date %in% AllCarmelDates.all$Date, 1, 0),
+         Captured = ifelse(known_capture == 1 & ClosestCaptureDist <= 50, "yes", "no")) %>%
+  filter(Captured == "yes") %>%
+  dplyr::select(-c(known_capture))
+
+names(sub.captured.no.carmel)
+names(sub.captured.carmel)
+
+sub.captured.dates <- rbind(sub.captured.no.carmel, sub.captured.carmel)
+
+# We also need to exclude the day after the bird was captured
+sub.captured.dates.1 <- sub.captured.dates
+sub.captured.dates.1$date <- sub.captured.dates.1$date+1
+
+sub.captured.dates <- rbind(sub.captured.dates, sub.captured.dates.1)
+sub.captured.dates <- sub.captured.dates %>% 
+  dplyr::distinct(Nili_id, date, .keep_all = T)
+
+# It all looks ok, so we can subset the dataset to exclude the capture dates
+datAnnot_noCaptures <- datAnnot %>%
+  left_join(sub.captured.dates, by = c("Nili_id", "dateOnly" = "date"))
+nrow(datAnnot) == nrow(datAnnot_noCaptures) # should be TRUE. NOW we can filter.
+datAnnot_noCaptures <- datAnnot_noCaptures %>%
+  dplyr::filter(Captured != "Yes"|is.na(Captured)) # remove the individual*days when they were captured
+
+# How many rows and individuals did we remove?
+before <- nrow(datAnnot)
+after <- nrow(datAnnot_noCaptures)
+(propChange <- (before-after)/before) # approx. 1% of data removed.
+length(unique(datAnnot$Nili_id))
+length(unique(datAnnot_noCaptures$Nili_id)) # no change in number of individuals! As expected.
+
+datAnnot_noCaptures <- datAnnot_noCaptures %>%
+  dplyr::select(-c("ClosestCaptureSite", "ClosestCaptureDist", "Captured"))
+
+# Age and sex info --------------------------------------------------------
 # Attach age and sex information
 as <- read_excel("data/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
   dplyr::select(Nili_id, birth_year, sex) %>%
   distinct()
 
-datAnnot2 <- datAnnot %>%
+datAnnot2 <- datAnnot_noCaptures %>%
   dplyr::select(-c("sex")) %>%
   left_join(as, by = "Nili_id")
 nrow(datAnnot2) == nrow(datAnnot)
@@ -314,9 +418,10 @@ afterIndivs <- map_dbl(after, ~length(unique(.x$Nili_id)))
 seasons <- after
 
 # Get elevation rasters ---------------------------------------------------
-elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x %>% st_transform(crs = "WGS84"), z = 10))
+seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
+elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10)) #XXX problem here!!!
 
-groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y %>% st_transform(crs = "WGS84"))) # have to convert the crs because the raster from elevatr is in WGS84.
+groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
 
 ## use elevation rasters to calculate height above ground level
 before <- seasons
