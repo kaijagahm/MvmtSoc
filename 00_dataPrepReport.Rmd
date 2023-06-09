@@ -126,8 +126,8 @@ datAnnot <- datAnnot %>%
 # Remove cages using Marta's data
 # Identify and remove capture dates using Marta's code --------------------
 ## To identify the capture dates, first we need to classify the roosts (now using the get_roosts() function). Then, if the bird roosted within 500 m of the capture site, it was considered to be captured and that day, and the following day, are excluded from the dataset. This has been validated. Note: this protocol doesn't work for the Carmel because of the position of the roost sites relative to cages. But we're just dealing with southern individuals, so that's okay.
-#roosts <- get_roosts_df(df = datAnnot, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
-#save(roosts, file = "data/roosts.Rda")
+roosts <- get_roosts_df(df = datAnnot, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
+save(roosts, file = "data/roosts.Rda")
 load("data/roosts.Rda")
 
 # Identify the period of time during which the capture sites are open (when we need to do this exclusion)
@@ -159,7 +159,7 @@ colnames(DistanceMat) <- unique(sites$name)
 
 for(i in 1:nrow(crds)){ # for each roost point...
   DistanceMat[i,] <- round(geosphere::distm(crds[i,], sites[,c(3,2)]), 2) # calculate distance using geosphere::distm
-  print(i)
+  #print(i)
 }
 
 ClosestCaptureSite <- colnames(DistanceMat)[apply(DistanceMat,1,which.min)] # ID of closest capture site
@@ -229,11 +229,11 @@ length(unique(datAnnot_noCaptures$Nili_id)) # no change in number of individuals
 ```
 
 
-The resulting data has dropped from **`r nrow(datAnnot_noCaptures)`** to
-**`r nrow(datAnnot)`** rows, a
-**`r round((nrow(datAnnot_noCaptures)-nrow(datAnnot))*100/nrow(datAnnot_noCaptures), 3)`% decrease**.
-It has `r ncol(datAnnot)` columns and
-**`r length(unique(datAnnot$Nili_id))`** unique individuals.
+The resulting data has dropped from **`r nrow(dat2)`** to
+**`r nrow(datAnnot_noCaptures)`** rows, a
+**`r round((nrow(dat2)-nrow(datAnnot_noCaptures))*100/nrow(dat2), 3)`% decrease**.
+It has `r ncol(dat2)` columns and
+**`r length(unique(datAnnot_noCaptures$Nili_id))`** unique individuals.
 
 ### Step 4: Attach birth year and sex info from who's who
 
@@ -246,7 +246,7 @@ as <- read_excel("data/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tag
 datAnnot2 <- datAnnot_noCaptures %>%
   dplyr::select(-c("sex")) %>%
   left_join(as, by = "Nili_id")
-nrow(datAnnot2) == nrow(datAnnot)
+nrow(datAnnot2) == nrow(datAnnot_noCaptures)
 length(unique(datAnnot2$Nili_id)) # 125
 ```
 
@@ -274,15 +274,13 @@ Israel-region geographic mak - For any individuals remaining, remove
 **points** that fell outside of the geographic mask (e.g. to remove
 long-range forays).
 
-```{r clean-data}
+```{r clean-data, echo = T, include = T}
 # Clean the data
 ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
 mask <- sf::st_read("data/CutOffRegion.kml")
-# datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 0.33, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) %>% st_drop_geometry()
-# save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
+datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 30, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) %>% st_drop_geometry()
+save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
 load("data/datAnnotCleaned.Rda")
-dim(datAnnotCleaned) # about 27 percent of data outside the israel region (roughly)
-length(unique(datAnnotCleaned$Nili_id))
 ```
 
 After cleaning, the new data has **`r nrow(datAnnotCleaned)`** rows (a
@@ -389,7 +387,7 @@ night.
 # forRoosts <- map(seasons, ~.x %>% sf::st_as_sf(coords = c("location_long", "location_lat"), remove = FALSE))
 # roosts_seasons <- purrr::map(forRoosts, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
 # roosts_seasons <- roosts_seasons %>%
-#   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat")))
+#   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
 # save(roosts_seasons, file = "data/roosts_seasons.Rda")
 load("data/roosts_seasons.Rda")
 ```

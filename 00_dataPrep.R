@@ -202,8 +202,8 @@ datAnnot <- datAnnot2 # a hack so the rest of the code will work
 # Clean the data
 ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
 mask <- sf::st_read("data/CutOffRegion.kml")
-#datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 0.33, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T)
-#save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
+datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 0.33, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T)
+save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
 load("data/datAnnotCleaned.Rda")
 dim(datAnnotCleaned) # about 27 percent of data outside the israel region (roughly)
 length(unique(datAnnotCleaned$Nili_id)) # 120 individuals left
@@ -271,7 +271,7 @@ save(seasons_forSoc, file = "data/seasons_forSoc.Rda")
 # Get roosts for each season ----------------------------------------------
 roosts_seasons <- purrr::map(seasons, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
 roosts_seasons <- roosts_seasons %>%
-  map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat")))
+  map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
 save(roosts_seasons, file = "data/roosts_seasons.Rda")
 
 # Remove nighttime points -------------------------------------------------
