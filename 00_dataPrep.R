@@ -202,7 +202,7 @@ datAnnot <- datAnnot2 # a hack so the rest of the code will work
 # Clean the data
 ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
 mask <- sf::st_read("data/CutOffRegion.kml")
-datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 0.33, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T)
+datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 30, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) # XXX using 30 days overall. If we want 30 days per season, will have to do that differently (e.g. split the seasons earlier)--but I think that that'll be covered later in the data cleaning anyway.
 save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
 load("data/datAnnotCleaned.Rda")
 dim(datAnnotCleaned) # about 27 percent of data outside the israel region (roughly)
@@ -272,7 +272,7 @@ save(seasons_forSoc, file = "data/seasons_forSoc.Rda")
 roosts_seasons <- purrr::map(seasons, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
 roosts_seasons <- roosts_seasons %>%
   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
-save(roosts_seasons, file = "data/roosts_seasons.Rda")
+save(roosts_seasons, file = "data/roosts_seasons.Rda") # XXXXXX start here
 
 # Remove nighttime points -------------------------------------------------
 before <- map_dbl(seasons, nrow)
@@ -296,7 +296,7 @@ changeDF <- data.frame(seasonName = seasonNames, nBefore = before, nAfter = afte
 changeDF
 
 # Restrict to southern individuals ----------------------------------------
-# Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (in ITM)
+# Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (UTM 36N, https://epsg.io/32636)
 ## Transform to SF object, so we can get centroids
 seasonsSF <- map(seasons, ~.x %>%
                    sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%

@@ -429,7 +429,7 @@ print(changeDF)
 
 For each individual in each season, I calculated the centroid of its
 coordinates. Then I looked at some histograms of the centroids in each
-season and decided that 3550000 latitude (in ITM coordinates) would be a
+season and decided that 3550000 latitude (in UTM zone 36N coordinates--https://epsg.io/32636) would be a
 cutoff point that would neatly divide individuals in the southern
 population from the northern population (there was a large gap in the
 histogram consistently around this value).
@@ -450,7 +450,7 @@ Keep in mind:
 
 ```{r remove-northern}
 # Restrict to southern individuals ----------------------------------------
-# Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (in ITM)
+# Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (UTM 36N, https://epsg.io/32636)
 ## Transform to SF object, so we can get centroids
 seasonsSF <- map(seasons, ~.x %>%
                    sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
