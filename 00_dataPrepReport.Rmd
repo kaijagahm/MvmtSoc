@@ -575,11 +575,11 @@ ppd %>%
 #   ylab("Proportion of days removed")+
 #   xlab("")
 
-## Remove days on which individuals don't have at least 10 points.
+## Keep days with more than 10 points, or with fewer than 10 if the minimum battery charge that day is >50%
 before <- seasons
 seasons <- map(seasons, ~.x %>%
                  group_by(Nili_id, dateOnly) %>%
-                 filter(n() >= 10) %>% # hard-coding the 10 in here so it doesn't accidentally get changed.
+                 filter(n() >= 10 | (n() < 10 & min(battery_charge_percent, na.rm = T) > 50)) %>%
                  ungroup())
 after <- seasons
 
@@ -629,7 +629,7 @@ indivsToKeep <- map2(.x = seasons, .y = durs, ~.x %>%
                        group_by(Nili_id) %>%
                        summarize(nDaysTracked = length(unique(dateOnly)),
                                  propDaysTracked = nDaysTracked/.y) %>%
-                       filter(propDaysTracked >= 0.33) %>% # XXX ask Orr if this should be percentage vs. number of days, given the different season lengths. (email)
+                       filter(nDaysTracked >= 30) %>%
                        pull(Nili_id))
 
 ## remove those individuals not tracked for enough days
@@ -647,6 +647,9 @@ Here's what this does to the row counts:
 
 ```{r include = T, echo = F}
 df
+
+## Now I notice that season 1, Summer 2020, doesn't have enough individuals. Let's remove it--we're going to have to anyway.
+seasons <- seasons[-1]
 ```
 
 ### Step 12: Calculate flight altitudes

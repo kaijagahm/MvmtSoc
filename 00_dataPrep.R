@@ -272,7 +272,7 @@ save(seasons_forSoc, file = "data/seasons_forSoc.Rda")
 roosts_seasons <- purrr::map(seasons, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id")) 
 roosts_seasons <- roosts_seasons %>%
   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
-save(roosts_seasons, file = "data/roosts_seasons.Rda") # XXXXXX start here
+save(roosts_seasons, file = "data/roosts_seasons.Rda")
 
 # Remove nighttime points -------------------------------------------------
 before <- map_dbl(seasons, nrow)
@@ -331,13 +331,84 @@ df$propRowsRemoved <- round((df$nBefore - df$nAfter)/df$nBefore, 2)
 df
 
 # Include only individuals with enough points per day ------------------------
-# How many points per day are we looking at?
-ppd <- map_dfr(seasons, ~.x %>%
-             st_drop_geometry() %>%
-             group_by(seasonUnique, season, Nili_id, dateOnly) %>%
-             summarize(n = n()))
+# Investigate battery percentage vs points per day ------------------------
+# Is there some way we can relate battery charge percentage to number of points per day?
+test <- seasons[[5]]
+names(test)
 
-## Theoretically, should only have 72 points per day--12 hours, 6 points per hour. That should vary a bit. I don't really understand why so many individuals/days have more than 100 points per day, but let's proceed for now: going to downsample that to 10 minue intervals anyway, so it won't matter.
+ppd <- map_dfr(seasons, ~.x %>%
+                 st_drop_geometry() %>%
+                 group_by(seasonUnique, season, Nili_id, dateOnly) %>%
+                 summarize(n = n(),
+                           minBatt = min(battery_charge_percent, na.rm = T),
+                           meanBatt = mean(battery_charge_percent, na.rm = T),
+                           medBatt = mean(battery_charge_percent, na.rm = T)))
+
+excl_batt <- 50
+excl_pts <- 10
+## min battery charge
+ppd %>%
+  filter(n < 100) %>% # only interested in the lower numbers
+  mutate(remove = case_when(minBatt <= excl_batt & n <= excl_pts ~ T,
+                            TRUE ~ F)) %>%
+  ggplot(aes(x = minBatt, y = n))+
+  geom_point(aes(col = remove))+
+  facet_wrap(~seasonUnique) +
+  scale_color_manual(values = c("black", "red")) +
+  theme_classic()
+
+# cumulative histogram to look at the results of removing days based only on ppd
+ppd %>%
+  filter(n < 100) %>%
+  ggplot(aes(x = n)) +
+  stat_ecdf(aes(y = ..y..*100))+
+  ylab("Percentage of vulture-days included")+
+  xlab("Points per day")+
+  theme_classic()+
+  facet_wrap(~seasonUnique)
+
+# cumulative histogram to look at results of removing days based on ppd after battery is taken into account (min pct < 50)
+ppd %>%
+  filter(n < 100, minBatt > 50) %>%
+  ggplot(aes(x = n)) +
+  stat_ecdf(aes(y = ..y..*100))+
+  ylab("Percentage of vulture-days included")+
+  xlab("Points per day")+
+  theme_classic()+
+  facet_wrap(~seasonUnique)
+
+# same thing, but with batery set at 75
+# cumulative histogram to look at results of removing days based on ppd after battery is taken into account (min pct < 50)
+ppd %>%
+  filter(n < 100, minBatt > 75) %>%
+  ggplot(aes(x = n)) +
+  stat_ecdf(aes(y = ..y..*100))+
+  ylab("Percentage of vulture-days included")+
+  xlab("Points per day")+
+  theme_classic()+
+  facet_wrap(~seasonUnique)
+
+# What if instead we decide we want a certain number of ppd--battery cuttoff may be sharper. Say, 30 ppd: is there a discernible battery cutoff that distinguishes "real" from "battery artifact" days?
+ppd %>%
+  filter(n < 30) %>%
+  ggplot(aes(x = minBatt))+
+  stat_ecdf(aes(y = ..y..*100))+
+  ylim(c(0, 100))+
+  facet_wrap(~seasonUnique)+
+  ylab("Percentage of vulture-days included")+
+  xlab("Minimum battery percentage") # we do seem to see crooks here around 75%!
+
+# Same thing but with 10 points per day? Predict much sharper cutoffs.
+ppd %>%
+  filter(n < 10) %>%
+  ggplot(aes(x = minBatt))+
+  stat_ecdf(aes(y = ..y..*100))+
+  ylim(c(0, 100))+
+  facet_wrap(~seasonUnique)+
+  ylab("Percentage of vulture-days included")+
+  xlab("Minimum battery percentage") # crooks around 50% battery minimum for 10ppd. This seems like a pretty good way to go!
+
+# Let's throw out anything with < 10ppd unless the battery has a min charge > 50%.
 
 # Orr suggests to just restrict to vulture*days with >30 points per day. Let's see what that would look like.
 thresh <- 10
@@ -383,14 +454,18 @@ ppd %>%
   ylab("Proportion of days removed")+
   xlab("")
 
-## Remove days on which individuals don't have at least 10 points.
+# Based on the battery charge analysis above, going to remove individuals that have 10 or fewer points per day, but only if the minimum battery charge is less than 50%.
+# XXXX start here!
+
+
+## Keep days with more than 10 points, or with fewer than 10 if the minimum battery charge that day is >50%
 seasons <- map(seasons, ~.x %>%
                  group_by(Nili_id, dateOnly) %>%
-                 filter(n() >= 10) %>%  # hard-coding the 10 in here so it doesn't accidentally get changed.
-                 ungroup()) # need to come up with a metric here for how many points were removed. 
+                 filter(n() >= 10 | (n() < 10 & min(battery_charge_percent, na.rm = T) > 50)) %>%
+                 ungroup())
 
 # Include only individuals with enough days tracked -----------------------
-## Must be tracked for at least 1/4 of the number of days in the season.
+## Must be tracked for at least 30 days per season
 durs <- map_dbl(seasons, ~length(unique(.x$dateOnly)))
 
 walk2(seasons, durs, ~.x %>%
@@ -406,7 +481,7 @@ indivsToKeep <- map2(.x = seasons, .y = durs, ~.x %>%
                        group_by(Nili_id) %>%
                        summarize(nDaysTracked = length(unique(dateOnly)),
                                  propDaysTracked = nDaysTracked/.y) %>%
-                       filter(propDaysTracked >= 0.33) %>% # XXX ask Orr if this should be percentage vs. number of days, given the different season lengths. (email)
+                       filter(nDaysTracked >= 30) %>%
                        pull(Nili_id))
 
 ## remove those individuals not tracked for enough days
@@ -417,9 +492,14 @@ beforeIndivs <- map_dbl(before, ~length(unique(.x$Nili_id)))
 afterIndivs <- map_dbl(after, ~length(unique(.x$Nili_id)))
 seasons <- after
 
+## Now I notice that season 1, Summer 2020, doesn't have enough individuals. Let's remove it--we're going to have to anyway.
+seasons <- seasons[-1]
+
 # Get elevation rasters ---------------------------------------------------
 seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10)) #XXX problem here!!!
+# elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
+# save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
+load("data/elevs_z10_seasons.Rda")
 
 groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
 
@@ -427,7 +507,7 @@ groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = 
 before <- seasons
 seasons <- map2(.x = seasons, .y = groundElev_z10, 
                 ~.x %>% mutate(height_above_ground = .y,
-                               height_above_ground = case_when(height_above_ground <0 ~ 0,
+                               height_above_ground = case_when(height_above_ground < 0 ~ 0,
                                                                TRUE ~ height_above_ground)))
 after <- seasons
 
@@ -436,7 +516,6 @@ all(map2_lgl(before, after, ~nrow(.x) == nrow(.y)))
 
 # Export the data
 save(seasons, file = "data/seasons.Rda")
-
 
 # Downsample the data and save the downsampled data
 subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 10){
