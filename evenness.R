@@ -16,7 +16,6 @@ evenness <- function(graph){
     summarize(n = n(),
               H = -1*sum(prop*log(prop), na.rm = T),
               evenness = H/log(n))
-  el_s$evenness[el_s$n == 1] <- 1
   e <- el_s$evenness
   names(e) <- el_s$ID1
   
@@ -34,9 +33,10 @@ evenness <- function(graph){
   }
   
   # Now we have to switch the order to match the order of vertices
-  test <- e[names(V(graph))]
+  reordered <- e[names(V(graph))]
   if(!(all(names(test) == names(V(graph))))){
     stop("Error in name ordering")
+  }else{
+    return(reordered) # CRUCIALLY IMPORTANT, KAIJA!!! Ugh....
   }
-  return(e) # return the final named vector
 }
