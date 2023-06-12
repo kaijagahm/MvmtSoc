@@ -15,12 +15,15 @@ library(glmmTMB) # more complicated than lme4; allows for beta distributions
 library(DHARMa) # for testing glmmTMB models
 # https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
 library(sjPlot)
+library(broom.mixed)
+library(jtools) # similar to sjplot, for forest plots
 
 # Set ggplot theme to classic
 theme_set(theme_classic())
 
 # Set season colors
 seasonColors <- c("#2FF8CA", "#CA2FF8", "#F8CA2F")
+situationColors <- c("dodgerblue2", "olivedrab3", "gold")
 
 # Here's an interesting reference article for some modeling stuff: https://biol607.github.io/lab/12_gzlm.html
 
@@ -277,37 +280,25 @@ so_fe_noint <- simulateResiduals(fittedModel = fe_noint, plot = F)
 plot(so_fe_noint) # Looks a bit better but still not good.
 check_model(fe_noint) # oof, that distribution is still a really awful fit. But it's a bit better, and apparently Conner has seen worse? Let's go with it for now. Candidate.
 
-fe_max <- glmmTMB(evenness ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = fe, family = beta_family())
-check_model(fe_max) # weird that it says it doesn't support models of class glmmTMB when it worked for the previous one, which was also a glmmTMB model. Hmmm....
-so_fe_max <- simulateResiduals(fittedModel = fe_max, plot = F)
-plot(so_fe_max) # bleh. Not candidate. Or maybe candidate? I don't know how to see the problems if I can't run vif and I can't run check_model. I think there's a convergence issue...
-summary(fe_max) # I can't see what to remove, so I'm going to see about following the same procedure as above... The season effects were the worst, so let's remove those.
+fe_max <- glmmTMB(evenness ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = fe, family = beta_family()) # does not converge
 
-fe_2 <- glmmTMB(evenness ~ PC1*age_group*season + PC2*age_group + season*year + (1|Nili_id), data = fe, family = beta_family())
-check_model(fe_2) # weird that it says it doesn't support models of class glmmTMB when it worked for the previous one, which was also a glmmTMB model. Hmmm....
-so_fe_2 <- simulateResiduals(fittedModel = fe_2, plot = F)
-plot(so_fe_2) # bleh. Not candidate. And didn't converge.
+fe_2 <- glmmTMB(evenness ~ PC1*age_group*season + PC2*age_group + season*year + (1|Nili_id), data = fe, family = beta_family()) # does not converge
 
-fe_3 <- glmmTMB(evenness ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = fe, family = beta_family()) # not candidate
-check_model(fe_3) # Still a convergence problem.
+fe_3 <- glmmTMB(evenness ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = fe, family = beta_family()) # does not converge
 
 # Let's remove season*year next...
 fe_4 <- glmmTMB(evenness ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = fe, family = beta_family()) # okay now it converges
 check_model(fe_4) # this looks fine, actually. Candidate.
-summary(fe_4) # wow, nothing is significant. Just to make sure, let's remove one of the interactions between age group and PC
+summary(fe_4) # Let's remove the age_group interactions.
 
 fe_5 <- glmmTMB(evenness ~ PC1 + PC2*age_group + season + year + (1|Nili_id), data = fe, family = beta_family())
 check_model(fe_5) # fine, candidate.
-summary(fe_5) # still nothing. I guess we can keep removing things?
+summary(fe_5) # Remove the other age_group interaction
 
 # Removing the next interaction would just bring us back to fe_noint
-summary(fe_noint) # I guess let's remove the year effect?
+summary(fe_noint) # Can't go any farther here without removing the PC1 and PC2 values.
 
-fe_6 <- glmmTMB(evenness ~ PC1 + PC2 + season + (1|Nili_id), data = fe, family = beta_family())
-check_model(fe_6) # Candidate
-summary(fe_6) # I don't want to go any farther here because again, don't want to remove PC1 or PC2. We do have a significant effect of season.
-
-compare_performance(fe_noint, fe_4, fe_5, fe_6, rank = T)
+compare_performance(fe_noint, fe_4, fe_5, rank = T)
 fe_mod <- fe_noint
 
 # FEEDING ------------------------------------------------------------------
@@ -396,7 +387,7 @@ ee <- feeding %>%
 ee_noint <- glmmTMB(evenness ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = ee, family = beta_family())
 so_ee_noint <- simulateResiduals(fittedModel = ee_noint, plot = F)
 plot(so_ee_noint) # Bleh....
-check_model(ee_noint) # Still a bad fit but better than the previous one! Candidate.
+check_model(ee_noint) # This actually looks really good! Candidate.
 
 ee_max <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
 
@@ -405,7 +396,7 @@ ee_2 <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group + season*y
 ee_3 <- glmmTMB(degreeRelative ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
 
 ee_4 <- glmmTMB(degreeRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = ee, family = beta_family()) # Converges!
-check_model(ee_4) # oh wow, not bad at all! Candidate.
+check_model(ee_4) # Looks pretty good!
 summary(ee_4) # Remove PC1*age_group
 
 ee_5 <- glmmTMB(degreeRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id), data = ee, family = beta_family()) # Converges!
@@ -491,12 +482,82 @@ re <- roosting %>%
 
 re_noint <- glmmTMB(evenness ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = re, family = beta_family())
 so_re_noint <- simulateResiduals(fittedModel = re_noint, plot = F)
-plot(so_re_noint) # Actually not bad!
-check_model(re_noint) # Candidate
+plot(so_re_noint) # Yuck...
+check_model(re_noint) # Candidate! Actually not bad at all.
 
-ee_max <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
+re_max <- glmmTMB(evenness ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = re, family = beta_family()) # fails to converge
 
-ee_2 <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
+re_2 <- glmmTMB(evenness ~ PC1*age_group*season + PC2*age_group + season*year + (1|Nili_id), data = re, family = beta_family()) # fails to converge
+
+re_3 <- glmmTMB(evenness ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = re, family = beta_family()) # fails to converge
+
+re_4 <- glmmTMB(evenness ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = re, family = beta_family()) # converges!
+check_model(re_4) # Candidate
+summary(re_4) # can remove PC1*age_group
+
+re_5 <- glmmTMB(evenness ~ PC1 + PC2*age_group + season + year + (1|Nili_id), data = re, family = beta_family())
+check_model(re_5) # Candidate
+summary(re_5) # Can't go any farther without removing PC2.
+
+compare_performance(re_noint, re_4, re_5, rank = T)
+re_mod <- re_5
+
+
+# Effect plots ------------------------------------------------------------
+# We now have 9 models. Let's compile and tidy their outputs.
+mods <- list("fd" = fd_mod, "fs" = fs_mod, "fe" = fe_mod, "ed" = ed_mod, "es" = es_mod, "ee" = ee_mod, "rd" = rd_mod, "rs" = rs_mod, "re" = re_mod)
+type <- substr(names(mods), 1, 1)
+response <- substr(names(mods), 2, 2)
+outputs <- map(mods, broom.mixed::tidy)
+
+effects <- outputs %>%
+  map2(., type, ~.x %>% mutate(type = .y) %>%
+         relocate(type)) %>%
+  map2(., response, ~.x %>% mutate(response = .y) %>%
+         relocate(response, .after = "type")) %>%
+  purrr::list_rbind() %>%
+  mutate(type = case_when(type == "f" ~ "flight",
+                          type == "e" ~ "feeding",
+                          type == "r" ~ "roosting"),
+         response = case_when(response == "d" ~ "degreeRelative",
+                              response == "s" ~ "strengthRelative",
+                              response == "e" ~ "evenness"))
+
+save(mods, file = "data/mods.Rda")
+save(effects, file = "data/effects.Rda")
+
+# Now make effect size plots
+effects %>%
+  mutate(sig.05 = case_when(p.value < 0.05 ~ T,
+                            TRUE ~F),
+         sig.01 = case_when(p.value < 0.01 ~ T,
+                            TRUE ~ F)) %>%
+  filter(term %in% c("PC1", "PC2")) %>%
+  ggplot(aes(x = response, y = estimate, col = type))+
+  geom_point(size = 3, aes(shape = sig.05))+
+  scale_color_manual(name = "Situation", values = situationColors)+
+  ylab("Effect size")+
+  facet_wrap(~term) # okay, this shows everything but it is definitely not the right way to visualize.
+
+plot_model(fd_mod, type = "eff")
+
+# Degree
+plot_summs(fd_mod, ed_mod, rd_mod, inner_ci_level = .9,
+           model.names = c("Flight", "Feeding", "Roosting"), coefs = c("PC1", "PC2"))+
+  scale_color_manual(values = situationColors)+
+  ggtitle("Degree (normalized)")
+
+# Degree
+plot_summs(fs_mod, es_mod, rs_mod, inner_ci_level = .9,
+           model.names = c("Flight", "Feeding", "Roosting"), coefs = c("PC1", "PC2"))+
+  scale_color_manual(values = situationColors)+
+  ggtitle("Strength (normalized)")
+
+# Evenness
+plot_summs(fe_mod, ee_mod, re_mod, inner_ci_level = .9,
+           model.names = c("Flight", "Feeding", "Roosting"), coefs = c("PC1", "PC2"))+
+  scale_color_manual(values = situationColors)+
+  ggtitle("Evenness")
 
 
 # plots -------------------------------------------------------------------
