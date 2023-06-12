@@ -24,6 +24,8 @@ seasonColors <- c("#2FF8CA", "#CA2FF8", "#F8CA2F")
 
 # Here's an interesting reference article for some modeling stuff: https://biol607.github.io/lab/12_gzlm.html
 
+# arbitrary changes to test for slowness
+
 load("data/linked.Rda")
 load("data/mnPPD.Rda")
 mnPPD <- mnPPD %>%
@@ -65,8 +67,8 @@ bxp <- ggboxplot(
 bxp
 
 linked %>%
-  dplyr::select(sex, type, Nili_id, degreeRelative, strengthRelative, sbd) %>%
-  pivot_longer(cols = c("degreeRelative", "strengthRelative", "sbd"), 
+  dplyr::select(sex, type, Nili_id, degreeRelative, strengthRelative, evenness) %>%
+  pivot_longer(cols = c("degreeRelative", "strengthRelative", "evenness"), 
                names_to = "socialPositionMeasure", values_to = "value") %>%
   filter(!is.na(sex)) %>%
   ggplot(aes(x = sex, y = value, fill = sex))+
@@ -108,8 +110,8 @@ bxp_age
 ## differences in degree/strength by age 
 head(linked)
 linked %>%
-  dplyr::select(age_group, type, Nili_id, degreeRelative, strengthRelative, sbd) %>%
-  pivot_longer(cols = c("degreeRelative", "strengthRelative", "sbd"), names_to = "socialPositionMeasure", values_to = "value") %>%
+  dplyr::select(age_group, type, Nili_id, degreeRelative, strengthRelative, evenness) %>%
+  pivot_longer(cols = c("degreeRelative", "strengthRelative", "evenness"), names_to = "socialPositionMeasure", values_to = "value") %>%
   filter(!is.na(age_group)) %>%
   ggplot(aes(x = age_group, y = value, fill = age_group))+
   geom_boxplot()+
@@ -123,8 +125,8 @@ linked %>%
 
 # SEASON
 linked %>%
-  dplyr::select(type, Nili_id, degreeRelative, strengthRelative, sbd, season) %>%
-  pivot_longer(cols = c("degreeRelative", "strengthRelative", "sbd"), names_to = "socialPositionMeasure", values_to = "value") %>%
+  dplyr::select(type, Nili_id, degreeRelative, strengthRelative, evenness, season) %>%
+  pivot_longer(cols = c("degreeRelative", "strengthRelative", "evenness"), names_to = "socialPositionMeasure", values_to = "value") %>%
   filter(!is.na(season)) %>%
   ggplot(aes(x = season, y = value, fill = season))+
   geom_boxplot()+
@@ -183,7 +185,7 @@ roosting <- linked %>%
 # I thought we couldn't include random effects if they had fewer than 5 levels, but maybe you can? https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8784019/
 # First, fit a model that includes all the predictors but no interaction effects, to check the VIF, which will tell us whether the predictors are correlated within the model.
 # Don't want to do year as a random effect--Marta argues that this would be like trying to make a boxplot with 3 data points. Doesn't make sense. See also https://stats.stackexchange.com/questions/464157/year-as-a-fixed-or-random-effect-in-glm-with-only-two-levels.
-fd_noint <- lmer(degreeRelative ~ PC1 + poly(PC2, 2) + age_group + season + year + 
+fd_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + 
                    mnPPD + (1|Nili_id), data = flight)
 summary(fd_noint) # age group comes out the least significant.
 # use DHARMa to check the model
@@ -198,52 +200,60 @@ plotResiduals(fd_noint, form = flight$PC1)
 plotResiduals(fd_noint, form = flight$PC2)
 plotResiduals(fd_noint, form = flight$age_group)
 plotResiduals(fd_noint, form = flight$year)
-plot_model(fd_noint, type = "pred", term = "PC2", show.data = TRUE) # better fit than with just the linear term, but I worry that this will become the entire story because it has an easily interpretable shape...
+plot_model(fd_noint, type = "pred", term = "PC2", show.data = TRUE) # I don't like this linear fit, but I don't think the quadratic term is very interpretable, and I can't justify it (at least not now)
 
-fd_max <- lmer(degreeRelative ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+fd_max <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
 check_model(fd_max) # oof those VIFs are baaad. Not candidate
 summary(fd_max) # let's start by taking out season*mnPPD
 vif(fd_max)
 
-fd_2 <- lmer(degreeRelative ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+fd_2 <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
 check_model(fd_2) # VIFs slightly improved but still really bad. Not candidate.
-vif(fd_2) #PC2*season*age_group is the worst, so let's remove that.
-summary(fd_2)
+vif(fd_2) #PC1*season is the worst, so let's remove that.
 
-fd_3 <- lmer(degreeRelative ~ PC1*age_group*season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fd_3) # still really high VIF
-vif(fd_3) # highest is PC1*season, so we'll remove that next. Not candidate.
-summary(fd_3)
+fd_3 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_3) # VIFs still too high. Not candidate.
+vif(fd_3) #age*PC2*season is the worst, so we'll remove that next
 
-fd_4 <- lmer(degreeRelative ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fd_4) # all VIF's look good, and the rest of the fit is fine. Candidate.
-vif(fd_4) # brilliant
-summary(fd_4) # next we can get rid of PC1*age group
+fd_4 <- lmer(degreeRelative ~ PC1*age_group + PC2*season + PC2*age_group + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_4) # Borderline, but candidate.
+vif(fd_4) # Highest now is PC2*season
 
-fd_5 <- lmer(degreeRelative ~ PC1 + age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fd_5) # Looks good! candidate.
-summary(fd_5) # looking nice. mnPPD and age group are still non-significant.
+fd_4.5 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group + season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fd_4.5) # nice, candidate.
+vif(fd_4.5) #these all look good now.
+summary(fd_4.5) # next to go will be the interactions between age group and the PCs, but also mnPPD isn't significant and I don't really like it, so let's get rid of that first.
 
-# remove mnPPD
-fd_6 <- lmer(degreeRelative ~ PC1 + age_group + season + poly(PC2, 2) + year + (1|Nili_id), data = flight)
-check_model(fd_6) # Looks good! candidate.
-summary(fd_6) # remove age group
+fd_5 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = flight)
+check_model(fd_5) # candidate
+summary(fd_5)
 
-# remove age group
-fd_7 <- lmer(degreeRelative ~ PC1 + season + poly(PC2, 2) + year + (1|Nili_id), data = flight)
-check_model(fd_7) # Looks good! candidate.
-summary(fd_7) # nice!
+# Still not loving those interactions... remove the PC2 one first because reasons.
+fd_6 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id), data = flight)
+check_model(fd_6) # candidate
+summary(fd_6) # PC1*age_group is still bad. 
+
+fd_7 <- lmer(degreeRelative ~ PC1 + age_group + PC2 + season + year + (1|Nili_id), data = flight)
+check_model(fd_7) # candidate
+summary(fd_7) # I guess we can remove age_group...
+
+fd_8 <- lmer(degreeRelative ~ PC1 + PC2 + season + year + (1|Nili_id), data = flight)
+check_model(fd_8) # candidate
+summary(fd_8) # okay, going to stop there because I don't want to remove the PCs.
+
+# what about... do we want a season*year effect??
+fd_9 <- lmer(degreeRelative ~ PC1 + PC2 + season*year + (1|Nili_id), data = flight)
+check_model(fd_9) # ah, this becomes "rank-deficient", which I think is because we don't have all three seasons for all of the years. So let's not do this. Not candidate.
 
 # Compare performance of only the models with a reasonable fit
-compare_performance(fd_noint, fd_4, fd_5, fd_6, fd_7, rank = T) # fd_7 wins here: degreeRelative ~ PC1 + season + poly(PC2, 2) + year + (1|Nili_id)
-fd_mod <- fd_7
+compare_performance(fd_noint, fd_4, fd_4.5, fd_5, fd_6, fd_7, fd_8, rank = T) # fd_8: degreeRelative ~ PC1 + PC2 + season + year + (1|Nili_id)
+fd_mod <- fd_8
 
 ## Strength ------------------------------------------------------------------
-# Theoretically we might want to do the same model selection for strength as for degree (same models in same order), but just to see, I'm going to do the process as if it were its own thing.
 # I think gaussian is still reasonable here:
-flight %>% ggplot(aes(x = strengthRelative))+geom_histogram() # yeah that's decently normal-shaped.
+flight %>% ggplot(aes(x = strengthRelative))+geom_histogram() # yeah that's decently normal-shaped. Even better than degree, I think. And according to Marta, if I want to compare between models, I should use the same type of model for each of them.
 
-fs_noint <- lmer(strengthRelative ~ PC1 + poly(PC2, 2) + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
+fs_noint <- lmer(strengthRelative ~ PC1 + PC2 + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
 summary(fs_noint) # oh weird, no season effect here! 
 check_model(fs_noint) # oh wow this actually looks perfect!!! Candidate.
 # What does DHARMa think?
@@ -253,81 +263,51 @@ plot(so_fs_noint) # holy moly that's so nice! Yesssss
 testDispersion(fs_noint) # beautiful
 plotResiduals(fs_noint, form = flight$season) # beautiful
 plotResiduals(fs_noint, form = flight$PC1) # meh but not terrible
-plotResiduals(fs_noint, form = flight$PC2) # wait this one is actually good now that we included the quadratic term for PC2!
+plotResiduals(fs_noint, form = flight$PC2) # kind of bad but could just be low sample size?
 plotResiduals(fs_noint, form = flight$age_group) # not terrible
 plotResiduals(fs_noint, form = flight$year) # yay!
-plot_model(fs_noint, type = "pred", term = "PC2 [all]", show.data = TRUE) # Much better fit than the linear.
+plot_model(fs_noint, type = "pred", term = "PC2 [all]", show.data = TRUE) # this is gross but I've decided that a quadratic term will be too hard to deal with
 plot_model(fs_noint, type = "pred", term = "PC1", show.data = TRUE) # Yuck.
 
-fs_max <- lmer(strengthRelative ~ PC1*age_group*season + poly(PC2, 2)*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+fs_max <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
 check_model(fs_max) # really bad VIFs. Not candidate.
-vif(fs_max) # start by removing age*season*PC2
+vif(fs_max) # start by removing season*mnPPD
 
-fs_2 <- lmer(strengthRelative ~ PC1*age_group*season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fs_2) # VIFs slightly improved but still really bad. Not candidate.
-vif(fs_2) # PC1*season is the worst
-summary(fs_2)
+fs_2 <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fs_2) # still really high VIFs. Not candidate.
+vif(fs_2) # now PC1*season is bad
 
-fs_3 <- lmer(strengthRelative ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fs_3) # this looks better! Candidate.
-vif(fs_3) # golden
-summary(fs_3) # can remove mnPPD
+fs_3 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fs_3) # still too high but getting better
+vif(fs_3) # next problem is the three-way interaction with PC2
 
-fs_4 <- lmer(strengthRelative ~ PC1*age_group + season + poly(PC2, 2) + year + (1|Nili_id), data = flight)
-check_model(fs_4) # candidate.
-summary(fs_4) # can remove mnPPD
+fs_4 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
+check_model(fs_4) # much better but borderline... candidate, I guess.
+vif(fs_4) # get rid of PC2*season next
 
-# Remove season
-fs_5 <- lmer(strengthRelative ~ PC1 + age_group + poly(PC2, 2) + year + (1|Nili_id), data = flight)
-check_model(fs_5) # candidate.
-summary(fs_5)
+fs_5 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + mnPPD + season + year + (1|Nili_id), data = flight)
+check_model(fs_5) # ok! candidate.
+vif(fs_5) # these all look nice now.
+summary(fs_5) # no effect of season, mnPPD, and also no effect of PC1*age group. Let's remove mnPPD first because it's the least interpretable.
+
+fs_6 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = flight)
+check_model(fs_6) # candidate
+summary(fs_6) # now we can remove PC1*age group
+
+fs_7 <- lmer(strengthRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id), data = flight)
+check_model(fs_7) # looks lovely. candidate.
+summary(fs_7) # still really no effect of season! Surprising.
+
+fs_8 <- lmer(strengthRelative ~ PC1 + PC2*age_group + year + (1|Nili_id), data = flight)
+check_model(fs_8) # candidate
+summary(fs_8) 
 
 # Compare performance of only the models with a reasonable fit
-compare_performance(fs_noint, fs_3, fs_4, fs_5, rank = T) # fs_3 wins: strengthRelative ~ PC1*age_group + season + poly(PC2, 2) + mnPPD + year + (1|Nili_id)
-fs_mod <- fs_3
+compare_performance(fs_noint, fs_4, fs_5, fs_6, fs_7, fs_8, rank = T) # fs_8 wins: strengthRelative ~ PC1 + PC2*age_group + year + (1|Nili_id). Second place is fs_7, strengthRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id) (includes season), so we should use that one if we don't want to remove season, which I think I don't.
+fs_mod <- fs_7
 
-## Strength by degree ------------------------------------------------------
-fb_noint <- lmer(sbd ~ PC1 + PC2 + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
-check_model(fb_noint) # Looks okay! Not ideal, but fine. Candidate.
-# What does DHARMa think?
-so_fb_noint <- simulateResiduals(fittedModel = fb_noint, plot = F)
-plot(so_fb_noint) # weird. Less bad than degree, but worse than strength.
-testDispersion(fb_noint) # beautiful
-plotResiduals(fb_noint, form = flight$season) # ok
-plotResiduals(fb_noint, form = flight$PC1) # not bad!
-plotResiduals(fb_noint, form = flight$PC2) # nice!
-plotResiduals(fb_noint, form = flight$age_group) # ok
-plotResiduals(fb_noint, form = flight$year) # ok
-plot_model(fb_noint, type = "pred", term = "PC2 [all]", show.data = TRUE) # looks fine
-plot_model(fb_noint, type = "pred", term = "PC1 [all]", show.data = TRUE) # this one looks fine actually.
-
-fb_max <- lmer(sbd ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
-check_model(fb_max) # aaaaah. Not candidate.
-vif(fb_max) # worst is season*mnPPD
-
-fb_2 <- lmer(sbd ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fb_2) # still bad
-vif(fb_2) # now the worst is PC1*season
-
-fb_3 <- lmer(sbd ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fb_3) # still bad but getting better
-vif(fb_3) # age*PC2*season is bad
-
-fb_4 <- lmer(sbd ~ PC1*age_group + PC2*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fb_4) # moderately elevated VIF but not terrible. candidate.
-vif(fb_4) # the worst is PC2*season
-
-fb_5 <- lmer(sbd ~ PC1*age_group + PC2*age_group + season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fb_5) # candidate
-vif(fb_5) # golden!
-summary(fb_5) # next thing to remove is PC1*age group
-
-fb_6 <- lmer(sbd ~ PC1+ PC2*age_group + season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fb_6) # fine
-summary(fb_6) # next we would remove PC2 but I don't want to do that. I think we can stop.
-
-compare_performance(fb_noint, fb_4, fb_5, fb_6, rank = T) # fb_6 wins: sbd ~ PC1+ PC2*age_group + season + mnPPD + year + (1|Nili_id)
-fb_mod <- fb_6
+## Evenness ------------------------------------------------------
+fb_noint <- lmer(evenness ~ PC1 + PC2 + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
 
 # Lingering questions
 # 0. When I do performance::compare_performance, should I only include models that have already been deemed to fit the data fairly well, or should I include all of them? I can see arguments either way. Unclear to me whether compare_performance also takes into account the model diagnostics when evaluating performance, or if it only computes AIC and assumes you've already decided the diagnostics are met. I think it's the latter, but I'm not sure.
@@ -353,27 +333,192 @@ fb_mod <- fb_6
 
 # to aid in the interpretation, let's look at the variable contributions again
 load("data/contrib.Rda")
+min(flight$n)
+max(flight$n)
+# population size ranges from 95 to 262.
 
 ## Degree ------------------------------------------------------------------
-plot_model(fd_mod) # largest effect is with PC2
-plot_model(fd_mod, type = "pred", terms = c("PC1 [all]", "season"), 
-           colors = seasonColors, line.size = 1.5)
-plot_model(fd_mod, type = "pred", terms = c("PC2 [all]", "season"), 
-           colors = seasonColors, line.size = 1.5)
+plot_model(fd_mod) # Estimates are quite small. Largest effect is year (negative effect). Largest positive effect is season (summer).
+summary(fd_mod)
+# PC1: non-signif
+# PC2: significant but tiny tiny tiny.
+# season: marginally significant, small effect.
+# year: significant, small effects.
+# No interactions retained in the model.
+plot_model(fd_mod, type = "pred", terms = "PC2 [all]", col = "white")+
+  theme(panel.background = element_rect(fill = "#595959"),
+        plot.background = element_rect(fill = "#595959"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  ylab("Degree (normalized)")+
+  ggtitle("")+
+  theme(text = element_text(size = 18))
+plot_model(fd_mod, type = "pred", terms = "season [all]", col = "white")+
+  theme(panel.background = element_rect(fill = "#595959"),
+        plot.background = element_rect(fill = "#595959"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  ylab("Degree (normalized)")+
+  ggtitle("")+
+  theme(text = element_text(size = 18))
+# to translate this into population size--Looks like the most different seasons differ by about 0.03 in degreeRelative. Multiply by 95 (lowest bound for pop size), this is a difference of 2.85 vultures. Multiply by 90 (highest bound for pop size), this is a difference of 7.86 vultures. So, this is actually pretty biologically significant!
+# Interpretability makes me want to just include population size in the model...
+plot_model(fd_mod, type = "pred", terms = "year [all]") # 2021 significantly lower than the others, but only by a small amount.
 plot_model(fd_mod, type = "pred", terms = c("year [all]", "season"), 
-           colors = seasonColors)
-plot_model(fd_mod, type = "pred", terms = c("PC1 [all]", "season", "year"), 
-           colors = seasonColors, line.size = 1.5)
-plot_model(fd_mod, type = "pred", terms = c("PC2 [all]", "season", "year"),
-           colors = seasonColors, line.size = 1.5)
+           colors = seasonColors) # there's no season*year effect included in the model, so the fact that the differences between the different points are the same in each year is not an important takeaway from this plot. Basically just visualizing what absolute values these differences would translate to.
 
 ## Strength ------------------------------------------------------------------
+summary(fs_mod)
+# PC1: significant but tiny tiny.
+# PC2: significant but tiny tiny.
+# age group: significant but tiny tiny.
+# season: not significant, and also very small.
+# year: significant but tiny tiny.
+# PC2*age: significant but tiny tiny.
+
+# Before we despair of biological meaning, this is relative strength. Strength values were already small, and we divided them by n. Let's take the example of the PC1 effect: 3.764e-04. Multiply that by the population sizes: You get a lower bound of 0.036 and an upper bound of  0.099. That's the effect size, so the amount of change in strength due to those effects. Those are strength values (rather than relative strength values), and strength is an SRI calculation. So I don't love how uninterpretable these are...
+
+# PC1 ranges from -6 to 6, so a range of 12 units. At max, that would translate into 0.099*12 = 1.188, which is not a large strength difference, but it's something...
+
+# I still wish I could remove at least one of these layers of abstraction in order to make this actually mean something.
+
 plot_model(fs_mod) # tiny effects, basically negligible
-plot_model(fs_mod, type = "pred", terms = c("PC1 [all]", "age_group")) # not really significant
-plot_model(fs_mod, type = "pred", terms = c("PC1 [all]", "age_group", "season"))
-plot_model(fs_mod, type = "pred", terms = "PC1 [all]") # non-significant
-plot_model(fs_mod, type = "pred", terms = "age_group") # significant
-plot_model(fs_mod, type = "pred", terms = "PC2 [all]")
-plot_model(fs_mod, type = "pred", terms = "mnPPD") # non-significant
-plot_model(fs_mod, type = "pred", terms = "year")
-plot_model(fs_mod, type = "pred", terms = "season [all]")
+plot_model(fs_mod, type = "pred", terms = "PC1 [all]", col = "white")+
+  theme(panel.background = element_rect(fill = "#595959"),
+        plot.background = element_rect(fill = "#595959"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  ylab("Strength (normalized)")+
+  ggtitle("")+
+  theme(text = element_text(size = 18)) # significant, but really tiny if you look at the y value.
+plot_model(fs_mod, type = "pred", terms = "PC2 [all]", col = "white")+
+  theme(panel.background = element_rect(fill = "#595959"),
+        plot.background = element_rect(fill = "#595959"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  ylab("Strength (normalized)")+
+  ggtitle("")+
+  theme(text = element_text(size = 18)) # same--significant increase, but really really small values.
+
+plot_model(fs_mod, type = "pred", terms = "season [all]", col = "white")+
+  theme(panel.background = element_rect(fill = "#595959"),
+        plot.background = element_rect(fill = "#595959"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  ylab("Strength (normalized)")+
+  ggtitle("")+
+  theme(text = element_text(size = 18)) # no significant season differences
+plot_model(fs_mod, type = "pred", terms = c("PC2 [all]", "age_group")) # oh this is actually cool! But still really small effects.
+plot_model(fs_mod, type = "pred", terms = "age_group") # sig but small differences
+plot_model(fs_mod, type = "pred", terms = "year") # once again, 2021 is lower (but the differences here are really small.)
+
+## Strength by degree ------------------------------------------------------
+summary(fb_mod)
+# Unlike the others, strength by degree is directly interpretable as the average edge weight (SRI value).
+hist(flight$sbd) # ranges from 0.02 to 0.14 ish.
+plot_model(fb_mod) # also tiny tiny effects.
+
+# PC1 significant but really small
+# PC2 non-signif
+# Age group significant but small
+# season significant but small
+# ppd significant but small
+# year significant but small
+# pc2*age effect significant but small.
+
+plot_model(fb_mod, type = "pred", terms = "PC1 [all]", col = "white")+
+  theme(panel.background = element_rect(fill = "#595959"),
+        plot.background = element_rect(fill = "#595959"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  ylab("Average strength")+
+  ggtitle("")+
+  theme(text = element_text(size = 18)) # sig but small change
+plot_model(fb_mod, type = "pred", terms = "PC2 [all]", col = "white")+
+  theme(panel.background = element_rect(fill = "#595959"),
+        plot.background = element_rect(fill = "#595959"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  ylab("Average strength")+
+  ggtitle("")+
+  theme(text = element_text(size = 18))# sig but small change
+plot_model(fb_mod, type = "pred", terms = "age_group") # sig but small change
+plot_model(fb_mod, type = "pred", terms = "season") # sig but small change
+plot_model(fb_mod, type = "pred", terms = "season [all]", col = "white")+
+  theme(panel.background = element_rect(fill = "#595959"),
+        plot.background = element_rect(fill = "#595959"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  ylab("Average strength")+
+  ggtitle("")+
+  theme(text = element_text(size = 18))
+plot_model(fb_mod, type = "pred", terms = "year") # sig but small change
+plot_model(fb_mod, type = "pred", terms = "mnPPD") # sig but small change
+plot_model(fb_mod, type = "pred", terms = c("PC2 [all]", "age_group"))+
+  ggtitle("")+
+  ylab("Average strength")+
+  theme(text = element_text(size = 18))# sig but small change. Kind of mirrors the effect found in strength, but less strong.
+
+# Let's look at the PC contributions
+contrib <- contrib %>%
+  mutate(var = row.names(.),
+         varName = case_when(var == "meanDMD" ~ "Mn. daily max displacement",
+                             var == "propSwitch" ~"Prop. nights roost-switching",
+                             var == "shannon" ~"Roost diversity",
+                             var == "coreArea" ~"50% KDE",
+                             var == "coreAreaFidelity" ~"50%/95% KDE",
+                             var == "homeRange"~"95% KDE",
+                             var == "meanDDT" ~ "Mn. daily distance traveled",
+                             var == "uniqueRoosts"~"# unique roosts",
+                             var == "meanDFD" ~"Mn. daily flight time",
+                             var == "mnDailyMaxAlt" ~"Mn. daily max. altitude",
+                             var == "mnDailyMedAlt" ~"Mn. daily median altitude",
+                             var == "mnTort" ~ "Mn. daily tortuosity"))
+
+# PC1
+PC1contrib <- contrib %>%
+  ggplot(aes(x = reorder(varName, PC1), y = PC1))+
+  geom_col(fill = "white")+
+  coord_flip()+
+  ylab("PC1 % contribution")+
+  xlab("")+
+  theme(panel.background = element_rect(fill = "#666666"),
+        plot.background = element_rect(fill = "#666666"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  theme(text = element_text(size = 18))
+PC1contrib
+
+PC2contrib <- contrib %>%
+  ggplot(aes(x = reorder(varName, PC2), y = PC2))+
+  geom_col(fill = "white")+
+  coord_flip()+
+  ylab("PC2 % contribution")+
+  xlab("")+
+  theme(panel.background = element_rect(fill = "#666666"),
+        plot.background = element_rect(fill = "#666666"),
+        text = element_text(color = "white", size = 15),
+        axis.text = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.line = element_line(color = "white"))+
+  theme(text = element_text(size = 18))
+PC2contrib
+
