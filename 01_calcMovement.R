@@ -11,7 +11,6 @@ library(MASS) # for KDE
 library(adehabitatHR)
 library(sp)
 library(ggfortify)
-library(factoextra)
 library(elevatr) # for getting elevation information
 library(raster) # for getting elevation information
 library(viridis)
@@ -69,7 +68,7 @@ hrList_indivs <- map(seasons_10min, ~.x %>%
 save(hrList_indivs, file = "data/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
 
 indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
-hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
+hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~sp::SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
 
 kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
   if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
@@ -246,42 +245,42 @@ dfdSumm <- map(dfd, ~.x %>%
 
 ### Daily Distance Traveled/Mean Displacement -------------------------------
 
-# # set up parallel backend with 4 sessions (change this to match your machine)
-# future::plan(multicore, workers = 4)
-# 
-# # function to calculate displacements within a group
-# calc_displacements <- function(group) {
-#   start_point <- dplyr::first(group$geometry)
-#   group %>%
-#     dplyr::mutate(
-#       disp_from_start = as.vector(sf::st_distance(geometry, start_point)),
-#       dist_to_prev = as.vector(sf::st_distance(geometry, dplyr::lag(geometry, default = dplyr::first(geometry)), by_element = T))
-#     )
-# }
-# 
-# # function to calculate metrics for each individual and date
-# calc_metrics <- function(data){
-#   # split the data by Nili_id and dateOnly
-#   groups <- data %>%
-#     dplyr::group_split(Nili_id, dateOnly)
-# 
-#   # run the distance calculations in parallel using furrr::future_map()
-#   disp_data <- furrr::future_map_dfr(groups, calc_displacements)
-# 
-#   # group the data by Nili_id and dateOnly, and calculate the metrics
-#   result <- disp_data %>%
-#     sf::st_drop_geometry() %>%
-#     dplyr::group_by(Nili_id, dateOnly) %>%
-#     arrange(timestamp, .by_group = T) %>%
-#     mutate(csDist = cumsum(replace_na(dist_to_prev, 0))) %>%
-#     dplyr::summarise(
-#       dmd = max(disp_from_start, na.rm = T),
-#       ddt = sum(dist_to_prev, na.rm = T),
-#       distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
-#       tort_dmd = distToMaxPt/dmd) # YIKES
-# 
-#   return(result)
-# }
+# set up parallel backend with 4 sessions (change this to match your machine)
+future::plan(future::multicore, workers = 4)
+
+# function to calculate displacements within a group
+calc_displacements <- function(group) {
+  start_point <- dplyr::first(group$geometry)
+  group %>%
+    dplyr::mutate(
+      disp_from_start = as.vector(sf::st_distance(geometry, start_point)),
+      dist_to_prev = as.vector(sf::st_distance(geometry, dplyr::lag(geometry, default = dplyr::first(geometry)), by_element = T))
+    )
+}
+
+# function to calculate metrics for each individual and date
+calc_metrics <- function(data){
+  # split the data by Nili_id and dateOnly
+  groups <- data %>%
+    dplyr::group_split(Nili_id, dateOnly)
+
+  # run the distance calculations in parallel using furrr::future_map()
+  disp_data <- furrr::future_map_dfr(groups, calc_displacements)
+
+  # group the data by Nili_id and dateOnly, and calculate the metrics
+  result <- disp_data %>%
+    sf::st_drop_geometry() %>%
+    dplyr::group_by(Nili_id, dateOnly) %>%
+    arrange(timestamp, .by_group = T) %>%
+    mutate(csDist = cumsum(replace_na(dist_to_prev, 0))) %>%
+    dplyr::summarise(
+      dmd = max(disp_from_start, na.rm = T),
+      ddt = sum(dist_to_prev, na.rm = T),
+      distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
+      tort_dmd = distToMaxPt/dmd) # YIKES
+
+  return(result)
+}
 
 # apply the calc_metrics() function to each season in the list using purrr::map()
 dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
