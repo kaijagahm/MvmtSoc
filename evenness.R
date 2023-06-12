@@ -34,7 +34,7 @@ evenness <- function(graph){
   
   # Now we have to switch the order to match the order of vertices
   reordered <- e[names(V(graph))]
-  if(!(all(names(test) == names(V(graph))))){
+  if(!(all(names(reordered) == names(V(graph))))){
     stop("Error in name ordering")
   }else{
     return(reordered) # CRUCIALLY IMPORTANT, KAIJA!!! Ugh....

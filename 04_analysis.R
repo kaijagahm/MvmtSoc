@@ -162,7 +162,7 @@ bxp # we definitely have seasonal differences in movement! As expected.
 # Response variables:
 # Relative degree
 # Relative strength
-# Strength by degree
+# Evenness
 
 # Predictors:
 # PC1 (continuous)
@@ -185,256 +185,322 @@ roosting <- linked %>%
 # I thought we couldn't include random effects if they had fewer than 5 levels, but maybe you can? https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8784019/
 # First, fit a model that includes all the predictors but no interaction effects, to check the VIF, which will tell us whether the predictors are correlated within the model.
 # Don't want to do year as a random effect--Marta argues that this would be like trying to make a boxplot with 3 data points. Doesn't make sense. See also https://stats.stackexchange.com/questions/464157/year-as-a-fixed-or-random-effect-in-glm-with-only-two-levels.
-fd_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + 
-                   mnPPD + (1|Nili_id), data = flight)
+# Not including mean ppd because Orr doesn't think the relationship is linear--better to just correct for it in data prep. I'm inclined to agree.
+fd_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = flight)
 summary(fd_noint) # age group comes out the least significant.
 # use DHARMa to check the model
 so_fd_noint <- simulateResiduals(fittedModel = fd_noint, plot = F)
-plot(so_fd_noint) # this looks bad
-check_model(fd_noint) # this looks fine, actually! Candidate
-# why does DHARMa look terrible when check_model looks fine?
-# Anyway, no evidence of multicollinearity, judging from the VIFs. So we should be okay continuing to use these params in the model.
+plot(so_fd_noint) # this actually isn't too bad.
+check_model(fd_noint) # looks good! Candidate.
+
+# No evidence of multicollinearity, judging from the VIFs. So we should be okay continuing to use these params in the model.
 testDispersion(fd_noint) # this is actually pretty good!
 plotResiduals(fd_noint, form = flight$season)
-plotResiduals(fd_noint, form = flight$PC1)
-plotResiduals(fd_noint, form = flight$PC2)
+plotResiduals(fd_noint, form = flight$PC1) # bad but not terrible
+plotResiduals(fd_noint, form = flight$PC2) # bad but not terrible
 plotResiduals(fd_noint, form = flight$age_group)
 plotResiduals(fd_noint, form = flight$year)
 plot_model(fd_noint, type = "pred", term = "PC2", show.data = TRUE) # I don't like this linear fit, but I don't think the quadratic term is very interpretable, and I can't justify it (at least not now)
 
-fd_max <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
+fd_max <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = flight)
 check_model(fd_max) # oof those VIFs are baaad. Not candidate
-summary(fd_max) # let's start by taking out season*mnPPD
-vif(fd_max)
+summary(fd_max)
+vif(fd_max) #PC1*season is the worst, so let's remove that.
 
-fd_2 <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
+fd_2 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group*season + year*season + (1|Nili_id), data = flight)
 check_model(fd_2) # VIFs slightly improved but still really bad. Not candidate.
-vif(fd_2) #PC1*season is the worst, so let's remove that.
+vif(fd_2) #PC2*season is the worst, so we'll remove that next
 
-fd_3 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fd_3) # VIFs still too high. Not candidate.
-vif(fd_3) #age*PC2*season is the worst, so we'll remove that next
+fd_3 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group + PC2*season + year*season + (1|Nili_id), data = flight)
+check_model(fd_3) # Not candidate
+vif(fd_3) #season*year is the worst
 
-fd_4 <- lmer(degreeRelative ~ PC1*age_group + PC2*season + PC2*age_group + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fd_4) # Borderline, but candidate.
-vif(fd_4) # Highest now is PC2*season
-
-fd_4.5 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group + season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fd_4.5) # nice, candidate.
-vif(fd_4.5) #these all look good now.
-summary(fd_4.5) # next to go will be the interactions between age group and the PCs, but also mnPPD isn't significant and I don't really like it, so let's get rid of that first.
+fd_4 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group + PC2*season + year + (1|Nili_id), data = flight)
+check_model(fd_4) # Slightly inflated VIF but better. Candidate.
+vif(fd_4) # Next remove PC2*season.
 
 fd_5 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = flight)
-check_model(fd_5) # candidate
-summary(fd_5)
+check_model(fd_5) # Candidate.
+vif(fd_5) # This looks fine.
+summary(fd_5) # not seeing significant effects of either PC1 or PC2 interacted with age. 
 
-# Still not loving those interactions... remove the PC2 one first because reasons.
 fd_6 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id), data = flight)
-check_model(fd_6) # candidate
-summary(fd_6) # PC1*age_group is still bad. 
+check_model(fd_6) # Candidate.
+summary(fd_6) # removing the last interaction would just bring us back to the noint model.
 
-fd_7 <- lmer(degreeRelative ~ PC1 + age_group + PC2 + season + year + (1|Nili_id), data = flight)
-check_model(fd_7) # candidate
-summary(fd_7) # I guess we can remove age_group...
+summary(fd_noint) # the only non-significant thing to remove now would be PC1, but I don't want to do that because PC1 being non-significant is a result in and of itself. So I think I'll stop.
 
-fd_8 <- lmer(degreeRelative ~ PC1 + PC2 + season + year + (1|Nili_id), data = flight)
-check_model(fd_8) # candidate
-summary(fd_8) # okay, going to stop there because I don't want to remove the PCs.
-
-# what about... do we want a season*year effect??
-fd_9 <- lmer(degreeRelative ~ PC1 + PC2 + season*year + (1|Nili_id), data = flight)
-check_model(fd_9) # ah, this becomes "rank-deficient", which I think is because we don't have all three seasons for all of the years. So let's not do this. Not candidate.
-
-# Compare performance of only the models with a reasonable fit
-compare_performance(fd_noint, fd_4, fd_4.5, fd_5, fd_6, fd_7, fd_8, rank = T) # fd_8: degreeRelative ~ PC1 + PC2 + season + year + (1|Nili_id)
-fd_mod <- fd_8
+compare_performance(fd_noint, fd_4, fd_5, fd_6, rank = T) # of these options, fd_noint comes up as the best. 
+fd_mod <- fd_noint # save as the model to use going forward.
 
 ## Strength ------------------------------------------------------------------
-# I think gaussian is still reasonable here:
-flight %>% ggplot(aes(x = strengthRelative))+geom_histogram() # yeah that's decently normal-shaped. Even better than degree, I think. And according to Marta, if I want to compare between models, I should use the same type of model for each of them.
-
-fs_noint <- lmer(strengthRelative ~ PC1 + PC2 + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
-summary(fs_noint) # oh weird, no season effect here! 
-check_model(fs_noint) # oh wow this actually looks perfect!!! Candidate.
-# What does DHARMa think?
+fs_noint <- lmer(strengthRelative ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = flight)
 so_fs_noint <- simulateResiduals(fittedModel = fs_noint, plot = F)
-plot(so_fs_noint) # holy moly that's so nice! Yesssss
-# No evidence of multicollinearity.
-testDispersion(fs_noint) # beautiful
-plotResiduals(fs_noint, form = flight$season) # beautiful
-plotResiduals(fs_noint, form = flight$PC1) # meh but not terrible
-plotResiduals(fs_noint, form = flight$PC2) # kind of bad but could just be low sample size?
-plotResiduals(fs_noint, form = flight$age_group) # not terrible
-plotResiduals(fs_noint, form = flight$year) # yay!
-plot_model(fs_noint, type = "pred", term = "PC2 [all]", show.data = TRUE) # this is gross but I've decided that a quadratic term will be too hard to deal with
-plot_model(fs_noint, type = "pred", term = "PC1", show.data = TRUE) # Yuck.
+plot(so_fs_noint) # Looks good!!! Incredible.
+check_model(fs_noint) # looks good! Candidate.
 
-fs_max <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD*season + year + (1|Nili_id), data = flight)
-check_model(fs_max) # really bad VIFs. Not candidate.
-vif(fs_max) # start by removing season*mnPPD
+fs_max <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = flight)
+check_model(fs_max) # Not Candidate.
+vif(fs_max) # I'm worried because this looks identical to vif(fd_max). Why? Maybe because this evaluates the variables as a whole, not with respect to the response variable? XXX investigate.
 
-fs_2 <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fs_2) # still really high VIFs. Not candidate.
-vif(fs_2) # now PC1*season is bad
+fs_2 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group*season + season*year + (1|Nili_id), data = flight)
+check_model(fs_2) # Not Candidate.
+vif(fs_2)
 
-fs_3 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fs_3) # still too high but getting better
-vif(fs_3) # next problem is the three-way interaction with PC2
+fs_3 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = flight)
+check_model(fs_3) # Candidate.
+vif(fs_3)
 
-fs_4 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + PC2*season + mnPPD + year + (1|Nili_id), data = flight)
-check_model(fs_4) # much better but borderline... candidate, I guess.
-vif(fs_4) # get rid of PC2*season next
+fs_4 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = flight)
+check_model(fs_4) # Candidate.
+summary(fs_4)
 
-fs_5 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + mnPPD + season + year + (1|Nili_id), data = flight)
-check_model(fs_5) # ok! candidate.
-vif(fs_5) # these all look nice now.
-summary(fs_5) # no effect of season, mnPPD, and also no effect of PC1*age group. Let's remove mnPPD first because it's the least interpretable.
+fs_5 <- lmer(strengthRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id), data = flight)
+check_model(fs_5) # Candidate.
+summary(fs_5) # neither of the PCs are significant here, but I don't want to remove them, so I'll stop here.
 
-fs_6 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = flight)
-check_model(fs_6) # candidate
-summary(fs_6) # now we can remove PC1*age group
+compare_performance(fs_noint, fs_3, fs_4, fs_5, rank = T)
+fs_mod <- fs_4
 
-fs_7 <- lmer(strengthRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id), data = flight)
-check_model(fs_7) # looks lovely. candidate.
-summary(fs_7) # still really no effect of season! Surprising.
+## Evenness ----------------------------------------------------------------
+fe <- flight %>%
+  filter(!is.na(evenness)) %>%
+  mutate(evenness = case_when(evenness == 1 ~ 0.999999, # transform the 1's to 0.999999 so the model can handle them.
+                              TRUE ~ evenness))
+fe_noint <- lmer(evenness ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = fe)
+so_fe_noint <- simulateResiduals(fittedModel = fe_noint, plot = F)
+plot(so_fe_noint) # Yuck...
+check_model(fe_noint) # distribution looks really off here. Maybe it's not reasonable to model this one with a gaussian.
 
-fs_8 <- lmer(strengthRelative ~ PC1 + PC2*age_group + year + (1|Nili_id), data = flight)
-check_model(fs_8) # candidate
-summary(fs_8) 
+fe_noint <- glmmTMB(evenness ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = fe, family = beta_family())
+so_fe_noint <- simulateResiduals(fittedModel = fe_noint, plot = F)
+plot(so_fe_noint) # Looks a bit better but still not good.
+check_model(fe_noint) # oof, that distribution is still a really awful fit. But it's a bit better, and apparently Conner has seen worse? Let's go with it for now. Candidate.
 
-# Compare performance of only the models with a reasonable fit
-compare_performance(fs_noint, fs_4, fs_5, fs_6, fs_7, fs_8, rank = T) # fs_8 wins: strengthRelative ~ PC1 + PC2*age_group + year + (1|Nili_id). Second place is fs_7, strengthRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id) (includes season), so we should use that one if we don't want to remove season, which I think I don't.
-fs_mod <- fs_7
+fe_max <- glmmTMB(evenness ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = fe, family = beta_family())
+check_model(fe_max) # weird that it says it doesn't support models of class glmmTMB when it worked for the previous one, which was also a glmmTMB model. Hmmm....
+so_fe_max <- simulateResiduals(fittedModel = fe_max, plot = F)
+plot(so_fe_max) # bleh. Not candidate. Or maybe candidate? I don't know how to see the problems if I can't run vif and I can't run check_model. I think there's a convergence issue...
+summary(fe_max) # I can't see what to remove, so I'm going to see about following the same procedure as above... The season effects were the worst, so let's remove those.
 
-## Evenness ------------------------------------------------------
-fb_noint <- lmer(evenness ~ PC1 + PC2 + age_group + season + year +  mnPPD + (1|Nili_id), data = flight)
+fe_2 <- glmmTMB(evenness ~ PC1*age_group*season + PC2*age_group + season*year + (1|Nili_id), data = fe, family = beta_family())
+check_model(fe_2) # weird that it says it doesn't support models of class glmmTMB when it worked for the previous one, which was also a glmmTMB model. Hmmm....
+so_fe_2 <- simulateResiduals(fittedModel = fe_2, plot = F)
+plot(so_fe_2) # bleh. Not candidate. And didn't converge.
 
-# Lingering questions
-# 0. When I do performance::compare_performance, should I only include models that have already been deemed to fit the data fairly well, or should I include all of them? I can see arguments either way. Unclear to me whether compare_performance also takes into account the model diagnostics when evaluating performance, or if it only computes AIC and assumes you've already decided the diagnostics are met. I think it's the latter, but I'm not sure.
-# - Correct, but if it's borderline then you can include it.
-# 0.5. Why does DHARMa sometimes show bad diagnostic plots even when check_model shows that things are fine?
-# -Conner doesn't know, but thinks that the DHARMa thing isn't a core assumption
-# 1. If I see that there are relationships between predictor variables in the pre-modeling plots, such as the age*PC boxplots I made at the top, does that mean I *should* or *shouldn't* include an interaction term? I thought it meant I should, but those all ended up needing to get removed, and now it's occurring to me that maybe that just means that they were correlated at first. Case in point: mean ppd * season always ends up having a super high VIF.
-# 2. Should I use the same model selection process or an independent one for each of the 9 models I need to make?
-# - can use a different process each time
-# 3. Should I refrain from removing the PC's from the model if they are the variables of interest, or is an absence of a significant effect a result in itself?
-# 4. If I use different model selection processes (or the same one), what is the best way to compare effect sizes and which model is chosen between different models?
-# - part r2 allows you to partition the marginal and conditional r2 for each of the models--can use that to compare
-# 5. These effect sizes seem really small... but maybe that's just because the relative degree and relative strength values are so small? Would multiply by the number of vultures for each season to think about the difference in real terms.
-# 6. Just generally, a little confused as to which things constitute results that I can talk about: 1) which models fit the data decently well as per the model checks, 2) which variables are retained in the best-fitting model of the candidates, and 3) the actual effect sizes and directions and p values of the best-fitting model. 
-# 7. If I decide that adding a quadratic term is good, does that then mean that I need to re-fit all of the models with the quadratic term included?
-# - just decide to add it
-# -google the predicted vs. residuals plot and figure out what it actually means. 
+fe_3 <- glmmTMB(evenness ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = fe, family = beta_family()) # not candidate
+check_model(fe_3) # Still a convergence problem.
 
-# Marginal effect plots ---------------------------------------------------
-(formula(fd_mod))
-(formula(fs_mod))
-(formula(fb_mod))
+# Let's remove season*year next...
+fe_4 <- glmmTMB(evenness ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = fe, family = beta_family()) # okay now it converges
+check_model(fe_4) # this looks fine, actually. Candidate.
+summary(fe_4) # wow, nothing is significant. Just to make sure, let's remove one of the interactions between age group and PC
 
-# to aid in the interpretation, let's look at the variable contributions again
-load("data/contrib.Rda")
-min(flight$n)
-max(flight$n)
-# population size ranges from 95 to 262.
+fe_5 <- glmmTMB(evenness ~ PC1 + PC2*age_group + season + year + (1|Nili_id), data = fe, family = beta_family())
+check_model(fe_5) # fine, candidate.
+summary(fe_5) # still nothing. I guess we can keep removing things?
 
+# Removing the next interaction would just bring us back to fe_noint
+summary(fe_noint) # I guess let's remove the year effect?
+
+fe_6 <- glmmTMB(evenness ~ PC1 + PC2 + season + (1|Nili_id), data = fe, family = beta_family())
+check_model(fe_6) # Candidate
+summary(fe_6) # I don't want to go any farther here because again, don't want to remove PC1 or PC2. We do have a significant effect of season.
+
+compare_performance(fe_noint, fe_4, fe_5, fe_6, rank = T)
+fe_mod <- fe_noint
+
+# FEEDING ------------------------------------------------------------------
 ## Degree ------------------------------------------------------------------
-plot_model(fd_mod) # Estimates are quite small. Largest effect is year (negative effect). Largest positive effect is season (summer).
-summary(fd_mod)
-# PC1: non-signif
-# PC2: significant but tiny tiny tiny.
-# season: marginally significant, small effect.
-# year: significant, small effects.
-# No interactions retained in the model.
-plot_model(fd_mod, type = "pred", terms = "PC2 [all]", col = "white")+
-  theme(panel.background = element_rect(fill = "#595959"),
-        plot.background = element_rect(fill = "#595959"),
-        text = element_text(color = "white", size = 15),
-        axis.text = element_text(color = "white"),
-        axis.ticks = element_line(color = "white"),
-        axis.line = element_line(color = "white"))+
-  ylab("Degree (normalized)")+
-  ggtitle("")+
-  theme(text = element_text(size = 18))
-plot_model(fd_mod, type = "pred", terms = "season [all]", col = "white")+
-  theme(panel.background = element_rect(fill = "#595959"),
-        plot.background = element_rect(fill = "#595959"),
-        text = element_text(color = "white", size = 15),
-        axis.text = element_text(color = "white"),
-        axis.ticks = element_line(color = "white"),
-        axis.line = element_line(color = "white"))+
-  ylab("Degree (normalized)")+
-  ggtitle("")+
-  theme(text = element_text(size = 18))
-# to translate this into population size--Looks like the most different seasons differ by about 0.03 in degreeRelative. Multiply by 95 (lowest bound for pop size), this is a difference of 2.85 vultures. Multiply by 90 (highest bound for pop size), this is a difference of 7.86 vultures. So, this is actually pretty biologically significant!
-# Interpretability makes me want to just include population size in the model...
-plot_model(fd_mod, type = "pred", terms = "year [all]") # 2021 significantly lower than the others, but only by a small amount.
-plot_model(fd_mod, type = "pred", terms = c("year [all]", "season"), 
-           colors = seasonColors) # there's no season*year effect included in the model, so the fact that the differences between the different points are the same in each year is not an important takeaway from this plot. Basically just visualizing what absolute values these differences would translate to.
+ed_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = feeding)
+summary(ed_noint) # age group comes out the least significant.
+
+# use DHARMa to check the model
+so_ed_noint <- simulateResiduals(fittedModel = ed_noint, plot = F)
+plot(so_ed_noint) # Not great but not terrible.
+check_model(ed_noint) # looks good! Candidate.
+
+ed_max <- lmer(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = feeding)
+check_model(ed_max) # Not candidate
+vif(ed_max) #PC1*season is the worst
+
+ed_2 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group*season + season*year + (1|Nili_id), data = feeding)
+check_model(ed_2) # Not candidate
+vif(ed_2) #next to remove: PC2*season
+
+ed_3 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = feeding)
+check_model(ed_3) # Candidate, marginally.
+vif(ed_3) #next to remove: season*year. So far this is following a similar pattern as before.
+
+ed_4 <- lmer(degreeRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = feeding)
+check_model(ed_4) # Candidate 
+summary(ed_4) # interesting! Let's get rid of those interaction terms.
+
+ed_5 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id), data = feeding)
+check_model(ed_5) # Candidate 
+summary(ed_5) # removing the next interaction term would just get us back to ed_noint
+
+summary(ed_noint) # I suppose we can remove age...
+
+ed_6 <- lmer(degreeRelative ~ PC1 + PC2 + season + year + (1|Nili_id), data = feeding)
+check_model(ed_6) # Candidate
+summary(ed_6) # that's the best we can do without removing PCs.
+
+compare_performance(ed_noint, ed_3, ed_4, ed_5, ed_6, rank = T)
+ed_mod <- ed_3
 
 ## Strength ------------------------------------------------------------------
-summary(fs_mod)
-# PC1: significant but tiny tiny.
-# PC2: significant but tiny tiny.
-# age group: significant but tiny tiny.
-# season: not significant, and also very small.
-# year: significant but tiny tiny.
-# PC2*age: significant but tiny tiny.
+es_noint <- lmer(strengthRelative ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = feeding)
+summary(es_noint) # age group comes out the least significant.
 
-# Before we despair of biological meaning, this is relative strength. Strength values were already small, and we divided them by n. Let's take the example of the PC1 effect: 3.764e-04. Multiply that by the population sizes: You get a lower bound of 0.036 and an upper bound of  0.099. That's the effect size, so the amount of change in strength due to those effects. Those are strength values (rather than relative strength values), and strength is an SRI calculation. So I don't love how uninterpretable these are...
+# use DHARMa to check the model
+so_es_noint <- simulateResiduals(fittedModel = es_noint, plot = F)
+plot(so_es_noint) # Not great but not terrible.
+check_model(es_noint) # Candidate
 
-# PC1 ranges from -6 to 6, so a range of 12 units. At max, that would translate into 0.099*12 = 1.188, which is not a large strength difference, but it's something...
+es_max <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = feeding)
+check_model(es_max) # Not candidate
+vif(es_max) #PC1*season is the worst
 
-# I still wish I could remove at least one of these layers of abstraction in order to make this actually mean something.
+es_2 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group*season + season*year + (1|Nili_id), data = feeding)
+check_model(es_2) # Not candidate
+vif(es_2) # Next remove PC2*season
 
-plot_model(fs_mod) # tiny effects, basically negligible
-plot_model(fs_mod, type = "pred", terms = "PC1 [all]", col = "white")+
-  theme(panel.background = element_rect(fill = "#595959"),
-        plot.background = element_rect(fill = "#595959"),
-        text = element_text(color = "white", size = 15),
-        axis.text = element_text(color = "white"),
-        axis.ticks = element_line(color = "white"),
-        axis.line = element_line(color = "white"))+
-  ylab("Strength (normalized)")+
-  ggtitle("")+
-  theme(text = element_text(size = 18)) # significant, but really tiny if you look at the y value.
-plot_model(fs_mod, type = "pred", terms = "PC2 [all]", col = "white")+
-  theme(panel.background = element_rect(fill = "#595959"),
-        plot.background = element_rect(fill = "#595959"),
-        text = element_text(color = "white", size = 15),
-        axis.text = element_text(color = "white"),
-        axis.ticks = element_line(color = "white"),
-        axis.line = element_line(color = "white"))+
-  ylab("Strength (normalized)")+
-  ggtitle("")+
-  theme(text = element_text(size = 18)) # same--significant increase, but really really small values.
+es_3 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = feeding)
+check_model(es_3) # Candidate
+vif(es_3) # Next remove season*year
 
-plot_model(fs_mod, type = "pred", terms = "season [all]", col = "white")+
-  theme(panel.background = element_rect(fill = "#595959"),
-        plot.background = element_rect(fill = "#595959"),
-        text = element_text(color = "white", size = 15),
-        axis.text = element_text(color = "white"),
-        axis.ticks = element_line(color = "white"),
-        axis.line = element_line(color = "white"))+
-  ylab("Strength (normalized)")+
-  ggtitle("")+
-  theme(text = element_text(size = 18)) # no significant season differences
-plot_model(fs_mod, type = "pred", terms = c("PC2 [all]", "age_group")) # oh this is actually cool! But still really small effects.
-plot_model(fs_mod, type = "pred", terms = "age_group") # sig but small differences
-plot_model(fs_mod, type = "pred", terms = "year") # once again, 2021 is lower (but the differences here are really small.)
+es_4 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = feeding)
+check_model(es_4) # Candidate
+summary(es_4) # Next remove the interactions with age_group
 
-## Strength by degree ------------------------------------------------------
-summary(fb_mod)
-# Unlike the others, strength by degree is directly interpretable as the average edge weight (SRI value).
-hist(flight$sbd) # ranges from 0.02 to 0.14 ish.
-plot_model(fb_mod) # also tiny tiny effects.
+es_5 <- lmer(strengthRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id), data = feeding)
+check_model(es_5) # Candidate
+summary(es_5) # Next thing to remove would be the interaction with PC1*age_group, but that would just take us back to es_noint
 
-# PC1 significant but really small
-# PC2 non-signif
-# Age group significant but small
-# season significant but small
-# ppd significant but small
-# year significant but small
-# pc2*age effect significant but small.
+summary(es_noint) # I guess the next thing is to remove age_group entirely.
+
+es_6 <- lmer(strengthRelative ~ PC1 + PC2 + season + year + (1|Nili_id), data = feeding)
+check_model(es_6) # Candidate
+summary(es_6) # Looks like this is as far as we can go.
+
+compare_performance(es_noint, es_3, es_4, es_5, es_6, rank = T)
+es_mod <- es_3
+
+## Evenness ----------------------------------------------------------------
+ee <- feeding %>%
+  filter(!is.na(evenness)) %>%
+  mutate(evenness = case_when(evenness == 1 ~ 0.999999, # transform the 1's to 0.999999 so the model can handle them.
+                              TRUE ~ evenness))
+
+ee_noint <- glmmTMB(evenness ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = ee, family = beta_family())
+so_ee_noint <- simulateResiduals(fittedModel = ee_noint, plot = F)
+plot(so_ee_noint) # Bleh....
+check_model(ee_noint) # Still a bad fit but better than the previous one! Candidate.
+
+ee_max <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
+
+ee_2 <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
+
+ee_3 <- glmmTMB(degreeRelative ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
+
+ee_4 <- glmmTMB(degreeRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = ee, family = beta_family()) # Converges!
+check_model(ee_4) # oh wow, not bad at all! Candidate.
+summary(ee_4) # Remove PC1*age_group
+
+ee_5 <- glmmTMB(degreeRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id), data = ee, family = beta_family()) # Converges!
+check_model(ee_5) # Candidate
+summary(ee_5) # This looks like the best we can do.
+
+compare_performance(ee_noint, ee_4, ee_5, rank = T)
+ee_mod <- ee_noint
+
+# ROOSTING ------------------------------------------------------------------
+## Degree ------------------------------------------------------------------
+rd_noint <- lmer(degreeRelative ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = roosting) # singular fit. I highly doubt we need to make the model *more* complex. I wonder if we need to remove the random effect?
+
+rd_noint_norandom <- lm(degreeRelative ~ PC1 + PC2 + age_group + season + year, data = roosting) # well, this converges, at least.
+check_model(rd_noint_norandom) #Hmm, this is a fairly bad fit. A beta distribution might be better? Still, candidate.
+
+rd_noint_norandom_beta <- glmmTMB(degreeRelative ~ PC1 + PC2 + age_group + season + year, data = roosting, family = beta_family()) # converges
+check_model(rd_noint_norandom_beta) # this is no better than the linear one, and it's less interpretable.
+
+rd_max_norandom <- lm(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + season*year, data = roosting)
+check_model(rd_max_norandom) # much better fit, but bad vifs. Not candidate
+check_collinearity(rd_max_norandom) # worst one is PC1*season, as usual.
+
+rd_2_norandom <- lm(degreeRelative ~ PC1*age_group + PC2*age_group*season + season*year, data = roosting)
+check_model(rd_2_norandom) # Not candidate
+check_collinearity(rd_2_norandom) # Worst is PC2*season*age_group. Let's remove PC2*season.
+
+rd_3_norandom <- lm(degreeRelative ~ PC1*age_group + PC2*age_group + season*year, data = roosting)
+check_model(rd_3_norandom) # Candidate (borderline)
+check_collinearity(rd_3_norandom) # worst one is season*year
+
+rd_4_norandom <- lm(degreeRelative ~ PC1*age_group + PC2*age_group + season + year, data = roosting)
+check_model(rd_4_norandom) # Candidate, but now again the distribution looks kind of bad.
+summary(rd_4_norandom) # next to get rid of: PC1*age group
+
+rd_5_norandom <- lm(degreeRelative ~ PC1 + PC2*age_group + season + year, data = roosting)
+check_model(rd_5_norandom) # Candidate
+summary(rd_5_norandom) # Age group is still bad here, but we can't remove it because the interaction with PC2 is significant.
+
+# What about adding back season*year? Will this fix the distribution problem?
+rd_6_norandom <- lm(degreeRelative ~ PC1 + PC2*age_group + season*year, data = roosting)
+check_model(rd_6_norandom) # Yes, it fixes the distribution, but it raises the vifs.
+check_collinearity(rd_6_norandom)
+summary(rd_6_norandom) # We get NA values for season*year coefs, so let's not use those.
+
+summary(rd_5_norandom) # this is as far as I can go.
+
+compare_performance(rd_noint_norandom, rd_3_norandom, rd_4_norandom, rd_5_norandom, rank = T)
+rd_mod <- rd_3_norandom
+
+## Strength ------------------------------------------------------------------
+rs_noint <- lmer(strengthRelative ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = roosting)
+check_model(rs_noint) # this is pretty good actually! Just one influential observation, but everything else looks good.
+
+rs_max <- lmer(strengthRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = roosting)
+check_model(rs_max) # Not candidate. Too much VIF
+vif(rs_max) # once again, PC1*season is the culprit
+
+rs_2 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group*season + season*year + (1|Nili_id), data = roosting)
+check_model(rs_2) # Not candidate.
+vif(rs_2) # PC2*season
+
+rs_3 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = roosting)
+check_model(rs_3) # Candidate
+vif(rs_3) # season*year
+
+rs_4 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = roosting)
+check_model(rs_4) # Candidate. Looks really nice actually!
+summary(rs_4) # no effect of PC1*age_group
+
+rs_5 <- lmer(strengthRelative ~ PC1 + PC2*age_group + season + year + (1|Nili_id), data = roosting)
+check_model(rs_5) # Candidate
+summary(rs_5) # time to stop.
+
+compare_performance(rs_noint, rs_3, rs_4, rs_5, rank = T)
+rs_mod <- rs_5
+
+## Evenness ----------------------------------------------------------------
+re <- roosting %>%
+  filter(!is.na(evenness)) %>%
+  mutate(evenness = case_when(evenness == 1 ~ 0.999999, # transform the 1's to 0.999999 so the model can handle them.
+                              TRUE ~ evenness))
+
+re_noint <- glmmTMB(evenness ~ PC1 + PC2 + age_group + season + year + (1|Nili_id), data = re, family = beta_family())
+so_re_noint <- simulateResiduals(fittedModel = re_noint, plot = F)
+plot(so_re_noint) # Actually not bad!
+check_model(re_noint) # Candidate
+
+ee_max <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group*season + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
+
+ee_2 <- glmmTMB(degreeRelative ~ PC1*age_group*season + PC2*age_group + season*year + (1|Nili_id), data = ee, family = beta_family()) # fails to converge
+
+
+# plots -------------------------------------------------------------------
+
 
 plot_model(fb_mod, type = "pred", terms = "PC1 [all]", col = "white")+
   theme(panel.background = element_rect(fill = "#595959"),
