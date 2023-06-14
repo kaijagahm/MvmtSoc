@@ -89,15 +89,16 @@ pca_all_dudi <- dudi.pca(df = forOverallPCA[,-1], nf = 3, scannf = FALSE)
 fviz_pca_biplot(pca_all, axes = c(1,2), 
                 geom = c("point"), 
                 alpha.ind = 0.3,
-                col.ind = "white",
-                col.var = "white",
+                #col.ind = "white",
+                #col.var = "white",
                 repel = T)+
   theme_classic()+
   ggtitle("")+
-  theme(panel.background = element_rect(fill = "#666666"),
-        plot.background = element_rect(fill = "#666666"),
-        text = element_text(color = "white", size = 15),
-        axis.text = element_text(color = "white"))
+  # theme(panel.background = element_rect(fill = "#666666"),
+  #       plot.background = element_rect(fill = "#666666"),
+  #       text = element_text(color = "white", size = 15),
+  #       axis.text = element_text(color = "white"))+
+  NULL
 contrib <- round(pca_all$rotation[,1:3]*100, 2) %>%
   as.data.frame()
 contrib
