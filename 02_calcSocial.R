@@ -14,9 +14,17 @@ load("data/roosts_seasons.Rda")
 seasonNames <- map_chr(seasons_forSoc, ~as.character(.x$seasonUnique[1]))
 
 # Social Networks ---------------------------------------------------------
-flightSeasons <- map(seasons_forSoc, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri"))
-feedingSeasons <- map(seasons_forSoc, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, return = "sri")) # XXX start here
-roostSeasons <- map(roosts_seasons, ~vultureUtils::getRoostEdges(.x, mode = "polygon", roostPolygons = roostPolygons, return = "sri", latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "roost_date"))
+# flightSeasons <- map(seasons_forSoc, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri"))
+# feedingSeasons <- map(seasons_forSoc, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, return = "sri")) # XXX start here
+# roostSeasons <- map(roosts_seasons, ~vultureUtils::getRoostEdges(.x, mode = "polygon", roostPolygons = roostPolygons, return = "sri", latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "roost_date"))
+# 
+# save(flightSeasons, file = "data/flightSeasons.Rda")
+# save(feedingSeasons, file = "data/feedingSeasons.Rda")
+# save(roostSeasons, file = "data/roostSeasons.Rda")
+
+load("data/flightSeasons.Rda")
+load("data/feedingSeasons.Rda")
+load("data/roostSeasons.Rda")
 
 flightSeasons_g <- map(flightSeasons, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 feedingSeasons_g <- map(feedingSeasons,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
@@ -58,8 +66,8 @@ networkMetrics <- map2_dfr(flightSeasons_g, seasonNames, ~{
 
 # Add info about number of indivs and relative measures
 networkMetrics <- networkMetrics %>%
-  group_by(season) %>%
-  mutate(n = n()) %>%
+  group_by(season, type) %>%
+  mutate(n = length(unique(Nili_id))) %>% # CAREFUL HERE! wrong number of rows.
   ungroup() %>%
   mutate(degreeRelative = degree/n,
          strengthRelative = strength/n,
