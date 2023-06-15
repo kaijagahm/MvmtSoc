@@ -145,3 +145,6 @@ linked %>%
   theme_classic()+
   facet_wrap(~season) # makes sense! As the DDT/DMD ratio increases, so does tortuosity. As expected. Good thing we fixed the tortuosity.
 
+
+
+
