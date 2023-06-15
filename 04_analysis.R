@@ -18,6 +18,9 @@ library(sjPlot)
 library(broom.mixed)
 library(jtools) # similar to sjplot, for forest plots
 
+load("data/linked.Rda")
+load("data/mnPPD.Rda")
+
 # Set ggplot theme to classic
 theme_set(theme_classic())
 
@@ -25,12 +28,39 @@ theme_set(theme_classic())
 seasonColors <- c("#2FF8CA", "#CA2FF8", "#F8CA2F")
 situationColors <- c("dodgerblue2", "olivedrab3", "gold")
 
+# Check that the response variable distributions look normal--nothing too weird here.
+linked %>%
+  mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
+  ggplot(aes(x = evenness))+
+  geom_density(aes(col = season), linewidth = 1.5)+
+  facet_wrap(~type, scales = "free_y")+
+  scale_color_manual(name = "Season", values = seasonColors)+
+  xlab("Evenness")+
+  ylab("")+
+  theme(text = element_text(size = 16))
+
+linked %>%
+  mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
+  ggplot(aes(x = degreeRelative))+
+  geom_density(aes(col = season), linewidth = 1.5)+
+  facet_wrap(~type, scales = "free_y")+
+  scale_color_manual(name = "Season", values = seasonColors)+
+  xlab("Degree (normalized)")+
+  ylab("")+
+  theme(text = element_text(size = 16))
+
+linked %>%
+  mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
+  ggplot(aes(x = strengthRelative))+
+  geom_density(aes(col = season), linewidth = 1.5)+
+  facet_wrap(~type, scales = "free_y")+
+  scale_color_manual(name = "Season", values = seasonColors)+
+  xlab("Strength (normalized)")+
+  ylab("")+
+  theme(text = element_text(size = 16))
+
 # Here's an interesting reference article for some modeling stuff: https://biol607.github.io/lab/12_gzlm.html
 
-# arbitrary changes to test for slowness
-
-load("data/linked.Rda")
-load("data/mnPPD.Rda")
 mnPPD <- mnPPD %>%
   mutate(year = factor(as.numeric(str_extract(seasonUnique, "[0-9]+"))),
          season = factor(as.character(str_extract(seasonUnique, "[a-z]+")), levels = c("breeding", "summer", "fall")))
@@ -248,7 +278,7 @@ vif(fs_max) # I'm worried because this looks identical to vif(fd_max). Why? Mayb
 
 fs_2 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group*season + season*year + (1|Nili_id), data = flight)
 check_model(fs_2) # Not Candidate.
-vif(fs_2)
+vif(fs_2) # next to remove: PC2:season
 
 fs_3 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season*year + (1|Nili_id), data = flight)
 check_model(fs_3) # Candidate.
@@ -256,11 +286,11 @@ vif(fs_3)
 
 fs_4 <- lmer(strengthRelative ~ PC1*age_group + PC2*age_group + season + year + (1|Nili_id), data = flight)
 check_model(fs_4) # Candidate.
-summary(fs_4)
+summary(fs_4) # next to remove: PC2:age_group
 
 fs_5 <- lmer(strengthRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id), data = flight)
 check_model(fs_5) # Candidate.
-summary(fs_5) # neither of the PCs are significant here, but I don't want to remove them, so I'll stop here.
+summary(fs_5) # Could remove season, or either of the PC's, but I don't want to remove main effects. Going to stop here.
 
 compare_performance(fs_noint, fs_3, fs_4, fs_5, rank = T)
 fs_mod <- fs_4
@@ -331,13 +361,9 @@ ed_5 <- lmer(degreeRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id),
 check_model(ed_5) # Candidate 
 summary(ed_5) # removing the next interaction term would just get us back to ed_noint
 
-summary(ed_noint) # I suppose we can remove age...
+summary(ed_noint) # Don't want to remove any fixed effects, so we'll stop here.
 
-ed_6 <- lmer(degreeRelative ~ PC1 + PC2 + season + year + (1|Nili_id), data = feeding)
-check_model(ed_6) # Candidate
-summary(ed_6) # that's the best we can do without removing PCs.
-
-compare_performance(ed_noint, ed_3, ed_4, ed_5, ed_6, rank = T)
+compare_performance(ed_noint, ed_3, ed_4, ed_5, rank = T)
 ed_mod <- ed_3
 
 ## Strength ------------------------------------------------------------------
@@ -369,13 +395,9 @@ es_5 <- lmer(strengthRelative ~ PC1*age_group + PC2 + season + year + (1|Nili_id
 check_model(es_5) # Candidate
 summary(es_5) # Next thing to remove would be the interaction with PC1*age_group, but that would just take us back to es_noint
 
-summary(es_noint) # I guess the next thing is to remove age_group entirely.
+summary(es_noint) # Don't want to remove any fixed effects.
 
-es_6 <- lmer(strengthRelative ~ PC1 + PC2 + season + year + (1|Nili_id), data = feeding)
-check_model(es_6) # Candidate
-summary(es_6) # Looks like this is as far as we can go.
-
-compare_performance(es_noint, es_3, es_4, es_5, es_6, rank = T)
+compare_performance(es_noint, es_3, es_4, es_5, rank = T)
 es_mod <- es_3
 
 ## Evenness ----------------------------------------------------------------
@@ -502,8 +524,7 @@ summary(re_5) # Can't go any farther without removing PC2.
 compare_performance(re_noint, re_4, re_5, rank = T)
 re_mod <- re_5
 
-
-# Effect plots ------------------------------------------------------------
+# Get model effects ----------------------------------------------------------
 # We now have 9 models. Let's compile and tidy their outputs.
 mods <- list("fd" = fd_mod, "fs" = fs_mod, "fe" = fe_mod, "ed" = ed_mod, "es" = es_mod, "ee" = ee_mod, "rd" = rd_mod, "rs" = rs_mod, "re" = re_mod)
 type <- substr(names(mods), 1, 1)
