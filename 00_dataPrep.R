@@ -14,9 +14,9 @@ base::load("movebankCredentials/pw.Rda")
 MB.LoginObject <- move::movebankLogin(username = "kaijagahm", password = pw)
 rm(pw)
 minDate <- "2020-09-01 00:00"
-maxDate <- "2022-12-15 11:59"
-#dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
-#write_feather(dat, "data/dat.feather")
+maxDate <- "2023-05-15 11:59"
+dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
+write_feather(dat, "data/dat.feather")
 dat <- read_feather("data/dat.feather")
 # number of unique individuals
 length(unique(dat$trackId)) # 127
