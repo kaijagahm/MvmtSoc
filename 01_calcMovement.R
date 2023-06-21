@@ -42,6 +42,9 @@ roosts_seasons <- map(roosts_seasons, ~.x %>% group_by(Nili_id) %>% mutate(daysT
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
 roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
 
+# Remove the first season
+roosts_seasons <- roosts_seasons[-1]
+
 durs <- map_dbl(seasons_10min, ~{
   dates <- lubridate::ymd(.x$dateOnly)
   dur <- difftime(max(dates), min(dates), units = "days")
@@ -60,12 +63,13 @@ daysTracked_seasons <- map2(seasons_10min, durs, ~.x %>%
 hrList_indivs <- map(seasons_10min, ~.x %>%
                        dplyr::select(Nili_id) %>%
                        st_transform(32636) %>%
-                       mutate(x = st_coordinates(.)[,1], 
+                       mutate(x = st_coordinates(.)[,1],
                               y = st_coordinates(.)[,2]) %>%
                        st_drop_geometry() %>%
                        group_by(Nili_id) %>%
                        group_split(.keep = T))
 save(hrList_indivs, file = "data/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
+load("data/hrList_indivs.Rda")
 
 indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~sp::SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
