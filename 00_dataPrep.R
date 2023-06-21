@@ -9,40 +9,122 @@ library(feather)
 library(readxl)
 
 ## Download data from movebank
-# download data from movebank (just a subset of the times for now)
 base::load("movebankCredentials/pw.Rda")
 MB.LoginObject <- move::movebankLogin(username = "kaijagahm", password = pw)
 rm(pw)
+
+# Hatzofe INPA data
+inpa <- move::getMovebankData(study = 6071688, login = MB.LoginObject, removeDuplicatedTimestamps = TRUE) 
+inpadf <- methods::as(inpa, "data.frame")
+write_feather(inpadf, "data/inpadf.feather")
+inpadf <- read_feather("data/inpadf.feather")
+inpadf <- inpadf %>%
+  mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)))
+
+inpadf_touse <- inpadf %>%
+  mutate(year = as.numeric(lubridate::year(timestamp))) %>%
+  filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-05-15")) # cut this off at the same point as the ornitela data
+
+# # Investigate the fix rate
+# fixrate <- inpadf_touse %>%
+#   mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
+#   filter(dateOnly >= lubridate::ymd("2020-09-01")) %>%
+#   dplyr::select(trackId, timestamp, dateOnly, year) %>%
+#   group_by(trackId, dateOnly) %>%
+#   mutate(diff = c(NA, diff(timestamp)))
+# 
+# fixrate_summ <- fixrate %>%
+#   group_by(trackId, dateOnly, year) %>%
+#   filter(n() > 1) %>%
+#   summarize(ppd = n(),
+#             mean = mean(diff, na.rm = T),
+#             min = min(diff, na.rm = T),
+#             max = max(diff, na.rm = T))
+# 
+# fixrate_summ %>%
+#   ggplot(aes(x = min, col = trackId))+
+#   geom_density()+
+#   facet_wrap(~year, scales = "free")+
+#   theme(legend.position = "none")
+# # I can't quite tell what the fix rate is, but I'm going to try to move along with this...
+
+# Ornitela: download data from movebank (just a subset of the times for now)
 minDate <- "2020-09-01 00:00"
 maxDate <- "2023-05-15 11:59"
-dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
-write_feather(dat, "data/dat.feather")
+# dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
+# write_feather(dat, "data/dat.feather")
 dat <- read_feather("data/dat.feather")
 # number of unique individuals
 length(unique(dat$trackId)) # 127
+length(unique(inpadf_touse$trackId))
+
+# Will there be a problem joining these?
+names(dat)[!(names(dat) %in% names(inpadf_touse))] # all names in "dat" are found in inpadf_touse
+names(inpadf_touse)[!(names(inpadf_touse) %in% names(dat))] # many are not found in "dat" that are found in inpadf_touse.
+inpadf_tojoin <- inpadf_touse[,names(dat)] %>%
+  mutate(dataset = "inpa")
+dat <- dat %>%
+  mutate(dataset = "ornitela")
+
+joined <- bind_rows(inpadf_tojoin, dat)
+dim(joined)
 
 ## fix trackId
-dat2 <- dat %>%
+dat2 <- joined %>%
   mutate(trackId = as.character(trackId),
          trackId = case_when(trackId == "E03" ~ "E03w",
                              TRUE ~ trackId))
 # number of unique individuals
-length(unique(dat2$trackId)) # 126--makes sense that we lost one because one individual had a typo.
+length(unique(dat2$trackId)) # 206
 
-  # Add the Nili_id
+# Add the Nili_id
 ww <- read_excel("data/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
   dplyr::select(Nili_id, Movebank_id) %>%
   distinct()
 
-# Note that there is one Nili_id in our dataset that has two associated trackId's--it's yomtov.
-ww %>% filter(Movebank_id %in% dat2$trackId) %>% dplyr::select(Nili_id, Movebank_id) %>% distinct() %>% group_by(Nili_id) %>% summarize(n = length(unique(Movebank_id))) %>% arrange(desc(n))
+# Are there any other individuals who have two different associated trackId's?
+ww %>% filter(Movebank_id %in% dat2$trackId) %>% dplyr::select(Nili_id, Movebank_id) %>% distinct() %>% group_by(Nili_id) %>% summarize(n = length(unique(Movebank_id))) %>% arrange(desc(n)) # Note that there is one Nili_id in our dataset that has two associated trackId's--it's yomtov.
 ww %>% filter(Nili_id =="yomtov") # Y26 and Y26b. So we should expect to once again "lose" an individual once we change to Nili ID's
 
-all(dat2$trackId %in% ww$Movebank_id) # true
+all(dat2$trackId %in% ww$Movebank_id) # false.
 
-dat2 <- left_join(dat2, ww, by = c("trackId" = "Movebank_id"))
-dim(dat2) # good, same number of rows.
-length(unique(dat2$Nili_id))
+# Okay, let's investigate the ones that aren't included
+dat2 %>%
+  filter(!(trackId %in% ww$Movebank_id)) %>%
+  pull(trackId) %>% unique() # looks like this is going to be an issue of character matching. Let's transform everything to lowercase and remove all characters and spaces
+
+ww$mb_id <- str_replace_all(tolower(ww$Movebank_id), "\\s|\\(|\\)|\\>|\\<", "\\.") %>% str_replace_all(., "\\.\\.", "\\.") %>% str_replace_all(., "_", "\\.") %>% str_replace_all(., "white|whiite", "w") %>% str_replace_all(., "\\.", "")
+
+dat2$trackId <- str_replace_all(tolower(dat2$trackId), "\\s|\\(|\\)|\\>|\\<", "\\.") %>% str_replace_all(., "\\.\\.", "\\.") %>% str_replace_all(., "_", "\\.") %>% str_replace_all(., "white|whiite", "w") %>% str_replace_all(., "\\.", "")
+
+sort(unique(ww$mb_id))
+unique(dat2$trackId)[!(unique(dat2$trackId) %in% ww$mb_id)]
+
+#e86w --> e86
+#e87w is just missing from who's who entirely. Maybe should be e87 yellow? or Y87
+#e88w also missing entirely
+#e89w also missing entirely
+#e90w missing
+#e90w missing
+#e91w missing
+#y01t60w --> y01 (tammy)
+
+dat2$trackId[dat2$trackId == "e86w"] <- "e86"
+dat2$trackId[dat2$trackId == "y01t60w"] <- "y01"
+
+dat2 %>% filter(!(trackId %in% ww$mb_id)) %>% dplyr::select(dateOnly, trackId, local_identifier, ring_id, dataset) %>% group_by(trackId, local_identifier, ring_id, dataset) %>% summarize(earlyDate = min(dateOnly)) # okay, looks like these three come from the INPA dataset and haven't been entered into the who's who yet. 
+# I guess for now let's just make their trackId's into Nili_id's
+
+dat3 <- left_join(dat2, ww %>% dplyr::select(mb_id, Nili_id) %>% distinct(), by = c("trackId" = "mb_id"))
+nrow(dat3) == nrow(dat2) # good, same number of rows.
+length(unique(dat3$Nili_id)) # 
+
+# XXX change to dat3
+unique(dat2$trackId)[!(unique(dat2$trackId) %in% ww$mb_id)]
+dat3 <- dat3 %>%
+  mutate(Nili_id = case_when(is.na(Nili_id) ~ trackId,
+                             TRUE ~ Nili_id))
+unique(dat3$Nili_id)
 
 ## annotate the data with periods to remove
 toRemove <- read_excel("data/whoswho_vultures_20230315_new.xlsx", sheet = "periods_to_remove")
@@ -69,23 +151,23 @@ toRemove_long <- toRemove %>%
   rename("status" = reason)
 
 # Join to the original data
-datAnnot <- dat2 %>%
+datAnnot <- dat3 %>%
   left_join(toRemove_long, by = c("Nili_id", "dateOnly")) %>%
   mutate(status = replace_na(status, "valid"))
-nrow(datAnnot) == nrow(dat2) #T: good, same number of rows.
+nrow(datAnnot) == nrow(dat3) #T: good, same number of rows.
 
 # Actually REMOVE the periods to remove...
 datAnnot <- datAnnot %>%
   filter(status == "valid")
 nrow(datAnnot)
 length(unique(datAnnot$Nili_id))
-nrow(dat2)
+nrow(dat3)
 nrow(datAnnot)
 
 # Identify and remove capture dates using Marta's code --------------------
 ## To identify the capture dates, first we need to classify the roosts (now using the get_roosts() function). Then, if the bird roosted within 500 m of the capture site, it was considered to be captured and that day, and the following day, are excluded from the dataset. This has been validated. Note: this protocol doesn't work for the Carmel because of the position of the roost sites relative to cages. But we're just dealing with southern individuals, so that's okay.
-#roosts <- get_roosts_df(df = datAnnot, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
-#save(roosts, file = "data/roosts.Rda")
+# roosts <- get_roosts_df(df = datAnnot, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
+# save(roosts, file = "data/roosts.Rda")
 load("data/roosts.Rda")
 
 # Identify the period of time during which the capture sites are open (when we need to do this exclusion)
@@ -179,8 +261,7 @@ datAnnot_noCaptures <- datAnnot_noCaptures %>%
 before <- nrow(datAnnot)
 after <- nrow(datAnnot_noCaptures)
 (propChange <- (before-after)/before) # approx. 1% of data removed.
-length(unique(datAnnot$Nili_id))
-length(unique(datAnnot_noCaptures$Nili_id)) # no change in number of individuals! As expected.
+length(unique(datAnnot$Nili_id)) == length(unique(datAnnot_noCaptures$Nili_id)) # no change in number of individuals! As expected.
 
 datAnnot_noCaptures <- datAnnot_noCaptures %>%
   dplyr::select(-c("ClosestCaptureSite", "ClosestCaptureDist", "Captured"))
@@ -195,19 +276,17 @@ datAnnot2 <- datAnnot_noCaptures %>%
   dplyr::select(-c("sex")) %>%
   left_join(as, by = "Nili_id")
 nrow(datAnnot2) == nrow(datAnnot)
-length(unique(datAnnot2$Nili_id)) # 125
+length(unique(datAnnot2$Nili_id)) # 196
 
 datAnnot <- datAnnot2 # a hack so the rest of the code will work
 
 # Clean the data
 ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
 mask <- sf::st_read("data/CutOffRegion.kml")
-datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 30, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) # XXX using 30 days overall. If we want 30 days per season, will have to do that differently (e.g. split the seasons earlier)--but I think that that'll be covered later in the data cleaning anyway.
-save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
+#datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 30, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) # XXX using 30 days overall. If we want 30 days per season, will have to do that differently (e.g. split the seasons earlier)--but I think that that'll be covered later in the data cleaning anyway.
+#save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
 load("data/datAnnotCleaned.Rda")
-dim(datAnnotCleaned) # about 27 percent of data outside the israel region (roughly)
-length(unique(datAnnotCleaned$Nili_id)) # 120 individuals left
-
+length(unique(datAnnotCleaned$Nili_id)) # 172 individuals
 # Fix time zone so dates make sense ---------------------------------------
 ## Overwrite the dateOnly column from the new times
 datAnnotCleaned <- datAnnotCleaned %>%
@@ -231,7 +310,7 @@ s1 <- datAnnotCleaned %>%
            dateOnly >= start_breeding & dateOnly < start_summer ~ "breeding",
            dateOnly >= start_summer & dateOnly <= start_fall ~ "summer",
            dateOnly >= start_fall & dateOnly < start_breeding ~ "fall")) %>%
-  filter(dateOnly != "2022-12-15") # remove December 15 2022, because it turns out that's a non-inclusive boundary (oops)
+  filter(dateOnly != "2023-05-15") # remove May 15 2023, because it turns out the season boundaries are supposed to be non-inclusive and this is the latest one.
 
 s2 <- s1 %>%
   mutate(age = year - birth_year,
@@ -248,7 +327,7 @@ s2 <- s1 %>%
                                   season == "breeding" & month == 12 ~ paste(year + 1, season, sep = "_"),
                                   season == "breeding" & month != 12 ~ paste(year, season, sep = "_"))) %>%
   # explicitly set the factor levels in temporal order
-  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall")),
+  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding")),
          season = factor(season, levels = c("breeding", "summer", "fall")))
 table(s2$seasonUnique, exclude = NULL) # XXX can use this in the report--easy to read
 
@@ -361,7 +440,7 @@ ppd %>%
 ppd %>%
   filter(n < 100) %>%
   ggplot(aes(x = n)) +
-  stat_ecdf(aes(y = ..y..*100))+
+  stat_ecdf(aes(y = after_stat(y)*100))+
   ylab("Percentage of vulture-days included")+
   xlab("Points per day")+
   theme_classic()+
@@ -371,7 +450,7 @@ ppd %>%
 ppd %>%
   filter(n < 100, minBatt > 50) %>%
   ggplot(aes(x = n)) +
-  stat_ecdf(aes(y = ..y..*100))+
+  stat_ecdf(aes(y = after_stat(y)*100))+
   ylab("Percentage of vulture-days included")+
   xlab("Points per day")+
   theme_classic()+
@@ -382,7 +461,7 @@ ppd %>%
 ppd %>%
   filter(n < 100, minBatt > 75) %>%
   ggplot(aes(x = n)) +
-  stat_ecdf(aes(y = ..y..*100))+
+  stat_ecdf(aes(y = after_stat(y)*100))+
   ylab("Percentage of vulture-days included")+
   xlab("Points per day")+
   theme_classic()+
@@ -392,7 +471,7 @@ ppd %>%
 ppd %>%
   filter(n < 30) %>%
   ggplot(aes(x = minBatt))+
-  stat_ecdf(aes(y = ..y..*100))+
+  stat_ecdf(aes(y = after_stat(y)*100))+
   ylim(c(0, 100))+
   facet_wrap(~seasonUnique)+
   ylab("Percentage of vulture-days included")+
@@ -411,7 +490,7 @@ ppd %>%
 # Let's throw out anything with < 10ppd unless the battery has a min charge > 50%.
 
 # Orr suggests to just restrict to vulture*days with >30 points per day. Let's see what that would look like.
-thresh <- 10
+thresh <- 30
 ppd %>%
   mutate(Status = ifelse(n < thresh, "removed", "kept")) %>%
   ggplot(aes(x = n))+
@@ -496,7 +575,7 @@ seasons <- after
 seasons <- seasons[-1]
 
 # Get elevation rasters ---------------------------------------------------
-seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
+# seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
 # elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
 # save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
 load("data/elevs_z10_seasons.Rda")
