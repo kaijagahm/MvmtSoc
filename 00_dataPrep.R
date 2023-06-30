@@ -3,10 +3,19 @@
 ## Load packages -----------------------------------------------------------
 library(vultureUtils)
 library(sf)
-library(tidyverse)
+# In lieu of tidyverse
+library(ggplot2)
+library(tidyr)
+library(stringr)
+library(readr)
+library(dplyr)
+library(tibble)
+library(purrr)
+#
 library(move)
 library(feather)
 library(readxl)
+library(elevatr)
 # 
 # ## Download data from movebank
 # base::load("movebankCredentials/pw.Rda")
@@ -361,7 +370,7 @@ propRemoved
 # save(roosts_seasons, file = "data/roosts_seasons.Rda")
 load("data/roosts_seasons.Rda")
 
-# roosts_seasons_mode10 <- purrr::map(seasons, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
+# roosts_seasons_mode10 <- purrr::map(seasons_mode10, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
 # roosts_seasons_mode10 <- roosts_seasons_mode10 %>%
 #   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
 # save(roosts_seasons_mode10, file = "data/roosts_seasons_mode10.Rda")
@@ -412,15 +421,19 @@ load("data/roosts_seasons_mode10.Rda")
 # Restrict to southern individuals ----------------------------------------
 # Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (UTM 36N, https://epsg.io/32636)
 ## Transform to SF object, so we can get centroids
-seasonsSF <- map(seasons_orig, ~.x %>%
-                   sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
-                   sf::st_set_crs("WGS84") %>%
-                   sf::st_transform(32636))
-
-seasonsSF_mode10 <- map(seasons_mode10, ~.x %>%
-                   sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
-                   sf::st_set_crs("WGS84") %>%
-                   sf::st_transform(32636))
+# seasonsSF <- map(seasons_orig, ~.x %>%
+#                    sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
+#                    sf::st_set_crs("WGS84") %>%
+#                    sf::st_transform(32636))
+# 
+# seasonsSF_mode10 <- map(seasons_mode10, ~.x %>%
+#                    sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
+#                    sf::st_set_crs("WGS84") %>%
+#                    sf::st_transform(32636))
+# save(seasonsSF, file = "data/seasonsSF.Rda")
+# save(seasonsSF_mode10, file = "data/seasonsSF_mode10.Rda")
+load("data/seasonsSF.Rda")
+load("data/seasonsSF_mode10.Rda")
 
 ## Get centroids, so we can see who's "southern" for that season.
 centroids <- map(seasonsSF, ~.x %>%
@@ -660,17 +673,22 @@ seasons_mode10 <- seasons_mode10[-1]
 # Get elevation rasters ---------------------------------------------------
 # XXXXXXX start here
 # seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-# elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
-# save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
+#elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
+#save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
 load("data/elevs_z10_seasons.Rda")
 
 # seasons_mode10 <- map(seasons_mode10, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-# elevs_z10_seasons_mode10 <- map(seasons_mode10, ~elevatr::get_elev_raster(.x , z = 10))
-# save(elevs_z10_seasons_mode10, file = "data/elevs_z10_seasons_mode10.Rda")
+#elevs_z10_seasons_mode10 <- map(seasons_mode10, ~elevatr::get_elev_raster(.x , z = 10))
+#save(elevs_z10_seasons_mode10, file = "data/elevs_z10_seasons_mode10.Rda")
 load("data/elevs_z10_seasons_mode10.Rda")
 
-groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
-groundElev_z10_mode10 <- map2(elevs_z10_seasons_mode10, seasons_mode10, ~raster::extract(x = .x, y = .y))
+# groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
+# groundElev_z10_mode10 <- map2(elevs_z10_seasons_mode10, seasons_mode10, ~raster::extract(x = .x, y = .y))
+# save(groundElev_z10, file = "data/groundElev_z10.Rda")
+# save(groundElev_z10_mode10, file = "data/groundElev_z10_mode10.Rda")
+load("data/groundElev_z10.Rda")
+load("data/groundElev_z10_mode10.Rda")
+
 
 ## use elevation rasters to calculate height above ground level
 before <- seasons
@@ -689,8 +707,12 @@ after_mode10 <- seasons_mode10
 
 # There should be no change in the number of rows
 all(map2_lgl(before, after, ~nrow(.x) == nrow(.y)))
+all(map2_lgl(before_mode10, after_mode10, ~nrow(.x) == nrow(.y)))
 
 save(seasons, file = "data/seasons.Rda")
+save(seasons_mode10, file = "data/seasons_mode10.Rda")
+load("data/seasons.Rda")
+load("data/seasons_mode10.Rda")
 
 # Downsample the data and save the downsampled data
 subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 10){
@@ -709,8 +731,9 @@ subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 
 
 # create and save downsampled datasets for later use
 seasons_10min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # basically just trying to remove any data from the occasional bursts of more concentrated and frequent sampling.
+seasons_mode10_10min <- map(seasons_mode10, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T)
 # XXX will eventually have to come back to this and bring the mode10 dataset all the way through to the end here.
-seasons_15min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 15), .progress = T)
+# seasons_15min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 15), .progress = T)
 # seasons_20min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 20), .progress = T)
 # seasons_30min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 30), .progress = T)
 # seasons_60min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 60), .progress = T)
@@ -721,7 +744,7 @@ map_dbl(seasons_10min, nrow)
 map_dbl(seasons_mode10, nrow)
 
 save(seasons_10min, file = "data/seasons_10min.Rda")
-save(seasons_15min, file = "data/seasons_15min.Rda")
+# save(seasons_15min, file = "data/seasons_15min.Rda")
 save(seasons_mode10_10min, file = "data/seasons_mode10_10min.Rda")
 # save(seasons_20min, file = "data/seasons_20min.Rda")
 # save(seasons_30min, file = "data/seasons_30min.Rda")
