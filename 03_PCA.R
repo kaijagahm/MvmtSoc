@@ -16,7 +16,7 @@ flightColor = "skyblue3";
 
 ## Load data ------------------------------------------------------------
 load("data/movementBehavior.Rda")
-#load("data/movementBehaviorScaled.Rda")
+load("data/movementBehaviorScaled.Rda")
 load("data/networkMetrics.Rda")
 seasonNames <- map_chr(movementBehavior, ~.x$seasonUnique[1])
 all(networkMetrics$season %in% seasonNames) # check that season names match up--good.
@@ -30,7 +30,7 @@ allMovementBehavior <- purrr::list_rbind(movementBehavior)
 colSums(is.na(allMovementBehavior))
 # Scale relative to all the seasons, not just one season (movementBehaviorScaled has vars scaled per season)
 allMovementBehavior_scaledAll <- allMovementBehavior %>%
-  mutate(across(-c(Nili_id, seasonUnique, birth_year, sex), function(x){as.numeric(as.vector(scale(x)))}))
+  mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, dataset), function(x){as.numeric(as.vector(scale(x)))}))
 allMovementBehavior_scaledAll <- allMovementBehavior_scaledAll[complete.cases(allMovementBehavior_scaledAll),] # remove a couple NA values
 colSums(is.na(allMovementBehavior_scaledAll))
 
