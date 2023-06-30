@@ -21,29 +21,31 @@ library(future) # for parallel computing
 
 ## Load data ---------------------------------------------------------------
 base::load("data/seasons_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
+base::load("data/datasetAssignments.Rda")
 # add number of points per day
-seasons_10min <- map(seasons_10min, ~.x %>% group_by(Nili_id, dateOnly) %>% mutate(ppd = length(unique(timestamp))) %>% ungroup() %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))) %>% ungroup())
+seasons_10min <- map(seasons_10min, ~.x %>% group_by(Nili_id, dateOnly, dataset) %>% mutate(ppd = length(unique(timestamp))) %>% ungroup() %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))) %>% ungroup())
 
 mnPPD <- seasons_10min %>%
   purrr::list_rbind() %>%
-  group_by(seasonUnique, Nili_id, dateOnly) %>%
+  group_by(seasonUnique, Nili_id, dateOnly, dataset) %>%
   summarize(ppd = ppd[1]) %>%
-  group_by(seasonUnique, Nili_id) %>%
+  group_by(seasonUnique, Nili_id, dataset) %>%
   summarize(mnPPD = mean(ppd))
 save(mnPPD, file = "data/mnPPD.Rda")
 
 ppd <- map(seasons_10min, ~.x %>% # points per day
-             st_drop_geometry() %>%
-             dplyr::select(Nili_id, dateOnly, ppd) %>%
+             sf::st_drop_geometry() %>%
+             dplyr::select(Nili_id, dataset, dateOnly, ppd) %>%
              distinct())
 
 base::load("data/roosts_seasons.Rda") # don't need a separate roost dataset for the rarefied data, because roosts are only once per day, and it makes sense to use the most detailed dataset possible.
 roosts_seasons <- map(roosts_seasons, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
+roosts_seasons <- roosts_seasons[-1] # remove summer 2020
+base::load("data/datasetAssignments.Rda")
+datasetAssignments <- datasetAssignments[-1] # remove summer 2020
+test <- map2(roosts_seasons, datasetAssignments, ~left_join(.x, .y, by = "Nili_id"))
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
 roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
-
-# Remove the first season
-roosts_seasons <- roosts_seasons[-1]
 
 durs <- map_dbl(seasons_10min, ~{
   dates <- lubridate::ymd(.x$dateOnly)
@@ -347,7 +349,8 @@ movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by
   map2(., mnMvmt, ~left_join(.x, .y, by = "Nili_id")) %>%
   map2(., daysTracked_seasons, ~left_join(.x, .y, by = "Nili_id")) %>%
   #map(., na.omit) %>%
-  map2(., .y = seasonNames, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id"))
+  map2(., .y = seasonNames, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id")) %>%
+  map2(., datasetAssignments, ~.x %>% left_join(.y))
 
 ## Add age and sex
 ageSex <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% 
@@ -359,7 +362,7 @@ movementBehavior <- map2(movementBehavior, ageSex, ~left_join(.x, .y, by = "Nili
 
 ## Scale vars
 movementBehaviorScaled <- map(movementBehavior, ~.x %>%
-                                mutate(across(-c(Nili_id, seasonUnique, birth_year, sex), function(x){
+                                mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, dataset), function(x){
                                   as.numeric(as.vector(scale(x)))
                                 })))
 
