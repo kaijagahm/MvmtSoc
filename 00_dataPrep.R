@@ -322,32 +322,34 @@ library(elevatr)
 load("data/seasons_orig.Rda")
 load("data/seasonNames_orig.Rda")
 
-# # Optionally remove individuals with a low fix rate -----------------------
-# Mode <- function(x) { # function to calculate mode fix rate
-#   ux <- unique(x)
-#   ux[which.max(tabulate(match(x, ux)))]
-# }
-# 
-# # Calculate daily modes and add them to the dataset
-# seasons <- map(seasons_orig, ~.x %>%
-#                  group_by(dateOnly, Nili_id) %>%
-#                  mutate(diff = as.numeric(difftime(lead(timestamp), timestamp, units = "mins"))) %>%
-#                  group_by(dateOnly, Nili_id) %>%
-#                  mutate(mode = Mode(round(diff))) %>%
-#                  ungroup())
-# 
-# # Exclude individuals that never have a daily mode of 10 minutes
-# toKeep <- map(seasons, ~.x %>%
+# Optionally remove individuals with a low fix rate -----------------------
+Mode <- function(x) { # function to calculate mode fix rate
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Calculate daily modes and add them to the dataset
+seasons <- map(seasons_orig, ~.x %>%
+                 group_by(dateOnly, Nili_id) %>%
+                 mutate(diff = as.numeric(difftime(lead(timestamp), timestamp, units = "mins"))) %>%
+                 group_by(dateOnly, Nili_id) %>%
+                 mutate(mode = Mode(round(diff))) %>%
+                 ungroup())
+
+# Exclude individuals that never have a daily mode of 10 minutes
+# toKeep_fixrate <- map(seasons, ~.x %>%
 #                 sf::st_drop_geometry() %>%
 #                 group_by(Nili_id) %>%
 #                 summarize(minmode = min(mode, na.rm = T)) %>%
-#                 filter(minmode >= 10) %>%
+#                 filter(minmode <= 10) %>%
 #                 pull(Nili_id) %>%
 #                 unique())
-# seasons_mode10 <- map2(seasons, toKeep, ~.x %>% filter(Nili_id %in% .y))
-# 
-# # Save copies for social analysis
-# # The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So, before I filter for ppd and for days tracked, going to save a copy to use for social analysis.
+# save(toKeep_fixrate, file = "data/toKeep_fixrate.Rda")
+# load("data/toKeep_fixrate.Rda")
+# seasons_mode10 <- map2(seasons, toKeep_fixrate, ~.x %>% filter(Nili_id %in% .y))
+
+# Save copies for social analysis
+# The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So, before I filter for ppd and for days tracked, going to save a copy to use for social analysis.
 # seasons_forSoc <- seasons
 # seasons_forSoc_mode10 <- seasons_mode10
 # save(seasons_forSoc, file = "data/seasons_forSoc.Rda")
@@ -361,7 +363,7 @@ seasons <- seasons_forSoc
 inds_all <- map_dbl(seasons_forSoc, ~length(unique(.x$Nili_id)))
 inds_mode10 <- map_dbl(seasons_forSoc_mode10, ~length(unique(.x$Nili_id)))
 propRemoved <- round((inds_all-inds_mode10)/inds_all, 3) # For all seasons, getting rid of individuals that don't have 
-propRemoved
+propRemoved # yikes that's a lot of birds. Alas.
 
 # Get roosts for each season ----------------------------------------------
 # roosts_seasons <- purrr::map(seasons, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
@@ -374,7 +376,7 @@ load("data/roosts_seasons.Rda")
 # roosts_seasons_mode10 <- roosts_seasons_mode10 %>%
 #   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
 # save(roosts_seasons_mode10, file = "data/roosts_seasons_mode10.Rda")
-load("data/roosts_seasons_mode10.Rda")
+# load("data/roosts_seasons_mode10.Rda")
 
 # Remove nighttime points -------------------------------------------------
 # before <- map_dbl(seasons, nrow)
