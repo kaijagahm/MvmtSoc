@@ -54,8 +54,8 @@ feedingSeasons_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFeedingEdg
 roostSeasons <- map(roosts_seasons, ~vultureUtils::getRoostEdges(.x, mode = "polygon", roostPolygons = roostPolygons, return = "sri", latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "roost_date"))
 # NOTE: using roosts_seasons, not roosts_seasons_mode10, for the roost network. So we end up including a lot more individuals in that network. 
 # #
-save(flightSeasons, file = "data/flightSeasons_mode10.Rda")
-save(feedingSeasons, file = "data/feedingSeasons_mode10.Rda")
+save(flightSeasons_mode10, file = "data/flightSeasons_mode10.Rda")
+save(feedingSeasons_mode10, file = "data/feedingSeasons_mode10.Rda")
 save(roostSeasons, file = "data/roostSeasons.Rda")
 
 load("data/flightSeasons_mode10.Rda")
@@ -66,7 +66,7 @@ flightSeasons_mode10_g <- map(flightSeasons_mode10, ~vultureUtils::makeGraph(mod
 feedingSeasons_mode10_g <- map(feedingSeasons_mode10,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 roostSeasons_g <- map(roostSeasons,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 
-networkMetrics <- map2_dfr(flightSeasons_g, seasonNames, ~{
+networkMetrics <- map2_dfr(flightSeasons_mode10_g, seasonNames, ~{
   df <- data.frame(degree = igraph::degree(.x),
                    strength = igraph::strength(.x),
                    pageRank = igraph::page_rank(.x)$vector,
@@ -77,7 +77,7 @@ networkMetrics <- map2_dfr(flightSeasons_g, seasonNames, ~{
   
   return(df)
 }) %>%
-  bind_rows(map2_dfr(feedingSeasons_g, seasonNames, ~{
+  bind_rows(map2_dfr(feedingSeasons_mode10_g, seasonNames, ~{
     df <- data.frame(degree = igraph::degree(.x),
                      strength = igraph::strength(.x),
                      pageRank = igraph::page_rank(.x)$vector,
