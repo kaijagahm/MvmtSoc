@@ -20,31 +20,54 @@ load("data/seasons_forSoc_mode10.Rda")
 seasons_forSoc <- map(seasons_forSoc, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
 roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
 load("data/roosts_seasons.Rda")
+load("data/roosts_seasons_mode10.Rda")
 load("data/datasetAssignments.Rda")
-datasetAssignments <- datasetAssignments[-1]
 
 seasonNames <- map_chr(seasons_forSoc, ~as.character(.x$seasonUnique[1]))
 seasons_forSoc <- seasons_forSoc[-which(seasonNames == "2020_summer")]
+seasons_forSoc_mode10 <- seasons_forSoc_mode10[-which(seasonNames == "2020_summer")]
+datasetAssignments <- datasetAssignments[-which(seasonNames == "2020_summer")]
 roosts_seasons <- roosts_seasons[-which(seasonNames == "2020_summer")]
+roosts_seasons_mode10 <- roosts_seasons_mode10[-which(seasonNames == "2020_summer")]
 seasonNames <- seasonNames[-which(seasonNames == "2020_summer")]
 
 # Investigate the data ----------------------------------------------------
 # How many individuals do we have with vs. without excluding those with a lower sampling rate?
-# I know I'm not using the "forSoc" data here, which I should be doing, but I just need to test things out a bit and then I'll go back to it. Need to move the filtering for sampling rate earlier in the process.
-all <- map_dbl(seasons_forSoc, ~.x %>% sf::st_drop_geometry() %>% pull(Nili_id) %>% unique() %>% length())
-highFixRate <- map_dbl(seasons_forSoc_mode10, ~.x %>% sf::st_drop_geometry() %>% pull(Nili_id) %>% unique() %>% length())
-diff <- all - highFixRate
-diff # number of individuals lost when we restrict it to only those with a high fix rate. Wowwww that's a lot. 
+all <- map_dbl(seasons_forSoc, ~length(unique(.x$Nili_id)))
+highFixRate <- map_dbl(seasons_forSoc_mode10, ~length(unique(.x$Nili_id)))
+diff <- all - highFixRate # we should not have both positive and negative values here. That's bad. 
+diff # number of individuals lost when we restrict it to only those with a high fix rate. 
 
 # Social Networks ---------------------------------------------------------
 flightSeasons <- map(seasons_forSoc, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri"))
 flightSeasons_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri"))
+
 # XXX just testing here!
 flightEdges <- map(seasons_forSoc, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "edges"))
+flightEdges_15min <- map(seasons_forSoc, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, timeThreshold = "15 minutes", idCol = "Nili_id", return = "edges"))
 flightEdges_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "edges"))
+flightEdges_mode10_15min <- map(seasons_forSoc_mode10, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, timeThreshold = "15 minutes", idCol = "Nili_id", return = "edges"))
 
 feedingEdges <- map(seasons_forSoc, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, idCol = "Nili_id", return = "edges"))
+feedingEdges_15min <- map(seasons_forSoc, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, timeThreshold = "15 minutes", idCol = "Nili_id", return = "edges"))
 feedingEdges_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, idCol = "Nili_id", return = "edges"))
+feedingEdges_mode10_15min <- map(seasons_forSoc_mode10, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, timeThreshold = "15 minutes", idCol = "Nili_id", return = "edges"))
+
+l <- list(flightEdges, flightEdges_15min, flightEdges_mode10, flightEdges_mode10_15min, feedingEdges, feedingEdges_15min, feedingEdges_mode10, feedingEdges_mode10_15min)
+save(l, file = "l.Rda")
+rows <- map(l, ~.x %>% map_dbl(., nrow) %>% as.data.frame() %>% mutate(season = factor(seasonNames, levels = seasonNames)))
+rowsdf <- purrr::list_rbind(rows, names_to = "which") %>%
+  rename("nInteractions" = ".") %>%
+  mutate(type = case_when(which %in% 1:4 ~ "flight",
+                          TRUE ~ "feeding"),
+         mins = case_when(which %in% c(1, 3, 5, 7) ~ 10,
+                          TRUE ~ 15),
+         restricted = case_when(which %in% c(1, 2, 5, 6) ~ F,
+                                TRUE ~ T))
+rowsdf %>%
+  ggplot(aes(x = season, y = nInteractions))+
+  geom_point(aes(col = type, pch = restricted))+
+  geom_line(aes(col = type, lty = restricted))
 
 # Comparison of number of interactions
 nInteractions_all_flight <- map_dbl(flightEdges, nrow)
