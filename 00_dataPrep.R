@@ -376,7 +376,7 @@ load("data/roosts_seasons.Rda")
 # roosts_seasons_mode10 <- roosts_seasons_mode10 %>%
 #   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
 # save(roosts_seasons_mode10, file = "data/roosts_seasons_mode10.Rda")
-# load("data/roosts_seasons_mode10.Rda")
+load("data/roosts_seasons_mode10.Rda")
 
 # Remove nighttime points -------------------------------------------------
 # before <- map_dbl(seasons, nrow)
@@ -398,26 +398,6 @@ load("data/roosts_seasons.Rda")
 # changeDF <- data.frame(seasonName = seasonNames_orig, nBefore = before, nAfter = after) %>%
 #   mutate(propRowsRemoved = round((before-after)/before, 2))
 # changeDF
-# 
-# before_mode10 <- map_dbl(seasons_mode10, nrow)
-# seasons_mode10 <- map(seasons_mode10, ~{
-#   times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
-#                                      lat = 31.434306, lon = 34.991889,
-#                                      keep = c("sunrise", "sunset")) %>%
-#     dplyr::select("dateOnly" = date, sunrise, sunset)
-#   
-#   .x <- .x %>%
-#     dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
-#     dplyr::left_join(times, by = "dateOnly") %>%
-#     dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
-#     dplyr::select(-c(sunrise, sunset)) %>%
-#     dplyr::filter(daylight == "day")
-# })
-# after_mode10 <- map_dbl(seasons_mode10, nrow)
-# change_mode10 <- after_mode10-before_mode10
-# changeDF_mode10 <- data.frame(seasonName = seasonNames_orig, nBefore = before, nAfter = after) %>%
-#   mutate(propRowsRemoved = round((before-after)/before, 2))
-# changeDF_mode10
 
 
 # Restrict to southern individuals ----------------------------------------
@@ -428,14 +408,8 @@ load("data/roosts_seasons.Rda")
 #                    sf::st_set_crs("WGS84") %>%
 #                    sf::st_transform(32636))
 # 
-# seasonsSF_mode10 <- map(seasons_mode10, ~.x %>%
-#                    sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
-#                    sf::st_set_crs("WGS84") %>%
-#                    sf::st_transform(32636))
 # save(seasonsSF, file = "data/seasonsSF.Rda")
-# save(seasonsSF_mode10, file = "data/seasonsSF_mode10.Rda")
 load("data/seasonsSF.Rda")
-load("data/seasonsSF_mode10.Rda")
 
 ## Get centroids, so we can see who's "southern" for that season.
 centroids <- map(seasonsSF, ~.x %>%
@@ -443,21 +417,11 @@ centroids <- map(seasonsSF, ~.x %>%
                    summarize(geometry = st_union(geometry)) %>%
                    st_centroid())
 
-centroids_mode10 <- map(seasonsSF_mode10, ~.x %>%
-                   group_by(Nili_id) %>%
-                   summarize(geometry = st_union(geometry)) %>%
-                   st_centroid()) 
-
 ## Examine a histogram of centroid latitudes 
 # walk(centroids, ~hist(st_coordinates(.x)[,2])) # looks like 3550000 is generally a good cutoff point here.
-# walk(centroids_mode10, ~hist(st_coordinates(.x)[,2])) # looks like 3550000 is generally a good cutoff point here.
 
 ## Get southern individuals for each season, so we can filter the data
 southernIndivs <- map(centroids, ~.x %>%
-                        filter(st_coordinates(.)[,2] < 3550000) %>%
-                        pull(Nili_id))
-
-southernIndivs_mode10 <- map(centroids_mode10, ~.x %>%
                         filter(st_coordinates(.)[,2] < 3550000) %>%
                         pull(Nili_id))
 
@@ -473,18 +437,8 @@ afterIndivs <- map_dbl(after, ~length(unique(.x$Nili_id)))
 df <- data.frame(season = seasonNames_orig, nBefore = beforeRows, nAfter = afterRows, indivsBefore = beforeIndivs, indivsAfter = afterIndivs)
 df$propRowsRemoved <- round((df$nBefore - df$nAfter)/df$nBefore, 2)
 df
-
-before_mode10 <- seasons_mode10
-seasons_mode10 <- map2(.x = seasons_mode10, .y = southernIndivs_mode10, ~.x %>% filter(Nili_id %in% .y))
-after_mode10 <- seasons_mode10
-
-beforeRows_mode10 <- map_dbl(before_mode10, nrow)
-afterRows_mode10 <- map_dbl(after_mode10, nrow)
-beforeIndivs_mode10 <- map_dbl(before_mode10, ~length(unique(.x$Nili_id)))
-afterIndivs_mode10 <- map_dbl(after_mode10, ~length(unique(.x$Nili_id)))
-df_mode10 <- data.frame(season = seasonNames_orig, nBefore = beforeRows_mode10, nAfter = afterRows_mode10, indivsBefore = beforeIndivs_mode10, indivsAfter = afterIndivs_mode10)
-df_mode10$propRowsRemoved <- round((df_mode10$nBefore - df_mode10$nAfter)/df_mode10$nBefore, 2)
-df_mode10
+rm(centroids)
+rm(seasonsSF)
 
 # Include only individuals with enough points per day ------------------------
 # Investigate battery percentage vs points per day ------------------------
@@ -619,15 +573,9 @@ seasons <- map(seasons, ~.x %>%
                  filter(n() >= 10 | (n() < 10 & min(battery_charge_percent, na.rm = T) > 50)) %>%
                  ungroup())
 
-seasons_mode10 <- map(seasons_mode10, ~.x %>%
-                 group_by(Nili_id, dateOnly) %>%
-                 filter(n() >= 10 | (n() < 10 & min(battery_charge_percent, na.rm = T) > 50)) %>%
-                 ungroup())
-
 # Include only individuals with enough days tracked -----------------------
 ## Must be tracked for at least 30 days per season
 durs <- map_dbl(seasons, ~length(unique(.x$dateOnly)))
-durs_mode10 <- map_dbl(seasons_mode10, ~length(unique(.x$dateOnly)))
 
 # walk2(seasons, durs, ~.x %>%
 #         st_drop_geometry() %>%
@@ -645,14 +593,6 @@ indivsToKeep <- map2(.x = seasons, .y = durs, ~.x %>%
                        filter(nDaysTracked >= 30) %>%
                        pull(Nili_id))
 
-indivsToKeep_mode10 <- map2(.x = seasons_mode10, .y = durs, ~.x %>%
-                       st_drop_geometry() %>%
-                       group_by(Nili_id) %>%
-                       summarize(nDaysTracked = length(unique(dateOnly)),
-                                 propDaysTracked = nDaysTracked/.y) %>%
-                       filter(nDaysTracked >= 30) %>%
-                       pull(Nili_id))
-
 ## remove those individuals not tracked for enough days
 before <- seasons
 after <- map2(.x = seasons, .y = indivsToKeep, ~.x %>% filter(Nili_id %in% .y))
@@ -661,35 +601,18 @@ beforeIndivs <- map_dbl(before, ~length(unique(.x$Nili_id)))
 afterIndivs <- map_dbl(after, ~length(unique(.x$Nili_id)))
 seasons <- after
 
-before_mode10 <- seasons_mode10
-after_mode10 <- map2(.x = seasons_mode10, .y = indivsToKeep_mode10, ~.x %>% filter(Nili_id %in% .y))
-
-beforeIndivs_mode10 <- map_dbl(before_mode10, ~length(unique(.x$Nili_id)))
-afterIndivs_mode10 <- map_dbl(after_mode10, ~length(unique(.x$Nili_id)))
-seasons_mode10 <- after_mode10
-
-## Now I notice that season 1, Summer 2020, doesn't have enough individuals. Let's remove it--we're going to have to anyway.
-seasons <- seasons[-1]
-seasons_mode10 <- seasons_mode10[-1]
-
 # Get elevation rasters ---------------------------------------------------
-# XXXXXXX start here
+# Remove the first element of `seasons` because it doesn't have any data
+# seasons <- seasons[-1] # removing summer 2020
+# # XXXXXXX start here
 # seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-#elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
-#save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
+# elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
+# save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
 load("data/elevs_z10_seasons.Rda")
 
-# seasons_mode10 <- map(seasons_mode10, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-#elevs_z10_seasons_mode10 <- map(seasons_mode10, ~elevatr::get_elev_raster(.x , z = 10))
-#save(elevs_z10_seasons_mode10, file = "data/elevs_z10_seasons_mode10.Rda")
-load("data/elevs_z10_seasons_mode10.Rda")
-
 # groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
-# groundElev_z10_mode10 <- map2(elevs_z10_seasons_mode10, seasons_mode10, ~raster::extract(x = .x, y = .y))
 # save(groundElev_z10, file = "data/groundElev_z10.Rda")
-# save(groundElev_z10_mode10, file = "data/groundElev_z10_mode10.Rda")
 load("data/groundElev_z10.Rda")
-load("data/groundElev_z10_mode10.Rda")
 
 
 ## use elevation rasters to calculate height above ground level
@@ -700,19 +623,16 @@ seasons <- map2(.x = seasons, .y = groundElev_z10,
                                                                TRUE ~ height_above_ground)))
 after <- seasons
 
-before_mode10 <- seasons_mode10
-seasons_mode10 <- map2(.x = seasons_mode10, .y = groundElev_z10_mode10, 
-                ~.x %>% mutate(height_above_ground = .y,
-                               height_above_ground = case_when(height_above_ground < 0 ~ 0,
-                                                               TRUE ~ height_above_ground)))
-after_mode10 <- seasons_mode10
-
 # There should be no change in the number of rows
 all(map2_lgl(before, after, ~nrow(.x) == nrow(.y)))
-all(map2_lgl(before_mode10, after_mode10, ~nrow(.x) == nrow(.y)))
 
-save(seasons, file = "data/seasons.Rda")
-save(seasons_mode10, file = "data/seasons_mode10.Rda")
+# Now restrict to the mode10 individuals ----------------------------------
+load("data/toKeep_fixrate.Rda")
+toKeep_fixrate <- toKeep_fixrate[-1]
+seasons_mode10 <- map2(seasons, toKeep_fixrate, ~.x %>% filter(Nili_id %in% .y))
+
+#save(seasons, file = "data/seasons.Rda")
+#save(seasons_mode10, file = "data/seasons_mode10.Rda")
 load("data/seasons.Rda")
 load("data/seasons_mode10.Rda")
 
