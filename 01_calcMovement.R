@@ -37,7 +37,6 @@ roosts_seasons_mode10 <- map(roosts_seasons_mode10, ~.x %>% group_by(Nili_id) %>
                         mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
 roosts_seasons <- roosts_seasons[-1] # remove summer 2020
 roosts_seasons_mode10 <- roosts_seasons_mode10[-1] # remove summer 2020
-base::load("data/datasetAssignments.Rda")
 datasetAssignments <- datasetAssignments[-1] # remove summer 2020
 test <- map2(roosts_seasons, datasetAssignments, ~left_join(.x, .y, by = "Nili_id"))
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
