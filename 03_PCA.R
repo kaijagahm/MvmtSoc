@@ -153,6 +153,6 @@ linked %>%
   theme_classic()+
   facet_wrap(~season) # makes sense! As the DDT/DMD ratio increases, so does tortuosity. As expected. Good thing we fixed the tortuosity.
 
-
+linked %>% group_by(year, season, type) %>% summarize(n = length(unique(Nili_id))) # looks like the right number of individuals
 
 
