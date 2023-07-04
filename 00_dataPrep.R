@@ -350,10 +350,10 @@ seasons <- map(seasons_orig, ~.x %>%
 
 # Save copies for social analysis
 # The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So, before I filter for ppd and for days tracked, going to save a copy to use for social analysis.
-# seasons_forSoc <- seasons
-# seasons_forSoc_mode10 <- seasons_mode10
-# save(seasons_forSoc, file = "data/seasons_forSoc.Rda")
-# save(seasons_forSoc_mode10, file = "data/seasons_forSoc_mode10.Rda")
+seasons_forSoc <- seasons
+seasons_forSoc_mode10 <- seasons_mode10
+save(seasons_forSoc, file = "data/seasons_forSoc.Rda")
+save(seasons_forSoc_mode10, file = "data/seasons_forSoc_mode10.Rda")
 load("data/seasons_forSoc.Rda")
 load("data/seasons_forSoc_mode10.Rda")
 seasons_mode10 <- seasons_forSoc_mode10
