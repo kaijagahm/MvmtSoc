@@ -288,3 +288,30 @@ save(movementBehaviorScaled, file = "data/movementBehaviorScaled.Rda")
 
 save(movementBehavior_mode10, file = "data/movementBehavior_mode10.Rda")
 save(movementBehaviorScaled_mode10, file = "data/movementBehaviorScaled_mode10.Rda") # not going to use this mode10 data--Noa and I have agreed that the PCA should be run on the main movementBehaviorScaled data, because we need to include all of the individuals that will eventually make it into *any* regression (e.g. roost situation). But I'm leaving this here just in case.
+
+# Investigate the movement variables across datasets ----------------------
+load("data/toKeep_fixrate.Rda")
+toKeep_fixrate <- toKeep_fixrate[-1]
+
+mb <- map2(movementBehavior, toKeep_fixrate, ~.x %>%
+             mutate(mode10 = case_when(Nili_id %in% .y ~ T,
+                                       TRUE ~ F))) %>%
+  purrr::list_rbind()
+
+# variables we think could be related: ddt, tort, dfd
+mb %>%
+  ggplot(aes(x = mode10, y = meanDDT))+
+  geom_boxplot()+
+  facet_wrap(~seasonUnique) # some small differences but not much
+
+mb %>%
+  ggplot(aes(x = mode10, y = mnTort))+
+  geom_boxplot()+
+  facet_wrap(~seasonUnique) # pretty much no diff, or at least no consistent diff
+
+mb %>%
+  ggplot(aes(x = mode10, y = meanDFD))+
+  geom_boxplot()+
+  facet_wrap(~seasonUnique) # no difference here either
+
+# No evident/consistent differences in these measures between mode10 individuals and other individuals
