@@ -34,7 +34,8 @@ theme_set(theme_classic())
 seasonColors <- c("#2FF8CA", "#CA2FF8", "#F8CA2F")
 situationColors <- c("dodgerblue2", "olivedrab3", "gold")
 
-# Check that the response variable distributions look ok--nothing too weird here.
+
+# Check response variable distributions -----------------------------------
 linked %>%
   mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
   ggplot(aes(x = evenness))+
@@ -64,7 +65,6 @@ linked %>%
   xlab("Degree")+
   ylab("")+
   theme(text = element_text(size = 16))
-
 
 linked %>%
   mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
@@ -115,109 +115,15 @@ linked <- linked %>%
 table(linked$situ) # as expected, we have more data for the roost network than for feeding and flight.
 
 ## Degree ------------------------------------------------------------------
-# Trying a binomial model
-# Instructions on how to specify the formula here: https://stats.stackexchange.com/questions/362911/lme4-problems-trying-to-run-negative-binomial-glmer-nb
-#deg_noint <- glmer.nb(cbind(degree, n-degree) ~ situ + I(PC1^2) + I(PC2^2) + age_group + season + (1|year) + (1|Nili_id), data = linked, weights = n)
-arm::binnedplot(fitted(deg_noint),residuals(deg_noint))
-plot(DHARMa::simulateResiduals(deg_noint), pch=".") # this looks fairly bad, but I don't really know what to do about it. Candidate.
-summary(deg_noint)
-testDispersion(deg_noint)
-
-# Kenji's residual plots ----------------------------------
-pred <- predict(deg_noint, type = "response")
-# Plot predicted probs against observed probs
-plot(x = pred, y = linked$degree/linked$n, xlab = "expected", ylab = "observed")
-abline(a = 0, b = 1, lty = 2)
-
-# Plot residuals against predicted probs
-plot(x = pred, y = pred - linked$degree/linked$n, xlab = "expected", ylab = "residuals")
-abline(h = 0, lty = 2)
-
-deg_max <- glmer(cbind(degree, n-degree) ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-arm::binnedplot(fitted(deg_max),residuals(deg_max)) # this is actually a lot less terrible!
-plot(DHARMa::simulateResiduals(deg_max), pch=".") # nearly unidentifiable, failed to converge. So not candidate. But actually getting better. Not candidate.
-summary(deg_max) # can remove PC1*age_group*season
-
-deg_2 <- glmer(cbind(degree, n-degree) ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group + PC1*season + age_group*season + PC2*age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit")) # failed to converge, not candidate
-arm::binnedplot(fitted(deg_max),residuals(deg_2)) # not great but not awful
-plot(DHARMa::simulateResiduals(deg_2), pch=".")
-summary(deg_2) # seems like we can mostly remove situ*PC1*season
-
-deg_3 <- glmer(cbind(degree, n-degree) ~ situ*PC1*age_group + situ*PC1 + situ*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group + PC1*season + age_group*season + PC2*age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit")) # failed to converge, not candidate
-summary(deg_3) #let's remove situ*age*PC2 next
-
-deg_4 <- glmer(cbind(degree, n-degree) ~ situ*PC1*age_group + situ*PC1 + situ*season + situ*PC2 + PC2*age_group + situ*age_group + situ*PC2*season + PC1*age_group + PC1*season + age_group*season + PC2*age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit")) # failed to converge 
-summary(deg_4) # I guess next I'll go ahead and remove situ*season*PC2?
-
-deg_5 <- glmer(cbind(degree, n-degree) ~ situ*PC1*age_group + situ*PC1 + situ*season + situ*PC2 + PC2*age_group + situ*age_group + PC2*season + PC1*age_group + PC1*season + age_group*season + PC2*age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit")) # failed to converge, again. I guess it's time to remove the rest of the three-way interaction terms.
-
-deg_6 <- glmer(cbind(degree, n-degree) ~ situ*PC1 + PC1*age_group + situ*age_group + situ*season + situ*PC2 + PC2*age_group + PC2*season + PC1*season + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit")) # this one actually converges! hooray!
-arm::binnedplot(fitted(deg_6),residuals(deg_6)) # not great but not awful. Candidate.
-plot(DHARMa::simulateResiduals(deg_6), pch=".")
-summary(deg_6) # pretty much everything else is significant. maybe we could try getting rid of PC1*season?
-
-deg_7 <- glmer(cbind(degree, n-degree) ~ situ*PC1 + PC1*age_group + situ*age_group + situ*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit")) # back to not converging... Not candidate.
-summary(deg_7) # just based on biology, let's next remove situation by age, I guess?
-
-deg_8 <- glmer(cbind(degree, n-degree) ~ situ*PC1 + PC1*age_group + situ*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit")) # converges, candidate
-summary(deg_8) # next could remove season*PC2 i guess?
-
-deg_9 <- glmer(cbind(degree, n-degree) ~ situ*PC1 + PC1*age_group + situ*season + situ*PC2 + PC2*age_group + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit")) # does not converge, not candidate
-
-# Maybe instead I should go up from the base model. Let's start with a season effect for each of PC1 and PC2. 
-deg_10 <- glmer(cbind(degree, n-degree) ~ situ + season*PC1 + PC2 + season + age_group + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_10) # this doesn't seem to have added anything. Not candidate. Instead, let's try season*PC2.
-
-deg_11 <- glmer(cbind(degree, n-degree) ~ situ + season*PC2 + PC1 + season + age_group + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_11) # this is potentially useful!
-
-deg_12 <- glmer(cbind(degree, n-degree) ~ situ*season + season*PC2 + PC1 + age_group + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_12) # makes the season*PC2 effect go away. Let's try removing it
-
-deg_13 <- glmer(cbind(degree, n-degree) ~ situ*season + PC2 + PC1 + age_group + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_13) # that looks better! What about age*season? We have reason to believe that would be important. 
-
-deg_14 <- glmer(cbind(degree, n-degree) ~ situ*season + PC2 + PC1 + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_14) # ahh yes this is looking good. What about adding an age effect with PC1 or PC2?
-
-deg_15 <- glmer(cbind(degree, n-degree) ~ situ*season + PC2 + age_group*PC1 + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_15) # still looking good.
-
-deg_16 <- glmer(cbind(degree, n-degree) ~ situ*season + age_group*PC2 + age_group*PC1 + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_16) # Ok, what about situation by PC1 and/or PC2?
-
-deg_17 <- glmer(cbind(degree, n-degree) ~ situ*PC1 + situ*season + age_group*PC2 + age_group*PC1 + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_17) # failed to converge. What about PC2 instead?
-
-deg_18 <- glmer(cbind(degree, n-degree) ~ situ*PC2 + situ*season + age_group*PC2 + age_group*PC1 + age_group*season + (1|year) + (1|Nili_id), data = linked, family = binomial(link = "logit"))
-summary(deg_18) # okay, not too bad.
-
-compare_performance(deg_18, deg_16, deg_15, deg_14, deg_13, deg_11, deg_8, deg_6, deg_noint, rank = T)
-# we get deg_6, followed by deg_14. What do these have in common?
-# deg_6: situ*PC1 + PC1*age_group + situ*age_group + situ*season + situ*PC2 + PC2*age_group + PC2*season + PC1*season + age_group*season + (1|year) + (1|Nili_id)
-# deg_14: situ*season + PC2 + PC1 + age_group*season + (1|year) + (1|Nili_id)
-# interesting! either a really complicated model with almost all possible interactions, or a fairly simple one with only season interactions. Third place is deg_18, which has an intermediate number of interactions.
-
-deg_mod <- deg_6
-
-# Now, how do I need to transform the coefficients in order to interpret them?
-# Interpretation of coefficients: see here. https://stats.stackexchange.com/questions/361529/why-are-exponentiated-logistic-regression-coefficients-considered-odds-ratios
-# "the original coefficients describe a difference in the log odds for two units who differ by 1 in the predictor. E.g., for a coefficient on 𝑋of 5, we can say that the difference in log odds between two units who differ on 𝑋 by 1 is 5."
-# let's look at an example from our model
-summary(deg_mod) # let's look at PC2, which has a coefficient of 0.165. Putting that into the same terms, "the difference in log odds between two units who differ on PC2 by 1 is 0.165".
-
-#https://stats.stackexchange.com/questions/444797/interpreting-a-generalised-linear-mixed-model-with-binomial-data has a good example of interpreting the coefficients (cockroach example)
-# also worth checking out next: https://stats.stackexchange.com/questions/365907/interpretation-of-fixed-effects-from-mixed-effect-logistic-regression and the linked webpage.
-
 
 # 2023-06-05 going back to gaussian for now
 degree_noint <- lmer(degree ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked)
 summary(degree_noint)
-check_model(degree_noint) # looks okay, candidate. No correlated predictors.
+#check_model(degree_noint) # looks okay, candidate. No correlated predictors.
 plot(DHARMa::simulateResiduals(degree_noint), pch=".")
 
 degree_max <- lmer(degree ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
-check_model(degree_max) # still looks basically ok, except for the vif's, which we can ignore
+#check_model(degree_max) # still looks basically ok, except for the vif's, which we can ignore
 summary(degree_max) # okay, we can remove most of these. Going to replace them with two-way interactions and then remove duplicates.
 
 degree_2 <- lmer(degree ~ situ*PC1*age_group + situ*PC1 + situ*season + PC1*season + situ*PC2 + situ*age_group + PC2*age_group + situ*PC2 + PC2*season + PC1*age_group + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
@@ -246,8 +152,8 @@ summary(degree_9) # I don't want to remove situ*season because that effect size 
 
 compare_performance(degree_noint, degree_max, degree_2, degree_3, degree_4, degree_5, degree_6, degree_7, degree_8, degree_9, rank = T)
 
-degree_mod <- degree_3 # all righty, nice and consistent!
-check_model(degree_mod) # that looks pretty glorious, except for the VIF's, which we can probably ignore anyway.
+degree_mod <- degree_max #xxx this is weird, come back to it
+#check_model(degree_mod) # that looks pretty glorious, except for the VIF's, which we can probably ignore anyway.
 
 ## Strength ------------------------------------------------------------------
 # strength_noint <- lmer(strength ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked)
@@ -361,10 +267,10 @@ strength_mod <- strength_3
 
 ### For the conference, just doing a gaussian I guess.
 evenness_noint <- lmer(evenness ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked)
-check_model(evenness_noint) # meh.
+#check_model(evenness_noint) # meh.
 
 evenness_max <- lmer(evenness ~ PC1*season*situ + PC1*season*age_group + PC1*situ*age_group + PC2*season*situ + PC2*season*age_group + PC2*situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
-check_model(evenness_max)
+#check_model(evenness_max)
 summary(evenness_max) # can remove situ*age*PC2, season*situ*PC2, PC1*situ*age_group, PC1*season*age_group, PC1*season*situ
 
 evenness_2 <- lmer(evenness ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*season*age_group + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
