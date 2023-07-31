@@ -34,7 +34,6 @@ theme_set(theme_classic())
 seasonColors <- c("#2FF8CA", "#CA2FF8", "#F8CA2F")
 situationColors <- c("dodgerblue2", "olivedrab3", "gold")
 
-
 # Check response variable distributions -----------------------------------
 linked %>%
   mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
@@ -114,39 +113,52 @@ linked <- linked %>%
   mutate(seasonUnique = paste(year, season, sep = "_"))
 table(linked$situ) # as expected, we have more data for the roost network than for feeding and flight.
 
+# Scale the response variables: degree, strength, evenness
+scaled_d <- scale(linked$degree)
+scaled_s <- scale(linked$strength)
+scaled_e <- scale(linked$evenness)
+
+linked$degree_scl <- as.vector(scaled_d)
+linked$strength_scl <- as.vector(scaled_s)
+linked$evenness_scl <- as.vector(scaled_e)
+
+# create and save a new dataset for modeling, so we can load it later
+forModeling <- linked
+save(forModeling, file = "data/forModeling.Rda")
+
 ## Degree ------------------------------------------------------------------
 # 2023-06-05 going back to gaussian for now
-degree_noint <- lmer(degree ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_noint <- lmer(degree_scl ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_noint)
 #check_model(degree_noint) # looks okay, candidate. No correlated predictors.
 plot(DHARMa::simulateResiduals(degree_noint), pch=".")
 
-degree_max <- lmer(degree ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_max <- lmer(degree_scl ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 #check_model(degree_max) # still looks basically ok, except for the vif's, which we can ignore
 summary(degree_max) # okay, we can remove most of these. Going to replace them with two-way interactions and then remove duplicates.
 
-degree_2 <- lmer(degree ~ situ*PC1*age_group + situ*PC1 + situ*season + PC1*season + situ*PC2 + situ*age_group + PC2*age_group + situ*PC2 + PC2*season + PC1*age_group + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_2 <- lmer(degree_scl ~ situ*PC1*age_group + situ*PC1 + situ*season + PC1*season + situ*PC2 + situ*age_group + PC2*age_group + situ*PC2 + PC2*season + PC1*age_group + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_2) #things that can be removed: situ*PC1*age
 
-degree_3 <- lmer(degree ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_3 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_3) # now would like to remove some two-way interactions, but can't do that until we remove more three-ways. I don't feel that there's much justification in keeping situ*age_group*season with those marginal values, so let's start by removing those.
 
-degree_4 <- lmer(degree ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_4 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_4) # next would like to remove age_group*PC2 or season*PC2, but can't do that without removing the 3-way interaction first.
 
-degree_5 <- lmer(degree ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_5 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_5) # Ok, this free us up to remove some other things, starting with season*PC2.
 
-degree_6 <- lmer(degree ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_6 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_6) # hmm not entirely clear what to remove next--let's remove PC1*season first I guess because the effect sizes are smaller?
 
-degree_7 <- lmer(degree ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + situ*PC2 + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_7 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + situ*PC2 + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_7) # now I guess we could try getting rid of situ*PC2, but probably tbh we don't want to do either this or the previous one.
 
-degree_8 <- lmer(degree ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_8 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_8) # I guess we could also remove situ*age...
 
-degree_9 <- lmer(degree ~ situ*PC1 + PC1*age_group + situ*season + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked)
+degree_9 <- lmer(degree_scl ~ situ*PC1 + PC1*age_group + situ*season + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(degree_9) # I don't want to remove situ*season because that effect size on summer is HUGE. So let's stop here.
 
 compare_performance(degree_noint, degree_max, degree_2, degree_3, degree_4, degree_5, degree_6, degree_7, degree_8, degree_9, rank = T)
@@ -156,27 +168,27 @@ degree_mod <- degree_max #xxx this is weird, come back to it
 
 ## Strength ------------------------------------------------------------------
 # Ok, for the sake of this conference, though, I'm going to go back to a gaussian.
-strength_noint <- lmer(strength ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+strength_noint <- lmer(strength_scl ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 
-strength_max <- lmer(strength ~ PC1*situ*season + PC1*season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+strength_max <- lmer(strength_scl ~ PC1*situ*season + PC1*season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(strength_max) # huh, some of these are actually marginally significant! PC1*season*age_group looks safe to remove.
 
-strength_2 <- lmer(strength ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+strength_2 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(strength_2) # now can remove season*age_group*PC2
 
-strength_3 <- lmer(strength ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+strength_3 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(strength_3) # I guess we can keep going... situ*season*age_group
 
-strength_4 <- lmer(strength ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+strength_4 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(strength_4) # situ*season*PC2 next
 
-strength_5 <- lmer(strength ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+strength_5 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(strength_5) # PC1*situ*age_group
 
-strength_6 <- lmer(strength ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ + PC2*situ + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+strength_6 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ + PC2*situ + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(strength_6) # situ*age_group*PC2
 
-strength_7 <- lmer(strength ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ + PC2*situ + PC2*season + PC2*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+strength_7 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ + PC2*situ + PC2*season + PC2*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(strength_7) # that's as far as we should go
 
 compare_performance(strength_noint, strength_max, strength_2, strength_3, strength_4, strength_5, strength_6, strength_7, rank = T)
@@ -218,23 +230,23 @@ strength_mod <- strength_3
 # evenness_mod <- evenness_2 #wow, yuck, a lot of three-way interactions I don't want to interpret. Second best is evenness_5, which is a lot simpler.
 
 ### For the conference, just doing a gaussian I guess.
-evenness_noint <- lmer(evenness ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked)
+evenness_noint <- lmer(evenness_scl ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 #check_model(evenness_noint) # meh.
 
-evenness_max <- lmer(evenness ~ PC1*season*situ + PC1*season*age_group + PC1*situ*age_group + PC2*season*situ + PC2*season*age_group + PC2*situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+evenness_max <- lmer(evenness_scl ~ PC1*season*situ + PC1*season*age_group + PC1*situ*age_group + PC2*season*situ + PC2*season*age_group + PC2*situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 #check_model(evenness_max)
 summary(evenness_max) # can remove situ*age*PC2, season*situ*PC2, PC1*situ*age_group, PC1*season*age_group, PC1*season*situ
 
-evenness_2 <- lmer(evenness ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*season*age_group + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+evenness_2 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*season*age_group + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(evenness_2) # want to remove more 2-way interactions but have to get rid of the three-ways first. Let's do season*age_group*PC2 first I guess
 
-evenness_3 <- lmer(evenness ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+evenness_3 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(evenness_3) # now the two-ways become significant. Just for kicks, let's get rid of the last 3-way interaction.
 
-evenness_4 <- lmer(evenness ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+evenness_4 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(evenness_4) # can remove situ*PC2, PC1*season
 
-evenness_5 <- lmer(evenness ~ PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
+evenness_5 <- lmer(evenness_scl ~ PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(evenness_5) # time to stop!
 
 compare_performance(evenness_noint, evenness_max, evenness_2, evenness_3, evenness_4, evenness_5, rank = T)
@@ -244,7 +256,4 @@ evenness_mod <- evenness_2
 # Get model effects ----------------------------------------------------------
 # We now have 3 models. Let's compile and tidy their outputs.
 mods <- list("d" = degree_mod, "s" = strength_mod, "e" = evenness_mod)
-outputs <- map(mods, broom.mixed::tidy) %>%
-  purrr::list_rbind()
-
 save(mods, file = "data/mods.Rda")
