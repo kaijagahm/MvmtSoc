@@ -106,7 +106,7 @@ colSums(is.na(linked)) # okay now we have no more NA's except in sex. Yay!
 # No, they're fine: https://stats.stackexchange.com/questions/52856/vif-values-and-interactions-in-multiple-regression, https://stats.stackexchange.com/questions/274320/how-to-deal-with-interaction-terms-vif-score.
 # So, I think I need to rethink the model selection here. Maybe do it just based on significance?
 
-# Models with situation as a factor ---------------------------------------
+# Make situation as a factor so we can include it in the model -------------
 linked <- linked %>%
   mutate(situ = case_when(type == "flight" ~ "Fl", 
                           type == "feeding" ~ "Fe",
@@ -115,7 +115,6 @@ linked <- linked %>%
 table(linked$situ) # as expected, we have more data for the roost network than for feeding and flight.
 
 ## Degree ------------------------------------------------------------------
-
 # 2023-06-05 going back to gaussian for now
 degree_noint <- lmer(degree ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked)
 summary(degree_noint)
@@ -156,53 +155,6 @@ degree_mod <- degree_max #xxx this is weird, come back to it
 #check_model(degree_mod) # that looks pretty glorious, except for the VIF's, which we can probably ignore anyway.
 
 ## Strength ------------------------------------------------------------------
-# strength_noint <- lmer(strength ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked)
-# summary(strength_noint)
-# check_model(strength_noint) # this looks pretty awful, especially below 0, which isn't really a region where we should be doing inference anyway. But we see a significant spike near 0 so maybe should use a gamma?
-# 
-# #I could try a gamma and add a tiny bit to the zeroes.
-# linked %>% filter(strength < 1) %>% pull(strength) %>% hist() # okay, we have relatively few true zeroes.
-# linked %>% filter(strength < 0.2) %>% pull(strength) %>% hist() # okay, we have relatively few true zeroes. How many are there?
-# linked %>% filter(strength == 0) %>% nrow() # only 4! Okay, I definitely don't want to do a hurdle model just for 4 zeroes. Let's just make them very very small, like 0.000001.
-# linked_s <- linked %>%
-#   filter(strength != 0) %>%
-#   mutate(logstrength = log(strength))
-# 
-# strength_noint <- lmer(logstrength ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# check_model(strength_noint) # this looks really good actually! surprisingly good. Damn.
-# 
-# strength_max <- lmer(logstrength ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# check_model(strength_max) # nice!
-# summary(strength_max) # can get rid of PC1*age_group*season and PC2*situ*season
-# 
-# strength_2 <- lmer(logstrength ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*age_group + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# summary(strength_2) # looks like we can reasonably remove situ*PC1*season
-# 
-# strength_3 <- lmer(logstrength ~ situ*PC1*age_group + situ*PC1 + situ*season + PC1*season + situ*PC2*age_group + situ*PC2 + PC2*season + PC1*age_group + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# summary(strength_3) # ok now we can remove situ*PC1*age_group
-# 
-# strength_4 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2*age_group + situ*PC2 + PC2*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# summary(strength_4) #can get rid of situ*age_group*PC2
-# 
-# strength_5 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# summary(strength_5) # can probably get rid of situ*age_group*season
-# 
-# strength_6 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# summary(strength_6) # now can remove situ*PC2
-# 
-# strength_7 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# summary(strength_7) # next would be to remove some of the 2-way interactions, but they are contained in the last remaining 3-way interaction, so let's get rid of that.
-# 
-# strength_8 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + PC2*age_group + PC2*season + age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# summary(strength_8) # ok now we can remove season*PC2
-# 
-# strength_9 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_s)
-# summary(strength_9) # this is as far as we can go
-# 
-# compare_performance(strength_noint, strength_max, strength_2, strength_3, strength_4, strength_5, strength_6, strength_7, strength_8, strength_9, rank = T)
-# 
-# strength_mod <- strength_2 # really??? that seems like so many interactions! But the next ones are 3, 4, with pretty big differences in AIC/BIC, so I don't really feel like I can easily jump to a different, much simpler one.
-
 # Ok, for the sake of this conference, though, I'm going to go back to a gaussian.
 strength_noint <- lmer(strength ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = linked)
 
