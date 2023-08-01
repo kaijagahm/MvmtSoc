@@ -4,15 +4,7 @@
 ## Load packages -----------------------------------------------------------
 library(vultureUtils)
 library(sf)
-# In lieu of tidyverse
-library(ggplot2)
-library(tidyr)
-library(stringr)
-library(readr)
-library(dplyr)
-library(tibble)
-library(purrr)
-#
+library(tidyverse)
 library(igraph)
 library(mapview) # for quick maps
 library(factoextra)
