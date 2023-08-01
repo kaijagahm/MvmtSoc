@@ -8,6 +8,26 @@ library(ggeffects)
 load("data/forModeling.Rda") # loading this instead so we can run ggpredict properly.
 load("data/mods.Rda")
 
+# Response variable distributions -----------------------------------------
+linked %>%
+  pivot_longer(cols = c("degree", "strength", "evenness"), names_to = "measure", values_to = "value") %>%
+  ggplot(aes(x = value, col = season, group = interaction(season, year)))+
+  geom_density()+
+  facet_wrap(~measure, scales = "free")+
+  theme_classic()+
+  scale_color_manual(name = "Season", values = c(breedingColor, fallColor, summerColor))+
+  ylab("")+xlab("")+theme(text = element_text(size = 16))
+
+forModeling %>%
+  pivot_longer(cols = c("degree_scl", "strength_scl", "evenness_scl"), names_to = "measure", values_to = "value") %>%
+  ggplot(aes(x = value, col = season, group = interaction(season, year)))+
+  geom_density()+
+  facet_wrap(~measure, scales = "free")+
+  theme_classic()+
+  scale_color_manual(name = "Season", values = c(breedingColor, fallColor, summerColor))+
+  ylab("")+xlab("")+theme(text = element_text(size = 16))
+
+
 # Set season colors
 seasonColors <- c("#2FF8CA", "#CA2FF8", "#F8CA2F")
 breedingColor <- "#2FF8CA"
