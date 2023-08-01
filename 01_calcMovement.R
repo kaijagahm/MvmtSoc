@@ -4,24 +4,13 @@
 ## Load packages -----------------------------------------------------------
 library(vultureUtils)
 library(sf)
-# In lieu of tidyverse
-library(ggplot2)
-library(tidyr)
-library(stringr)
-library(readr)
-library(dplyr)
-library(tibble)
-library(purrr)
-#
+library(tidyverse)
 library(igraph)
 library(mapview) # for quick maps
-library(MASS) # for KDE
 library(adehabitatHR)
 library(sp)
 library(elevatr) # for getting elevation information
 library(raster) # for getting elevation information
-library(viridis)
-library(naniar)
 library(parallel) # for running long distance calculations in parallel
 library(future) # for parallel computing
 
