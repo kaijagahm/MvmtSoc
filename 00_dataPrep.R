@@ -4,14 +4,7 @@
 library(vultureUtils)
 library(sf)
 # In lieu of tidyverse
-library(ggplot2)
-library(tidyr)
-library(stringr)
-library(readr)
-library(dplyr)
-library(tibble)
-library(purrr)
-#
+library(tidyverse)
 library(move)
 library(feather)
 library(readxl)
@@ -382,7 +375,7 @@ load("data/roosts_seasons_mode10.Rda")
 # before <- map_dbl(seasons, nrow)
 # seasons <- map(seasons, ~{
 #   times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
-#                                      lat = 31.434306, lon = 34.991889,
+#                                      lat = 31.434306, lon = 34.991889, # XXX revisit this!
 #                                      keep = c("sunrise", "sunset")) %>%
 #     dplyr::select("dateOnly" = date, sunrise, sunset)
 #   
@@ -664,6 +657,9 @@ seasons_mode10_10min <- map(seasons_mode10, ~subsample(df = .x, idCol = "Nili_id
 map_dbl(seasons, nrow)
 map_dbl(seasons_10min, nrow)
 map_dbl(seasons_mode10, nrow)
+
+seasons_mode10_10min <- map(seasons_mode10_10min, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))))
+seasons_10min <- map(seasons_10min, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))))
 
 save(seasons_10min, file = "data/seasons_10min.Rda")
 # save(seasons_15min, file = "data/seasons_15min.Rda")
