@@ -1,87 +1,88 @@
 # Script for creating maps showing individuals' trajectories on either end of the principal component spectrum.
+library(tidyverse)
+library(ggspatial)
+
 load("data/linked.Rda")
 load("data/seasons_10min.Rda")
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
+
+daysTracked <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% select(Nili_id, seasonUnique, daysTracked) %>% distinct()) %>% purrr::list_rbind()
 
 # Visualize PC extremes ---------------------------------------------------
 # Only want to include individuals that participated in all three
 forplots <- linked %>%
   group_by(Nili_id, season, year) %>%
   filter(length(unique(type)) == 3) %>%
-  ungroup()
+  ungroup() %>%
+  filter(!is.na(PC1)) %>%
+  mutate(seasonUnique = paste(year, season, sep = "_")) %>%
+  left_join(daysTracked, by = c("seasonUnique", "Nili_id"))
 
+# Take a look at the biplot again
 forplots %>%
-  ggplot(aes(x = PC1, y = PC2))+
-  geom_point()+
+  ggplot(aes(x = PC1, y = PC2, col = daysTracked))+
+  geom_point(size = 2)+
   geom_vline(aes(xintercept = 0))+
   geom_hline(aes(yintercept = 0))+
-  theme_bw()
+  theme_bw()+
+  scale_color_viridis_c()+
+  facet_wrap(~seasonUnique)
 
+# PC1 low
 forplots %>%
-  filter(PC1 < -4, PC2 > -0.5, PC2 < 0.5) %>%
-  select(season, year, Nili_id, PC1, PC2) %>%
+  filter(PC1 >-5 & PC1 < -3, PC2 < 0 & PC2 > -0.5) %>%
+  select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
   distinct() # let's use castor fall 2022
 
+# PC1 high
 forplots %>%
-  filter(PC1 > 4.5, PC2 > -0.5, PC2 < 0.5) %>%
-  select(season, year, Nili_id, PC1, PC2) %>%
+  filter(PC1 > 4.75 & PC1 < 5, PC2 > 0 & PC2 < 0.5) %>%
+  select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
   distinct() # let's use cale fall 2022
 
 names(seasons_10min) <- seasonNames
-minPC1Data <- seasons_10min[["2022_fall"]] %>%
+lowPC1Data <- seasons_10min[["2022_fall"]] %>%
   filter(Nili_id == "castor")
-maxPC1Data <- seasons_10min[["2022_fall"]] %>%
+highPC1Data <- seasons_10min[["2022_fall"]] %>%
   filter(Nili_id == "cale")
 
+# PC2 low
 forplots %>%
-  filter(PC2 < -3.5, PC1 > -1, PC1 < 1) %>%
-  select(season, year, Nili_id, PC1, PC2) %>%
-  distinct() # hippocrates breeding 2023
+  filter(PC2 < -2.5 & PC2 > -3, PC1 < 2) %>%
+  select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
+  distinct() # circus breeding 2023
 
+# PC2 high
 forplots %>%
   filter(PC2 > 3, PC1 > -1, PC1 < 1) %>%
-  select(season, year, Nili_id, PC1, PC2) %>%
-  distinct() # jojo breeding 2022
+  select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
+  distinct() # hippocrates breeding 2023
 
-minPC2Data <- seasons_10min[["2023_breeding"]] %>%
+lowPC2Data <- seasons_10min[["2023_breeding"]] %>%
+  filter(Nili_id == "circus")
+highPC2Data <- seasons_10min[["2023_breeding"]] %>%
   filter(Nili_id == "hippocrates")
-maxPC2Data <- seasons_10min[["2022_breeding"]] %>%
-  filter(Nili_id == "jojo")
 
-# 
-# minPC1 <- forplots %>% filter(PC1 == min(PC1, na.rm = T)) %>%
-#   dplyr::select(Nili_id, year, bnb) %>%
-#   distinct() %>%
-#   mutate(seasonName = paste(year, bnb, sep ="_"))
-# maxPC1 <- forplots %>% filter(PC1 == max(PC1, na.rm = T)) %>%
-#   dplyr::select(Nili_id, year, bnb) %>%
-#   distinct() %>%
-#   mutate(seasonName = paste(year, bnb, sep ="_"))
-# minPC2 <- forplots %>% filter(PC2 == min(PC2, na.rm = T)) %>%
-#   dplyr::select(Nili_id, year, bnb) %>%
-#   distinct() %>%
-#   mutate(seasonName = paste(year, bnb, sep ="_"))
-# maxPC2 <- forplots %>% filter(PC2 == max(PC2, na.rm = T)) %>%
-#   dplyr::select(Nili_id, year, bnb) %>%
-#   distinct() %>%
-#   mutate(seasonName = paste(year, bnb, sep ="_"))
-
-minmaxData <- bind_rows(minPC1Data %>% mutate(minmax = "min", pc = 1),
-                        maxPC1Data %>% mutate(minmax = "max", pc = 1),
-                        minPC2Data %>% mutate(minmax = "min", pc = 2),
-                        maxPC2Data %>% mutate(minmax = "max", pc = 2)) %>%
-  mutate(id = paste(minmax, pc)) %>%
-  mutate(minmax = factor(minmax, levels = c("min", "max")))
-pc1 <- minmaxData %>% filter(pc == 1)
-pc2 <- minmaxData %>% filter(pc == 2)
+lowHighData <- bind_rows(lowPC1Data %>% mutate(level = "low", pc = 1),
+                        highPC1Data %>% mutate(level = "high", pc = 1),
+                        lowPC2Data %>% mutate(level = "low", pc = 2),
+                        highPC2Data %>% mutate(level = "high", pc = 2)) %>%
+  mutate(id = paste(level, pc)) %>%
+  mutate(level = factor(level, levels = c("low", "high"))) %>%
+  select(Nili_id, trackId, season, year, seasonUnique, timestamp, dateOnly, location_lat, location_long, age_group, level, id, pc) %>%
+  group_by(level, id) %>%
+  mutate(nDays = length(unique(dateOnly))) %>%
+  ungroup()
+pc1 <- lowHighData %>% filter(pc == 1)
+pc2 <- lowHighData %>% filter(pc == 2)
 
 # PC1 map--points and lines
 pc1plot <- ggplot(data = pc1) +
   ggspatial::annotation_map_tile("cartolight", zoom = 9) + # this works well; only problem is that it takes a little while to fetch the tiles.
-  geom_sf(aes(col = minmax), size = 1) +
+  geom_sf(aes(col = level), size = 1) +
   ggspatial::annotation_scale()+
   geom_path(data = pc1, 
-            aes(x = location_long, y = location_lat, col = minmax),
+            aes(x = location_long, y = location_lat, col = level),
             size = 0.5, alpha = 0.5)+
   scale_color_manual(values = c("#E3809C", "#C70039"))+
   theme(legend.position = "none",
@@ -90,16 +91,16 @@ pc1plot <- ggplot(data = pc1) +
         panel.background = element_rect(fill = "#FFFCF6"),
         plot.background = element_rect(fill = "#FFFCF6"))+
   ylab("") + xlab("")+
-  facet_wrap(~minmax)
+  facet_wrap(~level)
 pc1plot
 
 # PC2 map--points and lines
 pc2plot <- ggplot(data = pc2) +
   ggspatial::annotation_map_tile("cartolight", zoom = 9) + # this works well; only problem is that it takes a little while to fetch the tiles.
-  geom_sf(aes(col = minmax), size = 1) +
+  geom_sf(aes(col = level), size = 1) +
   ggspatial::annotation_scale()+
   geom_path(data = pc2, 
-            aes(x = location_long, y = location_lat, col = minmax),
+            aes(x = location_long, y = location_lat, col = level),
             size = 0.5, alpha = 0.5)+
   scale_color_manual(name = "PC2", values = c("#C1A5FC", "#6E2EF9"))+
   theme(legend.position = "none",
@@ -108,9 +109,5 @@ pc2plot <- ggplot(data = pc2) +
         panel.background = element_rect(fill = "#FFFCF6"),
         plot.background = element_rect(fill = "#FFFCF6"))+
   ylab("") + xlab("")+
-  facet_wrap(~minmax)
-pc2plot
-
-mapview(pc1, zcol = "minmax", lwd = 0, cex = 2, alpha = 0.5, col.regions = c("red", "blue"))
-
-mapview(pc2, zcol = "minmax", lwd = 0, cex = 2, alpha = 0.5, col.regions = c("red", "blue"))
+  facet_wrap(~level)
+pc2plot # XXX come back to this--this one looks way different.
