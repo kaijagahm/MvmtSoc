@@ -169,7 +169,19 @@ degree_mod <- degree_max #xxx this is weird, come back to it
 ## Strength ------------------------------------------------------------------
 # Ok, for the sake of this conference, though, I'm going to go back to a gaussian.
 strength_noint <- lmer(strength_scl ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+plot(DHARMa::simulateResiduals(strength_noint), pch=".") # YUCK
+check_model(strength_noint) #YUCK
 
+# what about log-transforming strength? Will have to do this to the un-scaled values.
+strength_noint_log <- lmer(log(strength+0.001) ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+plot(DHARMa::simulateResiduals(strength_noint_log), pch=".") # slightly better, but still bad
+check_model(strength_noint_log) #hmm, this is still really bad. Overall, I don't think log-transforming is a good idea.
+
+# How about a beta distribution?
+strength_noint_beta <- glmmTMB(strength_scl ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+check_model(strength_noint_beta) # okay yeah this is not better at all. It still has that awful tail shape.
+
+# back to gaussian after that little interlude!
 strength_max <- lmer(strength_scl ~ PC1*situ*season + PC1*season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 summary(strength_max) # huh, some of these are actually marginally significant! PC1*season*age_group looks safe to remove.
 
