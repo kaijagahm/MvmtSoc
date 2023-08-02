@@ -1,14 +1,7 @@
 library(car) # for p-values in mixed models?
 # In lieu of tidyverse
-library(ggplot2)
-library(tidyr)
-library(stringr)
-library(readr)
-library(dplyr)
-library(tibble)
-library(purrr)
+library(tidyverse)
 library(sf)
-library(factoextra)
 library(factoextra)
 library(ggfortify)
 library(ggpmisc) # for more details on a linear regression plot
@@ -30,9 +23,7 @@ load("data/linked.Rda")
 # Set ggplot theme to classic
 theme_set(theme_classic())
 
-# Set season colors
-seasonColors <- c("#2FF8CA", "#CA2FF8", "#F8CA2F")
-situationColors <- c("dodgerblue2", "olivedrab3", "gold")
+load("data/cc.Rda")
 
 # Check response variable distributions -----------------------------------
 linked %>%
@@ -40,7 +31,7 @@ linked %>%
   ggplot(aes(x = evenness))+
   geom_density(aes(col = season), linewidth = 1.5)+
   facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = seasonColors)+
+  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   xlab("Evenness")+
   ylab("")+
   theme(text = element_text(size = 16))
@@ -50,7 +41,7 @@ linked %>%
   ggplot(aes(x = degreeRelative))+
   geom_density(aes(col = season), linewidth = 1.5)+
   facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = seasonColors)+
+  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   xlab("Degree (normalized)")+
   ylab("")+
   theme(text = element_text(size = 16))
@@ -60,7 +51,7 @@ linked %>%
   ggplot(aes(x = degree))+
   geom_density(aes(col = season), linewidth = 1.5)+
   facet_wrap(~type*year, scales = "free_y")+
-  scale_color_manual(name = "Season", values = seasonColors)+
+  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   xlab("Degree")+
   ylab("")+
   theme(text = element_text(size = 16))
@@ -70,7 +61,7 @@ linked %>%
   ggplot(aes(x = strengthRelative))+
   geom_density(aes(col = season), linewidth = 1.5)+
   facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = seasonColors)+
+  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   xlab("Strength (normalized)")+
   ylab("")+
   theme(text = element_text(size = 16))
@@ -117,12 +108,15 @@ table(linked$situ) # as expected, we have more data for the roost network than f
 scaled_d <- scale(linked$degree)
 scaled_s <- scale(linked$strength)
 scaled_e <- scale(linked$evenness)
+save(scaled_d, file = "data/scaled_d.Rda")
+save(scaled_s, file = "data/scaled_s.Rda")
+save(scaled_e, file = "data/scaled_e.Rda")
 
 linked$degree_scl <- as.vector(scaled_d)
 linked$strength_scl <- as.vector(scaled_s)
 linked$evenness_scl <- as.vector(scaled_e)
 
-# create and save a new dataset for modeling, so we can load it later
+getOption("rstudio.help.showDataPreview")# create and save a new dataset for modeling, so we can load it later
 forModeling <- linked
 save(forModeling, file = "data/forModeling.Rda")
 
