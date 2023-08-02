@@ -2,15 +2,7 @@
 ## Packages ---------------------------------------------------------------
 library(vultureUtils)
 library(igraph)
-# In lieu of tidyverse
-library(ggplot2)
-library(tidyr)
-library(stringr)
-library(readr)
-library(dplyr)
-library(tibble)
-library(purrr)
-#
+library(tidyverse)
 library(sf)
 source("evenness.R")
 
