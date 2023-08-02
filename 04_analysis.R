@@ -25,47 +25,6 @@ theme_set(theme_classic())
 
 load("data/cc.Rda")
 
-# Check response variable distributions -----------------------------------
-linked %>%
-  mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
-  ggplot(aes(x = evenness))+
-  geom_density(aes(col = season), linewidth = 1.5)+
-  facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  xlab("Evenness")+
-  ylab("")+
-  theme(text = element_text(size = 16))
-
-linked %>%
-  mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
-  ggplot(aes(x = degreeRelative))+
-  geom_density(aes(col = season), linewidth = 1.5)+
-  facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  xlab("Degree (normalized)")+
-  ylab("")+
-  theme(text = element_text(size = 16))
-
-linked %>%
-  mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
-  ggplot(aes(x = degree))+
-  geom_density(aes(col = season), linewidth = 1.5)+
-  facet_wrap(~type*year, scales = "free_y")+
-  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  xlab("Degree")+
-  ylab("")+
-  theme(text = element_text(size = 16))
-
-linked %>%
-  mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
-  ggplot(aes(x = strengthRelative))+
-  geom_density(aes(col = season), linewidth = 1.5)+
-  facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  xlab("Strength (normalized)")+
-  ylab("")+
-  theme(text = element_text(size = 16))
-
 # Here's an interesting reference article for some modeling stuff: https://biol607.github.io/lab/12_gzlm.html
 linked <- linked %>%
   mutate(season = factor(season, levels = c("breeding", "summer", "fall")))
