@@ -4,100 +4,141 @@ library(sjPlot)
 library(ggplot2)
 library(ggeffects)
 
+theme_set(theme_classic())
+
 #load("data/linked.Rda") # DO NOT LOAD THIS!!!
 load("data/forModeling.Rda") # loading this instead so we can run ggpredict properly.
+load("data/sData.Rda")
 load("data/mods.Rda")
+load("data/cc.Rda")
+load("data/scaled_d.Rda") # for un-scaling the degree model
 
 # Response variable distributions -----------------------------------------
-linked %>%
+forModeling %>%
   pivot_longer(cols = c("degree", "strength", "evenness"), names_to = "measure", values_to = "value") %>%
   ggplot(aes(x = value, col = season, group = interaction(season, year)))+
   geom_density()+
   facet_wrap(~measure, scales = "free")+
   theme_classic()+
-  scale_color_manual(name = "Season", values = c(breedingColor, fallColor, summerColor))+
+  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
   ylab("")+xlab("")+theme(text = element_text(size = 16))
 
 forModeling %>%
   pivot_longer(cols = c("degree_scl", "strength_scl", "evenness_scl"), names_to = "measure", values_to = "value") %>%
   ggplot(aes(x = value, col = season, group = interaction(season, year)))+
   geom_density()+
-  facet_wrap(~measure, scales = "free")+
+  facet_grid(~measure, scales = "free")+
   theme_classic()+
-  scale_color_manual(name = "Season", values = c(breedingColor, fallColor, summerColor))+
+  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
   ylab("")+xlab("")+theme(text = element_text(size = 16))
-
-load("data/cc.Rda")
 
 # Degree ------------------------------------------------------------------
 d <- mods[["d"]]
+scale_d <- attributes(scaled_d)$`scaled:scale`
+center_d <- attributes(scaled_d)$`scaled:center` # follow the rest of Marta's code to figure out how to un-scale. But right now it's just in units of standard deviation.
+
 # What is the effect of PC1 on degree, by situation?
-## with raw data
-plot_model(d, type = "eff", terms = c("PC1", "situ"), show.data = T)+
+eff_pc1_situ <- as.data.frame(ggeffect(d, terms = c("PC1", "situ"))) %>%
+  mutate(across(c("predicted", "conf.low", "conf.high"), ~.x*scale_d+center_d))
+ggplot(eff_pc1_situ, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_line(aes(col = group), linewidth = 1)+
+  geom_point(data = forModeling, aes(x = PC1, y = degree, col = situ), alpha = 0.5, size = 0.7)+
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  ylab("Degree (scaled)")+
+  ylab("Degree")+
   xlab("Movement (PC1)")+
   ggtitle("")
 
-
-
-## I don't really understand why it's okay to plot raw data on top of the model like this.
-# What would the raw raw data look like with a linear regression on it, e.g. without any of the marginal effects?
-forModeling %>%
-  ggplot(aes(x = PC1, y = degree_scl, col = situ))+
-  geom_point(size = 2, alpha = 0.5)+
-  scale_color_manual(values = c(feedingColor, flightColor, roostingColor))+
-  geom_smooth(method = "lm")
-
 ## without data
-plot_model(d, type = "eff", terms = c("PC1", "situ"))+  
+ggplot(eff_pc1_situ, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_line(aes(col = group), linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  ylab("Degree (scaled)")+
+  ylab("Degree")+
   xlab("Movement (PC1)")+
   ggtitle("")
 
 ## Is this effect explained by age differences?
-plot_model(d, type = "eff", terms = c("PC1", "situ", "age_group"))+
+eff_pc1_situ_age <- as.data.frame(ggeffect(d, terms = c("PC1", "situ", "age_group"))) %>%
+  mutate(across(c("predicted", "conf.low", "conf.high"), ~.x*scale_d+center_d))
+ggplot(eff_pc1_situ_age, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_line(aes(col = group), linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  ylab("Degree (scaled)")+
+  ylab("Degree")+
   xlab("Movement (PC1)")+
+  facet_wrap(~facet)+
   ggtitle("") # sort of! The negative relationship between movement and degree in the co-feeding networks is entirely due to adult birds, but both juveniles and adults show a positive relationship between movement and degree in co-roosting networks.
 
 # What about season?
-plot_model(d, type = "eff", terms = c("PC1", "situ", "season"))+
+eff_pc1_situ_season <- as.data.frame(ggeffect(d, terms = c("PC1", "situ", "season"))) %>%
+  mutate(across(c("predicted", "conf.low", "conf.high"), ~.x*scale_d+center_d))
+ggplot(eff_pc1_situ_season, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_line(aes(col = group), linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  ylab("Degree (scaled)")+
+  ylab("Degree")+
   xlab("Movement (PC1)")+
-  ggtitle("")# the only seasonal difference is that we see no effect on feeding in summer and a slight downward effect on flight in summer. Otherwise the patterns hold.
+  facet_wrap(~facet)+
+  ggtitle("") # the only seasonal difference is that we see no effect on feeding in summer and a slight downward effect on flight in summer. Otherwise the patterns hold.
+
+summary(d)
+# Three-way interactions that are significant: PC2*fall*age, roost*age*summer, roost*age*fall
+# Does it even make sense to include interaction terms that don't include PC1 or PC2??
 
 # What is the effect of PC2 on degree, by situation?
-## without data
-plot_model(d, type = "eff", terms = c("PC2", "situ"))+
+## with raw data
+eff_pc2_situ <- as.data.frame(ggeffect(d, terms = c("PC2", "situ"))) %>%
+  mutate(across(c("predicted", "conf.low", "conf.high"), ~.x*scale_d+center_d))
+ggplot(eff_pc2_situ, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_line(aes(col = group), linewidth = 1)+
+  geom_point(data = forModeling, aes(x = PC2, y = degree, col = situ), alpha = 0.5, size = 0.7)+
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  ylab("Degree (scaled)")+
-  xlab("Exploration (PC2")+
+  ylab("Degree")+
+  xlab("Exploration (PC2)")+
   ggtitle("")
 
 # Is this driven by age differences?
-plot_model(d, type = "eff", terms = c("PC2", "situ", "age_group"))+
+eff_pc2_situ_age <- as.data.frame(ggeffect(d, terms = c("PC2", "situ", "age_group"))) %>%
+  mutate(across(c("predicted", "conf.low", "conf.high"), ~.x*scale_d+center_d))
+ggplot(eff_pc2_situ_age, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_line(aes(col = group), linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  ylab("Degree (scaled)")+
-  xlab("Exploration (PC2")+
-  ggtitle("") # nope! In this case, the pattern is the same across adults and juveniles. 
+  ylab("Degree")+
+  xlab("Exploration (PC2)")+
+  facet_wrap(~facet)+
+  ggtitle("") # nope! In this case, the pattern is basically the same across adults and juveniles. 
 
 # What about across seasons?
-plot_model(d, type = "eff", terms = c("PC2", "situ", "season"))+
+eff_pc2_situ_season <- as.data.frame(ggeffect(d, terms = c("PC2", "situ", "season"))) %>%
+  mutate(across(c("predicted", "conf.low", "conf.high"), ~.x*scale_d+center_d))
+ggplot(eff_pc2_situ_season, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_line(aes(col = group), linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
-  ylab("Degree (scaled)")+
-  xlab("Movement (PC1)")+
-  ggtitle("") # ooh, interesting! We have some big differences here. In summer, the roost network looks different. In fall, the flight and feeding networks have a weaker relationship than in the breeding and summer seasons. Arrrgh too much happening!
+  ylab("Degree")+
+  xlab("Exploration (PC2)")+
+  facet_wrap(~facet)+
+  ggtitle("")
+
+# Can we do four things at once, or will that just be too much?
+eff_pc2_situ_season_age <- as.data.frame(ggeffect(d, terms = c("PC2", "situ", "season", "age_group"))) # no, it looks like this doesn't work. Would have to try harder.
 
 # Takeaways about DEGREE:
 # 1. Overall, individuals that move more roost with more unique others. For adult vultures only, individuals that move more feed with fewer unique others (there is no relationship between movement and feeding degree for juveniles). 
