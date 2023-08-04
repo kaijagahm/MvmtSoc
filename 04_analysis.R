@@ -126,99 +126,91 @@ plot(DHARMa::simulateResiduals(strength_noint), pch=".") # YUCK
 check_model(strength_noint) #YUCK
 
 # what about log-transforming strength? Will have to do this to the un-scaled values.
-strength_noint_log <- lmer(log(strength+0.001) ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-plot(DHARMa::simulateResiduals(strength_noint_log), pch=".") # slightly better, but still bad
-check_model(strength_noint_log) #hmm, this is still really bad. Overall, I don't think log-transforming is a good idea.
+# Seems to be a good idea to add a tiny bit to all of the data, not just the zeroes.
+minstrength <- forModeling %>%
+  filter(strength != 0) %>%
+  pull(strength) %>% min()
+sData <- forModeling %>%
+  mutate(strength = strength + minstrength) %>%
+  mutate(logstrength = log(strength))
 
-# How about a beta distribution?
-strength_noint_beta <- glmmTMB(strength_scl ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-check_model(strength_noint_beta) # okay yeah this is not better at all. It still has that awful tail shape.
+strength_noint_log <- lmer(logstrength ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = sData)
+plot(DHARMa::simulateResiduals(strength_noint_log), pch=".")
+check_model(strength_noint_log) #This looks decent actually! Will need to check what happens if I remove the outliers.
 
-# back to gaussian after that little interlude!
-strength_max <- lmer(strength_scl ~ PC1*situ*season + PC1*season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(strength_max) # huh, some of these are actually marginally significant! PC1*season*age_group looks safe to remove.
+outliers <- which(resid(strength_noint_log) < -2) # four outliers
 
-strength_2 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(strength_2) # now can remove season*age_group*PC2
+strength_noint_log_nooutliers <- lmer(logstrength ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = sData[-outliers,])
+plot(DHARMa::simulateResiduals(strength_noint_log_nooutliers), pch=".") 
+check_model(strength_noint_log_nooutliers) # still looks like a good fit! will need to double-check the outliers vs. no outliers version for the final winning model, but for now this seems like the way to go.
 
-strength_3 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(strength_3) # I guess we can keep going... situ*season*age_group
+# Okay, time to do the rest of the models. I'm going to name them without log in the name just to make things easier.
+strength_max <- lmer(logstrength ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
+check_model(strength_max) # still looks okay!
+summary(strength_max) # looks like we can remove almost all of these, starting with the ones that aren't even marginal: PC1:age:season and situ:PC1:age
 
-strength_4 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ*season + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(strength_4) # situ*season*PC2 next
+strength_2 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
+summary(strength_2) # now removing situ*season*PC2.
 
-strength_5 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ*age_group + PC2*situ + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(strength_5) # PC1*situ*age_group
+strength_3 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
+summary(strength_3) # now I think we can remove situ*age*PC2
 
-strength_6 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ + PC2*situ + PC2*season + PC2*age_group + PC2*situ*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(strength_6) # situ*age_group*PC2
+strength_4 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1*season + situ*PC2 + situ*age_group + PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
+summary(strength_4) # now we can remove situ*PC1*season
 
-strength_7 <- lmer(strength_scl ~ PC1*situ*season + PC1*season + PC1*age_group + season*age_group + PC1*situ + PC2*situ + PC2*season + PC2*age_group + situ*season + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(strength_7) # that's as far as we should go
+strength_5 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1 + situ*season + PC1*season + situ*PC2 + situ*age_group + PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
+summary(strength_5) # that seems like a good place to stop
 
-compare_performance(strength_noint, strength_max, strength_2, strength_3, strength_4, strength_5, strength_6, strength_7, rank = T)
+compare_performance(strength_noint_log, strength_max, strength_2, strength_3, strength_4, strength_5, rank = T)
 
 strength_mod <- strength_3
+check_model(strength_mod)
+
+outliers <- which(resid(strength_mod) < -2)
+strength_mod_nooutliers <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData[-outliers,])
+
+check_model(strength_mod_nooutliers) # I suspect this is going to be the same, but I'm going to make a note to save this one separately and double check the results.
 
 ## Evenness ----------------------------------------------------------------
-# any(linked$evenness == 1 & !is.na(linked$evenness)) # no values of 1. Good! I assume no zeroes either?
-# any(linked$evenness == 0 & !is.na(linked$evenness)) # excellent. So we will be able to use a beta.
-# linked_e <- linked %>%
-#   filter(!is.na(evenness)) # remove NA's, otherwise the model won't converge
+# Turns out, if we invert the evenness distribution (and call it unevenness!) and then log-transform it, we get what looks like an almost perfect gaussian!
+hist(forModeling$evenness) # original
+hist(-1*(forModeling$evenness-1)) # inverted--right-skewed distribution is easier to model
+hist(log(-1*(forModeling$evenness-1))) # beautiful! Now, this may not be true of each of the groups, but it's a start.
+
+eData <- forModeling %>%
+  mutate(evenness_inverted_log = log(-1*(evenness-1)),
+         evenness_inverted_log_scaled = datawizard::standardize(evenness_inverted_log))
+
+evenness_noint <- lmer(evenness_scl ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = eData)
+check_model(evenness_noint)
+plot(DHARMa::simulateResiduals(evenness_noint), pch=".") # this does not look good, still. The homogeneity of variance assumption is really violated.
 # 
-# # Let's try a gaussian first just to see
-# evenness_noint <- lmer(evenness ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked_e)
-# check_model(evenness_noint) # that's really awful, isn't it. Maybe a beta distribution?
 # 
-# evenness_noint <- glmmTMB(evenness ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked_e, family = beta_family(link = "logit")) # huh, apparently this warning is fine? "This warning occurs when the optimizer visits a region of parameter space that is invalid. It is not a problem as long as the optimizer has left that region of parameter space upon convergence, which is indicated by an absence of the model convergence warnings described above." From https://cran.r-project.org/web/packages/glmmTMB/vignettes/troubleshooting.html.
-# check_model(evenness_noint) # oh! That's actually kind of fine! Overdispersed, but hmm okay for no I guess? Not sure how else to move forward. Later I'll investigate negative binomials or something but for now let's just do it.
-# summary(evenness_noint)
+# evenness_max <- lmer(evenness_scl ~ PC1*season*situ + PC1*season*age_group + PC1*situ*age_group + PC2*season*situ + PC2*season*age_group + PC2*situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+# #check_model(evenness_max)
+# summary(evenness_max) # can remove situ*age*PC2, season*situ*PC2, PC1*situ*age_group, PC1*season*age_group, PC1*season*situ
 # 
-# evenness_max <- glmmTMB(evenness ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_e, family = beta_family(link = "logit")) # again with that warning, but I think we can just ignore it
-# check_model(evenness_max) # yuck but okay i guess
-# summary(evenness_max) # nice, can remove a lot of this
+# evenness_2 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*season*age_group + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+# summary(evenness_2) # want to remove more 2-way interactions but have to get rid of the three-ways first. Let's do season*age_group*PC2 first I guess
 # 
-# evenness_2 <- glmmTMB(evenness ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_e, family = beta_family(link = "logit")) # again with that warning, but I think we can just ignore it
-# summary(evenness_2) # next would be removing a lot of the smaller effects, but first would have to get rid of the three-way effects. Let's remove situ*age_group*season first.
+# evenness_3 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+# summary(evenness_3) # now the two-ways become significant. Just for kicks, let's get rid of the last 3-way interaction.
 # 
-# evenness_3 <- glmmTMB(evenness ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_e, family = beta_family(link = "logit")) # again with that warning, but I think we can just ignore it
-# summary(evenness_3) # ok, now we can get rid of situ*PC2 and PC1*season
+# evenness_4 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+# summary(evenness_4) # can remove situ*PC2, PC1*season
 # 
-# evenness_4 <- glmmTMB(evenness ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_e, family = beta_family(link = "logit")) # warning again, ignore
-# summary(evenness_4) # i guess for good measure let's remove the age*season*PC2 three-way effect?
-# 
-# evenness_5 <- glmmTMB(evenness ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC2*age_group + PC2*season + age_group*season + (1|seasonUnique) + (1|Nili_id), data = linked_e, family = beta_family(link = "logit")) # warning again, ignore
-# summary(evenness_5) # everything else looks good! let's stop.
+# evenness_5 <- lmer(evenness_scl ~ PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+# summary(evenness_5) # time to stop!
 # 
 # compare_performance(evenness_noint, evenness_max, evenness_2, evenness_3, evenness_4, evenness_5, rank = T)
 # 
-# evenness_mod <- evenness_2 #wow, yuck, a lot of three-way interactions I don't want to interpret. Second best is evenness_5, which is a lot simpler.
-
-### For the conference, just doing a gaussian I guess.
-evenness_noint <- lmer(evenness_scl ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-#check_model(evenness_noint) # meh.
-
-evenness_max <- lmer(evenness_scl ~ PC1*season*situ + PC1*season*age_group + PC1*situ*age_group + PC2*season*situ + PC2*season*age_group + PC2*situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-#check_model(evenness_max)
-summary(evenness_max) # can remove situ*age*PC2, season*situ*PC2, PC1*situ*age_group, PC1*season*age_group, PC1*season*situ
-
-evenness_2 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*season*age_group + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(evenness_2) # want to remove more 2-way interactions but have to get rid of the three-ways first. Let's do season*age_group*PC2 first I guess
-
-evenness_3 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(evenness_3) # now the two-ways become significant. Just for kicks, let's get rid of the last 3-way interaction.
-
-evenness_4 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(evenness_4) # can remove situ*PC2, PC1*season
-
-evenness_5 <- lmer(evenness_scl ~ PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(evenness_5) # time to stop!
-
-compare_performance(evenness_noint, evenness_max, evenness_2, evenness_3, evenness_4, evenness_5, rank = T)
-
-evenness_mod <- evenness_2
+# evenness_mod <- evenness_2
+evenness_mod <- NULL # for now
 
 # Get model effects ----------------------------------------------------------
 # We now have 3 models. Let's compile and tidy their outputs.
-mods <- list("d" = degree_mod, "s" = strength_mod, "e" = evenness_mod)
+mods <- list("d" = degree_mod, "s" = strength_mod, "s_nooutliers" = strength_mod_nooutliers, "e" = evenness_mod)
 save(mods, file = "data/mods.Rda")
+save(sData, file = "data/sData.Rda") # for the strength models
+ 
+# here's info on how to interpret that log-transformed regression: https://data.library.virginia.edu/interpreting-log-transformations-in-a-linear-model/
