@@ -17,6 +17,7 @@ library(DHARMa) # for testing glmmTMB models
 library(sjPlot)
 library(broom.mixed)
 library(jtools) # similar to sjplot, for forest plots
+library(emmeans) # estimated marginal means/trends
 
 load("data/linked.Rda")
 
@@ -76,7 +77,9 @@ linked$strength_scl <- as.vector(scaled_s)
 linked$evenness_scl <- as.vector(scaled_e)
 
 getOption("rstudio.help.showDataPreview")# create and save a new dataset for modeling, so we can load it later
-forModeling <- linked
+minstrength <- linked %>% filter(strength != 0) %>% pull(strength) %>% min()
+forModeling <- linked %>%
+  mutate(strength = strength + (minstrength/2))
 save(forModeling, file = "data/forModeling.Rda")
 
 ## Degree ------------------------------------------------------------------
@@ -86,38 +89,42 @@ summary(degree_noint)
 #check_model(degree_noint) # looks okay, candidate. No correlated predictors.
 plot(DHARMa::simulateResiduals(degree_noint), pch=".")
 
-degree_max <- lmer(degree_scl ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-#check_model(degree_max) # still looks basically ok, except for the vif's, which we can ignore
-summary(degree_max) # okay, we can remove most of these. Going to replace them with two-way interactions and then remove duplicates.
+# PC1*situ*season: there might be different relationships between PC1 and degree in different seasons and situations
+# PC1*age_group*season: adults and juveniles might differ in their relationships between PC1 and degree, and those differences could be different by season
 
-degree_2 <- lmer(degree_scl ~ situ*PC1*age_group + situ*PC1 + situ*season + PC1*season + situ*PC2 + situ*age_group + PC2*age_group + situ*PC2 + PC2*season + PC1*age_group + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(degree_2) #things that can be removed: situ*PC1*age
+degree_max_max <- lmer(degree_scl ~ PC1*situ*season*age_group + PC2*situ*season*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+# check_model(degree_max_max)
+# plot(DHARMa::simulateResiduals(degree_max_max), pch=".")
+summary(degree_max_max) # Can start by removing PC1*situ*season and PC2*situ*season.
 
-degree_3 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(degree_3) # now would like to remove some two-way interactions, but can't do that until we remove more three-ways. I don't feel that there's much justification in keeping situ*age_group*season with those marginal values, so let's start by removing those.
+degree_max <- lmer(degree_scl ~ PC1*situ*season + PC2*situ*season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+check_model(degree_max)
+plot(DHARMa::simulateResiduals(degree_max), pch=".")
+summary(degree_max) # Can start by removing PC1*situ*season and PC2*situ*season.
 
-degree_4 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + PC2*age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(degree_4) # next would like to remove age_group*PC2 or season*PC2, but can't do that without removing the 3-way interaction first.
+degree_2 <- lmer(degree_scl ~ PC1*situ + PC1*season + PC2*situ + PC2*season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+summary(degree_2) # Can remove PC2*season and PC1*season
 
-degree_5 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + PC2*season + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(degree_5) # Ok, this free us up to remove some other things, starting with season*PC2.
+degree_3 <- lmer(degree_scl ~ PC1*situ + PC2*situ + age_group + season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+summary(degree_3) # don't actually need the season effect here at all
 
-degree_6 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC1*season + situ*PC2 + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(degree_6) # hmm not entirely clear what to remove next--let's remove PC1*season first I guess because the effect sizes are smaller?
+# degree_4 <- lmer(degree_scl ~ PC1*situ + PC2*situ + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+# summary(degree_4)
 
-degree_7 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + situ*PC2 + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(degree_7) # now I guess we could try getting rid of situ*PC2, but probably tbh we don't want to do either this or the previous one.
+compare_performance(degree_noint, degree_max_max, degree_max, degree_2, degree_3, rank = T)
 
-degree_8 <- lmer(degree_scl ~ situ*PC1 + situ*age_group + PC1*age_group + situ*season + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(degree_8) # I guess we could also remove situ*age...
+degree_mod <- degree_3 #xxx this is weird, why is the maximal model retained?
 
-degree_9 <- lmer(degree_scl ~ situ*PC1 + PC1*age_group + situ*season + PC2*age_group + age_group*season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-summary(degree_9) # I don't want to remove situ*season because that effect size on summer is HUGE. So let's stop here.
-
-compare_performance(degree_noint, degree_max, degree_2, degree_3, degree_4, degree_5, degree_6, degree_7, degree_8, degree_9, rank = T)
-
-degree_mod <- degree_max #xxx this is weird, come back to it
-#check_model(degree_mod) # that looks pretty glorious, except for the VIF's, which we can probably ignore anyway.
+#xxx trying out emmeans:
+degree_test <- lmer(degree_scl ~ PC1*situ + PC2*situ + (1|Nili_id), data = forModeling)
+(degree.emm <- emmeans(degree_test, "situ", var = "PC2") )
+pairs(degree.emt)
+fiber.lm <- lm(strength ~ diameter*machine, data=fiber)
+# Obtain slopes for each machine ...
+( fiber.emt <- emtrends(fiber.lm, "machine", var = "diameter") )
+# ... and pairwise comparisons thereof
+pairs(fiber.emt)
+#### xxx end
 
 ## Strength ------------------------------------------------------------------
 # Ok, for the sake of this conference, though, I'm going to go back to a gaussian.
@@ -125,51 +132,29 @@ strength_noint <- lmer(strength_scl ~ PC1 + PC2 + situ + season + age_group + (1
 plot(DHARMa::simulateResiduals(strength_noint), pch=".") # YUCK
 check_model(strength_noint) #YUCK
 
-# what about log-transforming strength? Will have to do this to the un-scaled values.
-# Seems to be a good idea to add a tiny bit to all of the data, not just the zeroes.
-minstrength <- forModeling %>%
-  filter(strength != 0) %>%
-  pull(strength) %>% min()
-sData <- forModeling %>%
-  mutate(strength = strength + minstrength) %>%
-  mutate(logstrength = log(strength))
-
-strength_noint_log <- lmer(logstrength ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = sData)
+strength_noint_log <- lmer(log(strength) ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
 plot(DHARMa::simulateResiduals(strength_noint_log), pch=".")
 check_model(strength_noint_log) #This looks decent actually! Will need to check what happens if I remove the outliers.
 
 outliers <- which(resid(strength_noint_log) < -2) # four outliers
 
-strength_noint_log_nooutliers <- lmer(logstrength ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = sData[-outliers,])
+strength_noint_log_nooutliers <- lmer(log(strength) ~ PC1 + PC2 + situ + season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling[-outliers,])
 plot(DHARMa::simulateResiduals(strength_noint_log_nooutliers), pch=".") 
 check_model(strength_noint_log_nooutliers) # still looks like a good fit! will need to double-check the outliers vs. no outliers version for the final winning model, but for now this seems like the way to go.
 
 # Okay, time to do the rest of the models. I'm going to name them without log in the name just to make things easier.
-strength_max <- lmer(logstrength ~ situ*PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
-check_model(strength_max) # still looks okay!
-summary(strength_max) # looks like we can remove almost all of these, starting with the ones that aren't even marginal: PC1:age:season and situ:PC1:age
+strength_max <- lmer(log(strength) ~ PC1*situ*season + PC2*situ*season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+summary(strength_max) # Can remove PC2*situ*season
 
-strength_2 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
-summary(strength_2) # now removing situ*season*PC2.
+strength_2 <- lmer(log(strength) ~ PC1*situ*season + PC2*situ + PC2*season + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+summary(strength_2) # can remove PC2*season and PC2*situ
 
-strength_3 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
-summary(strength_3) # now I think we can remove situ*age*PC2
-
-strength_4 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1*season + situ*PC2 + situ*age_group + PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
-summary(strength_4) # now we can remove situ*PC1*season
-
-strength_5 <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1 + situ*season + PC1*season + situ*PC2 + situ*age_group + PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData)
-summary(strength_5) # that seems like a good place to stop
-
-compare_performance(strength_noint_log, strength_max, strength_2, strength_3, strength_4, strength_5, rank = T)
+strength_3 <- lmer(log(strength) ~ PC1*situ*season + PC2 + age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
+summary(strength_3) # I'm going to keep PC1*situ*season even though only one of them is marginally significant--I'll just talk about these.
 
 strength_mod <- strength_3
-check_model(strength_mod)
 
-outliers <- which(resid(strength_mod) < -2)
-strength_mod_nooutliers <- lmer(logstrength ~ situ*PC1 + situ*age_group + PC1*age_group + situ*PC1*season + situ*PC2*age_group + situ*PC2 + situ*season + PC2*season + PC1*season + age_group*season + PC2*age_group*season + situ*age_group*season + (1|seasonUnique) + (1|Nili_id), data = sData[-outliers,])
-
-check_model(strength_mod_nooutliers) # I suspect this is going to be the same, but I'm going to make a note to save this one separately and double check the results.
+check_model(strength_mod) # no major outliers
 
 ## Evenness ----------------------------------------------------------------
 # Turns out, if we invert the evenness distribution (and call it unevenness!) and then log-transform it, we get what looks like an almost perfect gaussian!
@@ -209,8 +194,7 @@ evenness_mod <- NULL # for now
 
 # Get model effects ----------------------------------------------------------
 # We now have 3 models. Let's compile and tidy their outputs.
-mods <- list("d" = degree_mod, "s" = strength_mod, "s_nooutliers" = strength_mod_nooutliers, "e" = evenness_mod)
+mods <- list("d" = degree_mod, "s" = strength_mod, "e" = evenness_mod)
 save(mods, file = "data/mods.Rda")
-save(sData, file = "data/sData.Rda") # for the strength models
- 
+
 # here's info on how to interpret that log-transformed regression: https://data.library.virginia.edu/interpreting-log-transformations-in-a-linear-model/
