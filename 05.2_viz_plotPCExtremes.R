@@ -236,12 +236,14 @@ hrs_sf <- map2(hrs_sf, seasonNames, ~.x %>% mutate(seasonUnique = .y,
 cas_sf <- map2(cas_sf, seasonNames, ~.x %>% mutate(seasonUnique = .y,
                                                    year = str_extract(seasonUnique, "[0-9]{4}"),
                                                    season = str_extract(seasonUnique, "[a-z]+")))
-hrs_sf_df <- do.call(rbind, hrs_sf)
-cas_sf_df <- do.call(rbind, cas_sf)
+hrs_sf_df <- do.call(rbind, hrs_sf) %>% sf::st_set_crs(32636)
+cas_sf_df <- do.call(rbind, cas_sf) %>% sf::st_set_crs(32636)
 
 # Make some plots
 hr_season_facet <- hrs_sf_df %>%
   ggplot()+
+  ggspatial::annotation_map_tile("cartolight", zoom = 9) + 
+  ggspatial::annotation_scale()+
   geom_sf(aes(fill = Nili_id, col = Nili_id), alpha = 0.05)+
   facet_grid(rows = vars(year), cols = vars(season))+
   theme(legend.position = "none")+
@@ -250,6 +252,8 @@ ggsave(hr_season_facet, filename = "fig/hr_season_facet.png", height = 7, width 
 
 ca_season_facet <- cas_sf_df %>%
   ggplot()+
+  ggspatial::annotation_map_tile("cartolight", zoom = 9) + 
+  ggspatial::annotation_scale()+
   geom_sf(aes(fill = Nili_id, col = Nili_id), alpha = 0.05)+
   facet_grid(rows = vars(year), cols = vars(season))+
   theme(legend.position = "none")+
@@ -258,6 +262,8 @@ ggsave(ca_season_facet, filename = "fig/ca_season_facet.png", height = 7, width 
 
 hr_season_color <- hrs_sf_df %>%
   ggplot()+
+  ggspatial::annotation_map_tile("cartolight", zoom = 9) + 
+  ggspatial::annotation_scale()+
   geom_sf(aes(fill = season, col = season), alpha = 0.1)+
   facet_wrap(~year)+
   scale_color_manual(values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
@@ -267,6 +273,8 @@ ggsave(hr_season_color, filename = "fig/hr_season_color.png", height = 7, width 
 
 ca_season_color <- cas_sf_df %>%
   ggplot()+
+  ggspatial::annotation_map_tile("cartolight", zoom = 9) + 
+  ggspatial::annotation_scale()+
   geom_sf(aes(fill = season, col = season), alpha = 0.1)+
   facet_wrap(~year)+
   scale_color_manual(values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
@@ -276,6 +284,8 @@ ggsave(ca_season_color, filename = "fig/ca_season_color.png", height = 7, width 
 
 hr_year_color <- hrs_sf_df %>%
   ggplot()+
+  ggspatial::annotation_map_tile("cartolight", zoom = 9) + 
+  ggspatial::annotation_scale()+
   geom_sf(aes(fill = year, col = year), alpha = 0.1)+
   facet_wrap(~season)+
   ggtitle("Home ranges (95% KUD)")
@@ -283,6 +293,8 @@ ggsave(hr_year_color, filename = "fig/hr_year_color.png", height = 5, width = 7)
 
 ca_year_color <- cas_sf_df %>%
   ggplot()+
+  ggspatial::annotation_map_tile("cartolight", zoom = 9) + 
+  ggspatial::annotation_scale()+
   geom_sf(aes(fill = year, col = year), alpha = 0.1)+
   facet_wrap(~season)+
   ggtitle("Core areas (50% KUD)")
