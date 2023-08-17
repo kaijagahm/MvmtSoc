@@ -2,10 +2,14 @@
 library(tidyverse)
 library(ggspatial)
 library(sf)
+library(grid)
+
+theme_set(theme_classic(base_size = 9))
 
 load("data/linked.Rda")
 load("data/seasons_10min.Rda")
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
+names(seasons_10min) <- seasonNames
 
 daysTracked <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% select(Nili_id, seasonUnique, daysTracked) %>% distinct()) %>% purrr::list_rbind()
 
@@ -19,7 +23,7 @@ forplots <- linked %>%
   mutate(seasonUnique = paste(year, season, sep = "_")) %>%
   left_join(daysTracked, by = c("seasonUnique", "Nili_id"))
 
-# Take a look at the biplot again
+# Take a look at the biplot again, this time facetted by season
 forplots %>%
   ggplot(aes(x = PC1, y = PC2, col = daysTracked))+
   geom_point(size = 2)+
@@ -28,6 +32,80 @@ forplots %>%
   theme_bw()+
   scale_color_viridis_c()+
   facet_wrap(~seasonUnique)
+
+# not facetted by season:
+forplots %>%
+  ggplot(aes(x = PC1, y = PC2, col = daysTracked))+
+  geom_point(size = 2)+
+  geom_vline(aes(xintercept = 0))+
+  geom_hline(aes(yintercept = 0))+
+  theme_bw()+
+  scale_color_viridis_c()
+
+# colored and ellipsed by season:
+# XXX
+
+# Automatic plotting: top and bottom 5 for each PC
+pc1_top5 <- forplots %>%
+  select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
+  distinct() %>%
+  arrange(desc(PC1)) %>%
+  head(5) %>% select(Nili_id, seasonUnique, PC1, PC2, daysTracked)
+
+pc1_bottom5 <- forplots %>%
+  select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
+  distinct() %>%
+  arrange(PC1) %>%
+  head(5) %>% select(Nili_id, seasonUnique, PC1, PC2, daysTracked)
+
+pc2_top5 <- forplots %>%
+  select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
+  distinct() %>%
+  arrange(desc(PC2)) %>%
+  head(5) %>% select(Nili_id, seasonUnique, PC1, PC2, daysTracked)
+
+pc2_bottom5 <- forplots %>%
+  select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
+  distinct() %>%
+  arrange(PC2) %>%
+  head(5) %>% select(Nili_id, seasonUnique, PC1, PC2, daysTracked)
+
+pcs <- bind_rows(pc1_top5, pc1_bottom5, pc2_top5, pc2_bottom5)
+
+for(i in 1:nrow(pcs)){
+  ind <- pcs$Nili_id[i]
+  szn <- pcs$seasonUnique[i]
+  pc1 <- pcs$PC1[i]
+  pc2 <- pcs$PC2[i]
+  dt <- pcs$daysTracked[i]
+  data <- seasons_10min[[szn]] %>%
+    filter(Nili_id == ind)
+  grob <- grid::grobTree(textGrob(paste0("PC1 = ", round(pc1, 2), 
+                                   "  PC2 = ", round(pc2, 2), "\nDays = ", dt, 
+                                   "  Season = ", szn,
+                                   "\nID = ", ind), 
+                            x = 0.05, y = 0.90, hjust = 0),
+                         gp=gpar(col = "blue", fontsize=4))
+  plt <- ggplot(data = data) +
+    ggspatial::annotation_map_tile("cartolight", zoom = 9) + 
+    geom_sf(size = 0.3, alpha = 0.5) +
+    ggspatial::annotation_scale(text_cex = 0.4)+
+    geom_path(data = data, 
+              aes(x = location_long, y = location_lat),
+              linewidth = 0.2, alpha = 0.5)+
+    theme(legend.position = "none",
+          strip.background = element_blank(),
+          strip.text.x = element_blank(),
+          text = element_text(size = 5)
+          #panel.background = element_rect(fill = "#FFFCF6"),
+          #plot.background = element_rect(fill = "#FFFCF6")
+    )+
+    ylab("") + xlab("")+ annotation_custom(grob)
+  filename <- paste0("fig/pcExtremes/", paste(szn, round(pc1, 2), round(pc2, 2), dt, sep = "_"), ".png")
+  ggsave(plt, filename = filename)
+}
+
+# Manual plotting of extremes
 
 # PC1 low
 forplots %>%
@@ -65,9 +143,9 @@ highPC2Data <- seasons_10min[["2023_breeding"]] %>%
   filter(Nili_id == "hippocrates")
 
 lowHighData <- bind_rows(lowPC1Data %>% mutate(level = "low", pc = 1),
-                        highPC1Data %>% mutate(level = "high", pc = 1),
-                        lowPC2Data %>% mutate(level = "low", pc = 2),
-                        highPC2Data %>% mutate(level = "high", pc = 2)) %>%
+                         highPC1Data %>% mutate(level = "high", pc = 1),
+                         lowPC2Data %>% mutate(level = "low", pc = 2),
+                         highPC2Data %>% mutate(level = "high", pc = 2)) %>%
   mutate(id = paste(level, pc)) %>%
   mutate(level = factor(level, levels = c("low", "high"))) %>%
   select(Nili_id, trackId, season, year, seasonUnique, timestamp, dateOnly, location_lat, location_long, age_group, level, id, pc) %>%
