@@ -3,7 +3,6 @@
 ## Load packages -----------------------------------------------------------
 library(vultureUtils)
 library(sf)
-# In lieu of tidyverse
 library(tidyverse)
 library(move)
 library(feather)
@@ -647,12 +646,6 @@ subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 
 # create and save downsampled datasets for later use
 seasons_10min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # basically just trying to remove any data from the occasional bursts of more concentrated and frequent sampling.
 seasons_mode10_10min <- map(seasons_mode10, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T)
-# XXX will eventually have to come back to this and bring the mode10 dataset all the way through to the end here.
-# seasons_15min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 15), .progress = T)
-# seasons_20min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 20), .progress = T)
-# seasons_30min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 30), .progress = T)
-# seasons_60min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 60), .progress = T)
-# seasons_120min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 120), .progress = T)
 
 map_dbl(seasons, nrow)
 map_dbl(seasons_10min, nrow)
@@ -662,12 +655,7 @@ seasons_mode10_10min <- map(seasons_mode10_10min, ~.x %>% group_by(Nili_id) %>% 
 seasons_10min <- map(seasons_10min, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))))
 
 save(seasons_10min, file = "data/seasons_10min.Rda")
-# save(seasons_15min, file = "data/seasons_15min.Rda")
 save(seasons_mode10_10min, file = "data/seasons_mode10_10min.Rda")
-# save(seasons_20min, file = "data/seasons_20min.Rda")
-# save(seasons_30min, file = "data/seasons_30min.Rda")
-# save(seasons_60min, file = "data/seasons_60min.Rda")
-# save(seasons_120min, file = "data/seasons_120min.Rda")
 
 # no need to calculate roosts for the downsampled data because in theory there's only one point per night.
 
