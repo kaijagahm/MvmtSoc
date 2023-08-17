@@ -107,7 +107,7 @@ ggplot(d_eff_pc2_situ, aes(x, predicted)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
               alpha = 0.2, linewidth = 0.6, show.legend = F)+
   geom_line(aes(col = group), linewidth = 1)+
-  geom_point(data = forModeling, aes(x = PC1, y = degree, col = situ), alpha = 0.5, size = 0.7)+
+  geom_point(data = forModeling, aes(x = PC1, y = degree, col = situ), alpha = 0.5)+
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   ylab("Degree")+
@@ -185,6 +185,7 @@ ggplot(s_eff_pc1_situ_season, aes(x, predicted)) +
 
 pc1_situ_season_emt <- emtrends(s, specs = c("situ", "season"), var = "PC1")
 pc1_situ_season_emt # There is no significant trend in any season for co-flight. For both co-roosting and co-feeding, there is a significant negative trend in the breeding season and the fall, but not in the summer. So, in summer, there is no significant relationship between movement and strength at all.
+pairs(pc1_situ_season_emt)
 
 # in terms of percent decreases:
 as.data.frame(pc1_situ_season_emt) %>% mutate(across(c("PC1.trend", "lower.CL", "upper.CL"), 
