@@ -13,9 +13,10 @@ linked %>%
   ggplot(aes(x = evenness))+
   geom_density(aes(col = season), linewidth = 1.5)+
   facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
+  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["summerColor"]], cc[["fallColor"]]))+
   xlab("Evenness")+
   ylab("")+
+  theme_classic()+
   theme(text = element_text(size = 16))
 
 linked %>%
@@ -23,9 +24,10 @@ linked %>%
   ggplot(aes(x = degreeRelative))+
   geom_density(aes(col = season), linewidth = 1.5)+
   facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
+  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["summerColor"]], cc[["fallColor"]]))+
   xlab("Degree (normalized)")+
-  ylab("")+
+  ylab("")+ 
+  theme_classic()+
   theme(text = element_text(size = 16))
 
 linked %>%
@@ -33,7 +35,7 @@ linked %>%
   ggplot(aes(x = degree))+
   geom_density(aes(col = season), linewidth = 1.5)+
   facet_wrap(~type*year, scales = "free_y")+
-  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
+  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["summerColor"]], cc[["fallColor"]]))+
   xlab("Degree")+
   ylab("")+
   theme(text = element_text(size = 16))
@@ -43,7 +45,7 @@ linked %>%
   ggplot(aes(x = strengthRelative))+
   geom_density(aes(col = season), linewidth = 1.5)+
   facet_wrap(~type, scales = "free_y")+
-  scale_color_manual(name = "Season", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
+  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["summerColor"]], cc[["fallColor"]]))+
   xlab("Strength (normalized)")+
   ylab("")+
   theme(text = element_text(size = 16))
