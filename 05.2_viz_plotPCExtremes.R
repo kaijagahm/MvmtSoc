@@ -1,6 +1,7 @@
 # Script for creating maps showing individuals' trajectories on either end of the principal component spectrum.
 library(tidyverse)
 library(ggspatial)
+library(sf)
 
 load("data/linked.Rda")
 load("data/seasons_10min.Rda")
