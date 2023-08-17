@@ -43,11 +43,11 @@ daysTracked_seasons <- map2(seasons_10min, durs, ~.x %>%
 # Movement Behavior --------------------------------------------------------
 ## HOME RANGE ---------------------------------------------------------------
 ## Individual home ranges
-hrList_indivs <- map(seasons_10min, ~.x %>%
+hrList_indivs <- purrr::map(seasons_10min, ~.x %>% # XXX not sure why this is throwing an error all of a sudden, as of 8/17/23
                        dplyr::select(Nili_id) %>%
                        st_transform(32636) %>%
-                       mutate(x = st_coordinates(.)[,1],
-                              y = st_coordinates(.)[,2]) %>%
+                       mutate(x = sf::st_coordinates(.)[,1],
+                              y = sf::st_coordinates(.)[,2]) %>%
                        st_drop_geometry() %>%
                        group_by(Nili_id) %>%
                        group_split(.keep = T))
@@ -61,6 +61,7 @@ kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
   if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
   else{k <- NULL} # changed back to the href value here--important to have different h for individuals with different numbers of points, and the fact that we'll take percentages of the resulting errors should mean that it comes out in the wash anyway.
   return(k)}, .progress = T))
+save(kuds_indivs, file = "data/kuds_indivs.Rda")
 
 ### Core Area (50%) ---------------------------------------------------------
 coreAreas_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{

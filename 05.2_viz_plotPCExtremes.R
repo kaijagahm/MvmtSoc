@@ -3,6 +3,8 @@ library(tidyverse)
 library(ggspatial)
 library(sf)
 library(grid)
+load("data/kuds_indivs.Rda")
+load("data/hrList_indivs.Rda")
 
 theme_set(theme_classic(base_size = 9))
 
@@ -10,6 +12,7 @@ load("data/linked.Rda")
 load("data/seasons_10min.Rda")
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
 names(seasons_10min) <- seasonNames
+load("data/cc.Rda")
 
 daysTracked <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% select(Nili_id, seasonUnique, daysTracked) %>% distinct()) %>% purrr::list_rbind()
 
@@ -33,7 +36,7 @@ forplots %>%
   scale_color_viridis_c()+
   facet_wrap(~seasonUnique)
 
-# not facetted by season:
+# colored by days tracked
 forplots %>%
   ggplot(aes(x = PC1, y = PC2, col = daysTracked))+
   geom_point(size = 2)+
@@ -42,8 +45,25 @@ forplots %>%
   theme_bw()+
   scale_color_viridis_c()
 
-# colored and ellipsed by season:
-# XXX
+# colored by year*season
+forplots %>%
+  ggplot(aes(x = PC1, y = PC2, col = seasonUnique))+
+  geom_point(size = 2)+
+  geom_vline(aes(xintercept = 0))+
+  geom_hline(aes(yintercept = 0))+
+  theme_bw()+
+  scale_color_viridis_d()+
+  stat_ellipse()
+
+# colored by season only, shapes by year
+forplots %>%
+  ggplot(aes(x = PC1, y = PC2, col = season))+
+  geom_point(size = 2, aes(pch = year))+
+  geom_vline(aes(xintercept = 0))+
+  geom_hline(aes(yintercept = 0))+
+  theme_bw()+
+  stat_ellipse()+
+  scale_color_manual(values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))
 
 # Automatic plotting: top and bottom 5 for each PC
 pc1_top5 <- forplots %>%
@@ -84,15 +104,15 @@ for(i in 1:nrow(pcs)){
                                    "  PC2 = ", round(pc2, 2), "\nDays = ", dt, 
                                    "  Season = ", szn,
                                    "\nID = ", ind), 
-                            x = 0.05, y = 0.90, hjust = 0),
+                            x = 0.05, y = 0.93, hjust = 0),
                          gp=gpar(col = "blue", fontsize=4))
   plt <- ggplot(data = data) +
     ggspatial::annotation_map_tile("cartolight", zoom = 9) + 
-    geom_sf(size = 0.3, alpha = 0.5) +
+    geom_sf(size = 0.2, alpha = 0.5) +
     ggspatial::annotation_scale(text_cex = 0.4)+
     geom_path(data = data, 
               aes(x = location_long, y = location_lat),
-              linewidth = 0.2, alpha = 0.5)+
+              linewidth = 0.1, alpha = 0.5)+
     theme(legend.position = "none",
           strip.background = element_blank(),
           strip.text.x = element_blank(),
@@ -102,7 +122,7 @@ for(i in 1:nrow(pcs)){
     )+
     ylab("") + xlab("")+ annotation_custom(grob)
   filename <- paste0("fig/pcExtremes/", paste(szn, round(pc1, 2), round(pc2, 2), dt, sep = "_"), ".png")
-  ggsave(plt, filename = filename)
+  ggsave(plt, filename = filename, width = 3, height = 2.5)
 }
 
 # Manual plotting of extremes
@@ -190,3 +210,82 @@ pc2plot <- ggplot(data = pc2) +
   ylab("") + xlab("")+
   facet_wrap(~level)
 pc2plot # XXX come back to this--this one looks way different.
+
+
+# Home range visualization ------------------------------------------------
+indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
+
+# get home ranges and core areas
+# hrs <- map(kuds_indivs, ~.x %>% map(., ~getverticeshr(.x, percent = 95)))
+# cas <- map(kuds_indivs, ~.x %>% map(., ~getverticeshr(.x, percent = 50)))
+# save(hrs, file = "data/hrs.Rda")
+# save(cas, file = "data/cas.Rda")
+load("data/hrs.Rda")
+load("data/cas.Rda")
+
+# transform to sf objects
+hrs_sf <- map(hrs, ~do.call(rbind, .x)) %>% map(., ~sf::st_as_sf(.x))
+cas_sf <- map(cas, ~do.call(rbind, .x)) %>% map(., ~sf::st_as_sf(.x))
+
+# add back the individual IDs
+hrs_sf <- map2(hrs_sf, indivs, ~.x %>% mutate(Nili_id = .y))
+cas_sf <- map2(cas_sf, indivs, ~.x %>% mutate(Nili_id = .y))
+hrs_sf <- map2(hrs_sf, seasonNames, ~.x %>% mutate(seasonUnique = .y,
+                                                       year = str_extract(seasonUnique, "[0-9]{4}"),
+                                                       season = str_extract(seasonUnique, "[a-z]+")))
+cas_sf <- map2(cas_sf, seasonNames, ~.x %>% mutate(seasonUnique = .y,
+                                                   year = str_extract(seasonUnique, "[0-9]{4}"),
+                                                   season = str_extract(seasonUnique, "[a-z]+")))
+hrs_sf_df <- do.call(rbind, hrs_sf)
+cas_sf_df <- do.call(rbind, cas_sf)
+
+# Make some plots
+hr_season_facet <- hrs_sf_df %>%
+  ggplot()+
+  geom_sf(aes(fill = Nili_id, col = Nili_id), alpha = 0.05)+
+  facet_grid(rows = vars(year), cols = vars(season))+
+  theme(legend.position = "none")+
+  ggtitle("Home ranges (95% KUD)")
+ggsave(hr_season_facet, filename = "fig/hr_season_facet.png", height = 7, width = 5)
+
+ca_season_facet <- cas_sf_df %>%
+  ggplot()+
+  geom_sf(aes(fill = Nili_id, col = Nili_id), alpha = 0.05)+
+  facet_grid(rows = vars(year), cols = vars(season))+
+  theme(legend.position = "none")+
+  ggtitle("Core areas (50% KUD)")
+ggsave(ca_season_facet, filename = "fig/ca_season_facet.png", height = 7, width = 5)
+
+hr_season_color <- hrs_sf_df %>%
+  ggplot()+
+  geom_sf(aes(fill = season, col = season), alpha = 0.1)+
+  facet_wrap(~year)+
+  scale_color_manual(values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
+  scale_fill_manual(values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
+  ggtitle("Home ranges (95% KUD)")
+ggsave(hr_season_color, filename = "fig/hr_season_color.png", height = 7, width = 5)
+
+ca_season_color <- cas_sf_df %>%
+  ggplot()+
+  geom_sf(aes(fill = season, col = season), alpha = 0.1)+
+  facet_wrap(~year)+
+  scale_color_manual(values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
+  scale_fill_manual(values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
+  ggtitle("Core areas (50% KUD)")
+ggsave(ca_season_color, filename = "fig/ca_season_color.png", height = 7, width = 5)
+
+hr_year_color <- hrs_sf_df %>%
+  ggplot()+
+  geom_sf(aes(fill = year, col = year), alpha = 0.1)+
+  facet_wrap(~season)+
+  ggtitle("Home ranges (95% KUD)")
+ggsave(hr_year_color, filename = "fig/hr_year_color.png", height = 5, width = 7)
+
+ca_year_color <- cas_sf_df %>%
+  ggplot()+
+  geom_sf(aes(fill = year, col = year), alpha = 0.1)+
+  facet_wrap(~season)+
+  ggtitle("Core areas (50% KUD)")
+ggsave(ca_year_color, filename = "fig/ca_year_color.png", height = 5, width = 7)
+
+
