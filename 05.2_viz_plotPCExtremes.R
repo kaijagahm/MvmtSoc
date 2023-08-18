@@ -14,7 +14,7 @@ seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
 names(seasons_10min) <- seasonNames
 load("data/cc.Rda")
 
-daysTracked <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% select(Nili_id, seasonUnique, daysTracked) %>% distinct()) %>% purrr::list_rbind()
+daysTracked <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% dplyr::select(Nili_id, seasonUnique, daysTracked) %>% distinct()) %>% purrr::list_rbind()
 
 # Visualize PC extremes ---------------------------------------------------
 # Only want to include individuals that participated in all three
@@ -67,28 +67,32 @@ forplots %>%
 
 # Automatic plotting: top and bottom 5 for each PC
 pc1_top5 <- forplots %>%
-  select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
+  dplyr::select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
   distinct() %>%
   arrange(desc(PC1)) %>%
-  head(5) %>% select(Nili_id, seasonUnique, PC1, PC2, daysTracked)
+  mutate(group = "pc1top") %>%
+  head(5) %>% dplyr::select(Nili_id, seasonUnique, PC1, PC2, daysTracked, group)
 
 pc1_bottom5 <- forplots %>%
-  select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
+  dplyr::select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
   distinct() %>%
   arrange(PC1) %>%
-  head(5) %>% select(Nili_id, seasonUnique, PC1, PC2, daysTracked)
+  mutate(group = "pc1bottom") %>%
+  head(5) %>% dplyr::select(Nili_id, seasonUnique, PC1, PC2, daysTracked, group)
 
 pc2_top5 <- forplots %>%
-  select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
+  dplyr::select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
   distinct() %>%
   arrange(desc(PC2)) %>%
-  head(5) %>% select(Nili_id, seasonUnique, PC1, PC2, daysTracked)
+  mutate(group = "pc2top") %>%
+  head(5) %>% dplyr::select(Nili_id, seasonUnique, PC1, PC2, daysTracked, group)
 
 pc2_bottom5 <- forplots %>%
-  select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
+  dplyr::select(-c(type, n, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness, dataset)) %>%
   distinct() %>%
   arrange(PC2) %>%
-  head(5) %>% select(Nili_id, seasonUnique, PC1, PC2, daysTracked)
+  mutate(group = "pc2bottom") %>%
+  head(5) %>% dplyr::select(Nili_id, seasonUnique, PC1, PC2, daysTracked, group)
 
 pcs <- bind_rows(pc1_top5, pc1_bottom5, pc2_top5, pc2_bottom5)
 
@@ -98,6 +102,7 @@ for(i in 1:nrow(pcs)){
   pc1 <- pcs$PC1[i]
   pc2 <- pcs$PC2[i]
   dt <- pcs$daysTracked[i]
+  grp <- pcs$group[i]
   data <- seasons_10min[[szn]] %>%
     filter(Nili_id == ind)
   grob <- grid::grobTree(textGrob(paste0("PC1 = ", round(pc1, 2), 
@@ -121,7 +126,7 @@ for(i in 1:nrow(pcs)){
           #plot.background = element_rect(fill = "#FFFCF6")
     )+
     ylab("") + xlab("")+ annotation_custom(grob)
-  filename <- paste0("fig/pcExtremes/", paste(szn, round(pc1, 2), round(pc2, 2), dt, sep = "_"), ".png")
+  filename <- paste0("fig/pcExtremes/", paste(grp, ind, szn, round(pc1, 2), round(pc2, 2), dt, sep = "_"), ".png")
   ggsave(plt, filename = filename, width = 3, height = 2.5)
 }
 
@@ -130,13 +135,13 @@ for(i in 1:nrow(pcs)){
 # PC1 low
 forplots %>%
   filter(PC1 >-5 & PC1 < -3, PC2 < 0 & PC2 > -0.5) %>%
-  select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
+  dplyr::select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
   distinct() # let's use castor fall 2022
 
 # PC1 high
 forplots %>%
   filter(PC1 > 4.75 & PC1 < 5, PC2 > 0 & PC2 < 0.5) %>%
-  select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
+  dplyr::select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
   distinct() # let's use cale fall 2022
 
 names(seasons_10min) <- seasonNames
@@ -148,13 +153,13 @@ highPC1Data <- seasons_10min[["2022_fall"]] %>%
 # PC2 low
 forplots %>%
   filter(PC2 < -2.5 & PC2 > -3, PC1 < 2) %>%
-  select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
+  dplyr::select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
   distinct() # circus breeding 2023
 
 # PC2 high
 forplots %>%
   filter(PC2 > 3, PC1 > -1, PC1 < 1) %>%
-  select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
+  dplyr::select(season, year, Nili_id, PC1, PC2, daysTracked) %>%
   distinct() # hippocrates breeding 2023
 
 lowPC2Data <- seasons_10min[["2023_breeding"]] %>%
@@ -168,7 +173,7 @@ lowHighData <- bind_rows(lowPC1Data %>% mutate(level = "low", pc = 1),
                          highPC2Data %>% mutate(level = "high", pc = 2)) %>%
   mutate(id = paste(level, pc)) %>%
   mutate(level = factor(level, levels = c("low", "high"))) %>%
-  select(Nili_id, trackId, season, year, seasonUnique, timestamp, dateOnly, location_lat, location_long, age_group, level, id, pc) %>%
+  dplyr::select(Nili_id, trackId, season, year, seasonUnique, timestamp, dateOnly, location_lat, location_long, age_group, level, id, pc) %>%
   group_by(level, id) %>%
   mutate(nDays = length(unique(dateOnly))) %>%
   ungroup()
