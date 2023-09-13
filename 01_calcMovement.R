@@ -56,6 +56,7 @@ load("data/hrList_indivs.Rda")
 
 indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~sp::SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
+save(hrList_indivs_SP, file = "data/hrList_indivs_SP.Rda")
 
 kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
   if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}

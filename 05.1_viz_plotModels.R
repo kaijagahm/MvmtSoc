@@ -63,11 +63,11 @@ ggplot(d_eff_pc1_situ, aes(x, predicted)) +
   xlab("Movement (PC1)")+
   ggtitle("")
 
-pc1_situ_emt <- emtrends(d, "situ", var = "PC1")
+pc1_situ_emt <- emmeans::emtrends(d, "situ", var = "PC1")
 pc1_situ_emt # There is a slightly negative relationship between PC1 and degree in the co-feeding network (significant). There are significant positive relationships between PC1 and degree in co-flight and co-roosting networks. 
 pairs(pc1_situ_emt) # There is no difference between the trends for flight and roosting. The relationship between PC1 and degree is significantly different in co-feeding networks than in co-roosting and co-flight networks. 
 
-( fiber.emt <- emtrends(fiber.lm, "machine", var = "diameter") )
+(fiber.emt <- emtrends(fiber.lm, "machine", var = "diameter") )
 # ... and pairwise comparisons thereof
 pairs(fiber.emt)
 
@@ -171,7 +171,15 @@ as.data.frame(pc1_situ_emt) %>% mutate(across(c("PC1.trend", "lower.CL", "upper.
 summary(s) # there is a very very slightly significant three-way interaction with season, so let's look at that:
 
 # What about by season? (non-exponentiated)
-s_eff_pc1_situ_season <- as.data.frame(ggeffect(s, terms = c("PC1", "situ", "season")))
+s_eff_pc1_situ_season <- as.data.frame(ggeffect(s, terms = c("PC1", "situ", "season")))%>%
+  mutate(group = case_when(group == "Fe" ~ "Feeding", 
+                          group == "Fl" ~ "Flight",
+                          group == "Ro" ~ "Roosting",
+                          TRUE ~ group)) %>%
+  mutate(facet = case_when(facet == "breeding" ~ "Breeding",
+                           facet == "summer" ~ "Summer",
+                           facet == "fall" ~ "Fall",
+                           TRUE ~ facet))
 ggplot(s_eff_pc1_situ_season, aes(x, predicted)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
               alpha = 0.2, linewidth = 0.6, show.legend = F)+
@@ -179,9 +187,10 @@ ggplot(s_eff_pc1_situ_season, aes(x, predicted)) +
   scale_color_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   scale_fill_manual(name = "Situation", values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   facet_wrap(~facet)+
-  ylab("log(Strength)")+
+  ylab("Strength (log-transformed)")+
   xlab("Movement (PC1)")+
-  ggtitle("")
+  ggtitle("")+
+  theme(text = element_text(family = "serif", size = 18))
 
 pc1_situ_season_emt <- emtrends(s, specs = c("situ", "season"), var = "PC1")
 pc1_situ_season_emt # There is no significant trend in any season for co-flight. For both co-roosting and co-feeding, there is a significant negative trend in the breeding season and the fall, but not in the summer. So, in summer, there is no significant relationship between movement and strength at all.

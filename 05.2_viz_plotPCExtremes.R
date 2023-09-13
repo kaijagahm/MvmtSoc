@@ -306,3 +306,41 @@ ca_year_color <- cas_sf_df %>%
 ggsave(ca_year_color, filename = "fig/ca_year_color.png", height = 5, width = 7)
 
 
+
+
+# Home ranges and movements together --------------------------------------
+szn <- 3
+id <- 11
+testkud <- kuds_indivs[[szn]][[id]]
+hr <- testkud %>% getverticeshr(., percent = 95) %>% st_as_sf(., crs = 32636)
+ca <- testkud %>% getverticeshr(., percent = 50) %>% fortify()
+testhr <- hrList_indivs[[szn]][[id]]
+name <- as.character(testhr[1,1])
+testdata <- linked %>%
+  mutate(seasonUnique = paste(year, season, sep = "_")) %>%
+  filter(Nili_id == name, seasonUnique == seasonNames[szn])
+
+ggplot() +
+  ggspatial::annotation_map_tile("cartolight", zoom = 6) + 
+  geom_sf(size = 0.2, alpha = 0.5) +
+  ggspatial::annotation_scale(text_cex = 0.4)+
+  geom_path(data = testhr, aes(x = x, y = y), linewidth = 0.1, alpha = 0.5)+
+  geom_point(data = testhr, aes(x = x, y = y), size = 0.5)+
+  geom_sf(data = hr)+
+  NULL
+
+ggplot(hr) +
+  geom_polygon(aes(x=long, y=lat, group = group, fill = id, colour = id),
+               alpha = .4) +
+  theme_bw() +
+  coord_equal()+
+  geom_sf(data = testhr)
+  
+  
+  theme(legend.position = "none",
+        strip.background = element_blank(),
+        strip.text.x = element_blank(),
+        text = element_text(size = 5)
+  )+
+  ylab("") + xlab("")+ annotation_custom(grob)
+
