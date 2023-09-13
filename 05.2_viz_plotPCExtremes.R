@@ -305,6 +305,10 @@ ca_year_color <- cas_sf_df %>%
   ggtitle("Core areas (50% KUD)")
 ggsave(ca_year_color, filename = "fig/ca_year_color.png", height = 5, width = 7)
 
+# Plots with movement tracks and home ranges ------------------------------
+glimpse(forplots)
+
+
 
 
 
