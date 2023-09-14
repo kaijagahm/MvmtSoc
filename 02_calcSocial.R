@@ -41,13 +41,21 @@ indivs_mode10 <- map2(datasetAssignments, seasons_forSoc_mode10, ~.x %>% filter(
   map_dfr(., ~.x %>% pull(dataset) %>% table())
 
 # Social Networks ---------------------------------------------------------
-flightSeasons_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "sri"))
-feedingSeasons_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, return = "sri")) # XXX start here
+flightSeasons_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "both", getLocs = T))
+flightSeasons_mode10_edges <- map(flightSeasons_mode10, ~.x$edges)
+flightSeasons_mode10 <- map(flightSeasons_mode10, ~.x$sri)
+
+feedingSeasons_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, return = "both", getLocs = T))
+feedingSeasons_mode10_edges <- map(feedingSeasons_mode10, ~.x$edges)
+feedingSeasons_mode10 <- map(feedingSeasons_mode10, ~.x$sri)
+
 roostSeasons <- map(roosts_seasons, ~vultureUtils::getRoostEdges(.x, mode = "polygon", roostPolygons = roostPolygons, return = "sri", latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "roost_date"))
 # NOTE: using roosts_seasons, not roosts_seasons_mode10, for the roost network. So we end up including a lot more individuals in that network. 
 # #
 save(flightSeasons_mode10, file = "data/flightSeasons_mode10.Rda")
+save(flightSeasons_mode10_edges, file = "data/flightSeasons_mode10_edges.Rda")
 save(feedingSeasons_mode10, file = "data/feedingSeasons_mode10.Rda")
+save(feedingSeasons_mode10_edges, file = "data/feedingSeasons_mode10_edges.Rda")
 save(roostSeasons, file = "data/roostSeasons.Rda")
 
 load("data/flightSeasons_mode10.Rda")
