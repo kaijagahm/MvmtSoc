@@ -9,6 +9,8 @@ library(ggspatial)
 library(grid)
 library(ggmap)
 library(Polychrome)
+load("data/seasonNames_orig.Rda")
+seasonNames <- seasonNames_orig[-1]
 
 # Roosts map --------------------------------------------------------------
 r <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
@@ -34,7 +36,7 @@ ggplot(r) +
 # stamenwatercolor is pretty but not that useful
 # thunderforestlandscape is good and also shows terrain. Needs API key
 r_cropped <- st_crop(r, xmin = 34.7, xmax = 35.4,
-                        ymin = 30.58, ymax = 31.18)
+                     ymin = 30.58, ymax = 31.18)
 
 # get a palette of distinct colors
 colors <- Polychrome::glasbey.colors(nrow(r_cropped)+1) # don't want white, so took 19 colors (1 more than we have roost polygons in the cropped set below.)
@@ -55,7 +57,7 @@ ggsave(roostmap_1, filename = "fig/roostmap_1.png")
 mapview(r)
 
 r_cropped_2 <- st_crop(r, xmin = 34.7, xmax = 35.2,
-                     ymin = 30.57, ymax = 30.88)
+                       ymin = 30.57, ymax = 30.88)
 
 # get a palette of distinct colors
 colors <- Polychrome::glasbey.colors(nrow(r_cropped_2)+1) # don't want white, so took 19 colors (1 more than we have roost polygons in the cropped set below.)
@@ -95,10 +97,58 @@ feedingstationmap_1
 ggsave(feedingstationmap_1, file = "fig/feedingstationmap_1.png", width = 6)
 
 # Interactions map --------------------------------------------------------
+load("data/flightSeasons_mode10_edges.Rda")
+load("data/feedingSeasons_mode10_edges.Rda")
 
+fl <- flightSeasons_mode10_edges %>% 
+  map(., ~.x %>% 
+        select(ID1, ID2, distance, latID1, longID1, latID2, longID2, interactionLat, interactionLong) %>%
+        sf::st_as_sf(., coords = c("interactionLong", "interactionLat")))
+fe <- feedingSeasons_mode10_edges %>% 
+  map(., ~.x %>% 
+        select(ID1, ID2, distance, latID1, longID1, latID2, longID2, interactionLat, interactionLong) %>%
+        sf::st_as_sf(., coords = c("interactionLong", "interactionLat")))
+      
+mp <- ggmap(get_stamenmap(bbox = c(left = 34.56, bottom = 30.30, right = 35.72, top = 31.86), maptype = "terrain", zoom = 10))
 
+for(i in 1:length(seasonNames)){
+  nm <- paste("flight", seasonNames[i], "png", sep = ".")
+  dat <- fl[[i]]
+  szn <- seasonNames[i]
+  img <- mp +
+    theme_void()+
+    theme(legend.position = "none")+
+    geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "red", alpha = 0.2)+
+    # geom_sf(data = r_cropped_3, inherit.aes = F, fill = "purple")+
+    # geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "red", size = 2, alpha = 0.8)+
+    # geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
+    annotation_scale(location = "br")+
+    geom_text(aes(x = 34.75, y = 31.75,
+                  label = szn),
+              stat = "unique", fontface = "bold", size = 5)
+  ggsave(img, file = paste0("fig/interactionMaps/co-flight/", nm), width = 6)
+}
 
+for(i in 1:length(seasonNames)){
+  nm <- paste("feeding", seasonNames[i], "png", sep = ".")
+  dat <- fe[[i]]
+  szn <- seasonNames[i]
+  img <- mp +
+    theme_void()+
+    theme(legend.position = "none")+
+    geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "red", alpha = 0.2)+
+    # geom_sf(data = r_cropped_3, inherit.aes = F, fill = "purple")+
+    # geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "red", size = 2, alpha = 0.8)+
+    # geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
+    annotation_scale(location = "br")+
+    geom_text(aes(x = 34.75, y = 31.75,
+                  label = szn),
+              stat = "unique", fontface = "bold", size = 5)
+  ggsave(img, file = paste0("fig/interactionMaps/co-feeding/", nm), width = 6)
+}
 
-
-
-
+      
+      
+      
+      
+      
