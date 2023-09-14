@@ -42,11 +42,12 @@ colors <- colors[-1]
 swatch(colors)
 colors <- as.character(colors)
 
-roostmap_1 <- ggmap(get_stamenmap(bbox = c(left = 34.6, bottom = 30.53, right = 35.5, top = 31.18), maptype = "terrain-background", zoom = 10)) + 
+roostmap_1 <- ggmap(get_stamenmap(bbox = c(left = 34.6, bottom = 30.53, right = 35.5, top = 31.18), maptype = "terrain", zoom = 9)) + 
   theme_void()+
   geom_sf(data = r_cropped, inherit.aes = F, aes(fill = id))+
   theme(legend.position = "none")+
-  scale_fill_manual(values = colors)
+  scale_fill_manual(values = colors)+
+  annotation_scale(location = "br")
 roostmap_1
 ggsave(roostmap_1, filename = "fig/roostmap_1.png")
 
@@ -62,19 +63,37 @@ colors <- colors[-1]
 swatch(colors)
 colors <- as.character(colors)
 
-roostmap_2 <- ggmap(get_stamenmap(bbox = c(left = 34.7, bottom = 30.57, right = 35.2, top = 30.88), maptype = "terrain-background", zoom = 10)) + 
+roostmap_2 <- ggmap(get_stamenmap(bbox = c(left = 34.7, bottom = 30.57, right = 35.2, top = 30.88), maptype = "terrain", zoom = 9)) + 
   theme_void()+
   geom_sf(data = r_cropped_2, inherit.aes = F, aes(fill = id))+
   theme(legend.position = "none")+
-  scale_fill_manual(values = colors)
+  scale_fill_manual(values = colors)+
+  annotation_scale(location = "br")
 roostmap_2
 ggsave(roostmap_2, filename = "fig/roostmap_2.png")
 
-
-
-
 # Feeding stations map ----------------------------------------------------
-# Capture sites map -------------------------------------------------------
+fs <- read_csv("data/feeding_station_south_coordinates.csv")
+fs$lat <- as.numeric(str_trim(fs$lat))
+fs$long <- as.numeric(str_trim(fs$long))
+fs_ll <- sf::st_as_sf(fs, coords = c("long", "lat"), crs = "WGS84")
+cs <- read_csv("data/capture_sites.csv")
+cs_ll <- sf::st_as_sf(cs, coords = c("long", "lat"), crs = "WGS84")
+
+mapview(fs_utm) # quick and dirty map
+
+r_cropped_3 <- st_crop(r, xmin = 34.29, xmax = 35.57,
+                       ymin = 30.3, ymax = 31.40)
+feedingstationmap_1 <- ggmap(get_stamenmap(bbox = c(left = 34.29, bottom = 30.3, right = 35.57, top = 31.40), maptype = "terrain", zoom = 9)) + 
+  theme_void()+
+  theme(legend.position = "none")+
+  geom_sf(data = r_cropped_3, inherit.aes = F, fill = "purple")+
+  geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "red", size = 2, alpha = 0.8)+
+  geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
+  annotation_scale(location = "br")
+feedingstationmap_1
+ggsave(feedingstationmap_1, file = "fig/feedingstationmap_1.png", width = 6)
+
 # Interactions map --------------------------------------------------------
 
 
