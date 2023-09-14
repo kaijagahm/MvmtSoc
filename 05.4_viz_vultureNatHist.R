@@ -109,7 +109,7 @@ fe <- feedingSeasons_mode10_edges %>%
         select(ID1, ID2, distance, latID1, longID1, latID2, longID2, interactionLat, interactionLong) %>%
         sf::st_as_sf(., coords = c("interactionLong", "interactionLat"), crs = "WGS84"))
       
-mp <- ggmap(get_stamenmap(bbox = c(left = 34.56, bottom = 30.30, right = 35.72, top = 31.86), maptype = "terrain", zoom = 10))
+mp <- ggmap(get_stamenmap(bbox = c(left = 34.4, bottom = 30.2, right = 35.72, top = 31.86), maptype = "terrain", zoom = 10))
 
 for(i in 1:length(seasonNames)){
   nm <- paste("flight", seasonNames[i], "png", sep = ".")
@@ -123,10 +123,8 @@ for(i in 1:length(seasonNames)){
     geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
     geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "red", alpha = 0.2)+
     annotation_scale(location = "br")+
-    geom_text(aes(x = 34.75, y = 31.75,
-                  label = szn),
-              stat = "unique", fontface = "bold", size = 5)
-  ggsave(img, file = paste0("fig/interactionMaps/co-flight/", nm), width = 6)
+    ggtitle(szn)
+  ggsave(img, file = paste0("fig/interactionMaps/co-flight/", nm))
 }
 
 for(i in 1:length(seasonNames)){
@@ -141,10 +139,8 @@ for(i in 1:length(seasonNames)){
     geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
     geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "red", alpha = 0.2)+
     annotation_scale(location = "br")+
-    geom_text(aes(x = 34.75, y = 31.75,
-                  label = szn),
-              stat = "unique", fontface = "bold", size = 5)
-  ggsave(img, file = paste0("fig/interactionMaps/co-feeding/", nm), width = 6)
+    ggtitle(szn)
+  ggsave(img, file = paste0("fig/interactionMaps/co-feeding/", nm))
 }
 
       
