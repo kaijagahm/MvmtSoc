@@ -103,11 +103,11 @@ load("data/feedingSeasons_mode10_edges.Rda")
 fl <- flightSeasons_mode10_edges %>% 
   map(., ~.x %>% 
         select(ID1, ID2, distance, latID1, longID1, latID2, longID2, interactionLat, interactionLong) %>%
-        sf::st_as_sf(., coords = c("interactionLong", "interactionLat")))
+        sf::st_as_sf(., coords = c("interactionLong", "interactionLat"), crs = "WGS84"))
 fe <- feedingSeasons_mode10_edges %>% 
   map(., ~.x %>% 
         select(ID1, ID2, distance, latID1, longID1, latID2, longID2, interactionLat, interactionLong) %>%
-        sf::st_as_sf(., coords = c("interactionLong", "interactionLat")))
+        sf::st_as_sf(., coords = c("interactionLong", "interactionLat"), crs = "WGS84"))
       
 mp <- ggmap(get_stamenmap(bbox = c(left = 34.56, bottom = 30.30, right = 35.72, top = 31.86), maptype = "terrain", zoom = 10))
 
@@ -118,10 +118,10 @@ for(i in 1:length(seasonNames)){
   img <- mp +
     theme_void()+
     theme(legend.position = "none")+
+    geom_sf(data = r, inherit.aes = F, fill = "purple")+
+    geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "black", size = 2, alpha = 0.8)+
+    geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
     geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "red", alpha = 0.2)+
-    # geom_sf(data = r_cropped_3, inherit.aes = F, fill = "purple")+
-    # geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "red", size = 2, alpha = 0.8)+
-    # geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
     annotation_scale(location = "br")+
     geom_text(aes(x = 34.75, y = 31.75,
                   label = szn),
@@ -136,10 +136,10 @@ for(i in 1:length(seasonNames)){
   img <- mp +
     theme_void()+
     theme(legend.position = "none")+
+    geom_sf(data = r, inherit.aes = F, fill = "purple")+
+    geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "black", size = 2, alpha = 0.8)+
+    geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
     geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "red", alpha = 0.2)+
-    # geom_sf(data = r_cropped_3, inherit.aes = F, fill = "purple")+
-    # geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "red", size = 2, alpha = 0.8)+
-    # geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
     annotation_scale(location = "br")+
     geom_text(aes(x = 34.75, y = 31.75,
                   label = szn),
