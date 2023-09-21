@@ -118,7 +118,7 @@ degree_mod <- degree_3 #xxx this is weird, why is the maximal model retained?
 #xxx trying out emmeans:
 degree_test <- lmer(degree_scl ~ PC1*situ + PC2*situ + (1|Nili_id), data = forModeling)
 (degree.emm <- emmeans(degree_test, "situ", var = "PC2") )
-pairs(degree.emt)
+pairs(degree.emm)
 fiber.lm <- lm(strength ~ diameter*machine, data=fiber)
 # Obtain slopes for each machine ...
 ( fiber.emt <- emtrends(fiber.lm, "machine", var = "diameter") )

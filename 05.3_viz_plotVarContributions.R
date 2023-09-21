@@ -37,7 +37,7 @@ PC1contrib_quals <- contrib %>%
   ylab("PC1 % contribution")+
   xlab("")+
   theme_quals()
-ggsave(PC1contrib_quals, file = "fig/PC1contrib_quals.png", width = 7)
+ggsave(PC1contrib_quals, file = "fig/PC1contrib_quals.png", width = 7, height = 5)
 
 PC2contrib <- contrib %>%
   ggplot(aes(x = reorder(varName, PC2), y = PC2))+
@@ -54,5 +54,5 @@ PC2contrib_quals <- contrib %>%
   ylab("PC2 % contribution")+
   xlab("")+
   theme_quals()
-ggsave(PC2contrib_quals, file = "fig/PC2contrib_quals.png", width = 7)
+ggsave(PC2contrib_quals, file = "fig/PC2contrib_quals.png", width = 7, height = 5)
 
