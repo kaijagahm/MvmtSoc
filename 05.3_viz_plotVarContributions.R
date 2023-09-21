@@ -1,4 +1,5 @@
 load("data/contrib.Rda")
+source("ggplot_themes.R")
 # Variable contribution plots
 
 # plots -------------------------------------------------------------------
@@ -26,27 +27,32 @@ PC1contrib <- contrib %>%
   coord_flip()+
   ylab("PC1 % contribution")+
   xlab("")+
-  theme(panel.background = element_rect(fill = "#FFFCF6"),
-        plot.background = element_rect(fill = "#FFFCF6"),
-        text = element_text(color = "#7A695A", size = 18),
-        axis.text = element_text(color = "#7A695A"),
-        axis.ticks = element_line(color = "#7A695A"),
-        axis.line = element_line(color = "#7A695A"))+
-  NULL
+  theme_abs_2023()
 PC1contrib
+
+PC1contrib_quals <- contrib %>%
+  ggplot(aes(x = reorder(varName, PC1), y = PC1))+
+  geom_col(fill = "gray40")+
+  coord_flip()+
+  ylab("PC1 % contribution")+
+  xlab("")+
+  theme_quals()
+ggsave(PC1contrib_quals, file = "fig/PC1contrib_quals.png", width = 7)
 
 PC2contrib <- contrib %>%
   ggplot(aes(x = reorder(varName, PC2), y = PC2))+
   geom_col(fill = "#7A695A")+
   coord_flip()+
   ylab("PC2 % contribution")+
-  xlab("")+
-  theme(panel.background = element_rect(fill = "#FFFCF6"),
-        plot.background = element_rect(fill = "#FFFCF6"),
-        text = element_text(color = "#7A695A", size = 18),
-        axis.text = element_text(color = "#7A695A"),
-        axis.ticks = element_line(color = "#7A695A"),
-        axis.line = element_line(color = "#7A695A"))+
-  theme(text = element_text(size = 18))
+  xlab("")+theme_abs_2023()
 PC2contrib
+
+PC2contrib_quals <- contrib %>%
+  ggplot(aes(x = reorder(varName, PC2), y = PC2))+
+  geom_col(fill = "gray40")+
+  coord_flip()+
+  ylab("PC2 % contribution")+
+  xlab("")+
+  theme_quals()
+ggsave(PC2contrib_quals, file = "fig/PC2contrib_quals.png", width = 7)
 

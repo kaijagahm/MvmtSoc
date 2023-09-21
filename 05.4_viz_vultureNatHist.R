@@ -82,7 +82,7 @@ fs_ll <- sf::st_as_sf(fs, coords = c("long", "lat"), crs = "WGS84")
 cs <- read_csv("data/capture_sites.csv")
 cs_ll <- sf::st_as_sf(cs, coords = c("long", "lat"), crs = "WGS84")
 
-mapview(fs_utm) # quick and dirty map
+mapview(fs_ll) # quick and dirty map
 
 r_cropped_3 <- st_crop(r, xmin = 34.29, xmax = 35.57,
                        ymin = 30.3, ymax = 31.40)
@@ -119,9 +119,9 @@ for(i in 1:length(seasonNames)){
     theme_void()+
     theme(legend.position = "none")+
     geom_sf(data = r, inherit.aes = F, fill = "purple")+
-    geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "black", size = 2, alpha = 0.8)+
+    geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "red", size = 2, alpha = 0.8)+
     geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
-    geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "red", alpha = 0.2)+
+    geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "black", alpha = 0.5, pch = 4)+
     annotation_scale(location = "br")+
     ggtitle(szn)
   ggsave(img, file = paste0("fig/interactionMaps/co-flight/", nm))
@@ -135,9 +135,9 @@ for(i in 1:length(seasonNames)){
     theme_void()+
     theme(legend.position = "none")+
     geom_sf(data = r, inherit.aes = F, fill = "purple")+
-    geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "black", size = 2, alpha = 0.8)+
+    geom_sf(data = fs_ll, inherit.aes = F, aes(geometry = geometry), color = "red", size = 2, alpha = 0.8)+
     geom_sf(data = cs_ll, inherit.aes = F, aes(geometry = geometry), color = "yellow", size = 3, pch = 8)+
-    geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "red", alpha = 0.2)+
+    geom_sf(data = dat, inherit.aes = F, aes(geometry = geometry), size = 0.2, color = "black", alpha = 0.5, pch = 4)+
     annotation_scale(location = "br")+
     ggtitle(szn)
   ggsave(img, file = paste0("fig/interactionMaps/co-feeding/", nm))
