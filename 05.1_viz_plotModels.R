@@ -4,7 +4,8 @@ library(sjPlot)
 library(ggplot2)
 library(ggeffects)
 library(extrafont)
-font_import()
+#font_import()
+loadfonts()
 
 source("ggplot_themes.R")
 
@@ -48,7 +49,7 @@ ggplot(d_eff_pc1, aes(x, predicted))+
   geom_point(data = forModeling, aes(x = PC1, y = degree), alpha = 0.5, size = 0.7)+
   ylab("Degree")+
   xlab("Movement (PC1)")+
-  ggtitle("")
+  ggtitle("")+theme_quals()
 
 # What is the relationship between PC1 and degree, by situation? (We do have a significant interaction term between PC1 and situation)
 d_eff_pc1_situ <- as.data.frame(ggeffect(d, terms = c("PC1", "situ"))) %>%
@@ -183,7 +184,8 @@ s_eff_pc1_situ_season <- as.data.frame(ggeffect(s, terms = c("PC1", "situ", "sea
   mutate(facet = case_when(facet == "breeding" ~ "Breeding",
                            facet == "summer" ~ "Summer",
                            facet == "fall" ~ "Fall",
-                           TRUE ~ facet))
+                           TRUE ~ facet),
+         facet = factor(facet, levels = c("Breeding", "Summer", "Fall")))
 s_pc1_situ_season <- ggplot(s_eff_pc1_situ_season, aes(x, predicted)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
               alpha = 0.2, linewidth = 0.6, show.legend = F)+
@@ -220,14 +222,14 @@ pairs(pc1_situ_season_emt)
 # So basically, there is one type of negative relationship, present in breeding and fall, for feeding and roosting, with no further distinctions. 
 
 # What is the effect of PC2 on strength?
-s_eff_pc2 <- as.data.frame(ggeffect(s, terms = "PC2")) %>%
-  mutate(across(c("predicted", "conf.low", "conf.high"), ~exp(.x)))
+s_eff_pc2 <- as.data.frame(ggeffect(s, terms = "PC2")) #%>%
+  #mutate(across(c("predicted", "conf.low", "conf.high"), ~exp(.x)))
 s_pc2 <- ggplot(s_eff_pc2, aes(x, predicted)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
               alpha = 0.2, linewidth = 0.6, show.legend = F)+
   #geom_point(data = forModeling, aes(x = PC1, y = strength, col = situ), alpha = 0.5, size = 0.7)+
   geom_line(linewidth = 1)+
-  ylab("Strength")+
+  ylab("Strength (log-transformed)")+
   xlab("Exploration (PC2)")+
   ggtitle("")+theme_quals()
 ggsave(s_pc2, file = "fig/s_pc2.png", width = 9, height = 7)
