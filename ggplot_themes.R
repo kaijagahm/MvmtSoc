@@ -2,7 +2,7 @@ theme_quals <- function(){
   font <- "Calibri"   #assign font family up front
   
   theme_classic() %+replace%    #replace elements we want to change
-    theme(text = element_text(size = 18))
+    theme(text = element_text(size = 18, family = "Calibri"))
 }
 
 theme_abs_2023 <- function(){
