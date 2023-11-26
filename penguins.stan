@@ -9,8 +9,8 @@ data { //analogous to the data block in the R file.
 
 parameters {
   vector[3] alpha; // Three different intercepts, one for each species
-  vector[3] beta_bodymass; // Beta is the effect of body mass on flipper length
-  vector<lower=0>[3] sigma; // variance
+  real beta_bodymass; // Beta is the effect of body mass on flipper length
+  real sigma; // variance
 }
 
 // Now comes the actual model. Here we define the priors as coming from distributions,
@@ -18,12 +18,18 @@ parameters {
 model {
   //Priors
   alpha ~ normal(200,100); // 0 is mean, 10 is standard deviation
-  beta_bodymass ~ normal(0,1); // Same here
+  beta_bodymass ~ normal(0,100); // Same here
 
   // Here sigma is drawn from a gamma prior. It doesn't need to be...
   // But - sigma has a lower limit of 0, so drawing from a normal isn't going to help your model fit.
   sigma ~ gamma(3,2); //gamma is often good for sigma because it doesn't go below 0.
 
   //Here is where it all comes together!
-  flipperlength ~ normal(alpha[species] + beta_bodymass[species] .* bodymass, sigma[species]);
+  flipperlength ~ normal(alpha[species] + beta_bodymass * bodymass, sigma);
+}
+
+generated quantities {
+  vector[N] linpred = alpha[species] + beta_bodymass * bodymass;
+  vector[N] epred = linpred; // No inverse link function to apply here
+  array[N] real prediction = normal_rng(epred, sigma);
 }
