@@ -27,6 +27,7 @@ movementBehavior <- movementBehavior[seasonNames != "2020_summer"]
 
 # Create a dataset with all seasons combined
 allMovementBehavior <- purrr::list_rbind(movementBehavior)
+allMovementBehavior$sex[allMovementBehavior$sex == "NA"] <- NA
 colSums(is.na(allMovementBehavior))
 # Scale relative to all the seasons, not just one season (movementBehaviorScaled has vars scaled per season)
 allMovementBehavior_scaledAll <- allMovementBehavior %>%
@@ -86,7 +87,7 @@ forOverallPCA <- allMovementBehavior_scaledAll %>%
 pca_all <- prcomp(x = forOverallPCA[,-1])
 pca_all_princomp <- princomp(x = forOverallPCA[,-1])
 pca_all_dudi <- dudi.pca(df = forOverallPCA[,-1], nf = 3, scannf = FALSE)
-fviz_pca_biplot(pca_all, axes = c(1,2), 
+biplot <- fviz_pca_biplot(pca_all, axes = c(1,2), 
                 geom = c("point"), 
                 alpha.ind = 0.3,
                 # col.ind = "white",
@@ -99,6 +100,7 @@ fviz_pca_biplot(pca_all, axes = c(1,2),
   #       text = element_text(color = "white", size = 18),
   #       axis.text = element_text(color = "white"))+
   NULL
+ggsave(biplot, filename = "fig/biplot.png", width = 6, height = 4)
 contrib <- round(pca_all$rotation[,1:3]*100, 2) %>%
   as.data.frame()
 contrib
@@ -148,5 +150,3 @@ linked %>%
   facet_wrap(~season) # makes sense! As the DDT/DMD ratio increases, so does tortuosity. As expected. Good thing we fixed the tortuosity.
 
 linked %>% group_by(year, season, type) %>% summarize(n = length(unique(Nili_id))) # looks like the right number of individuals
-
-
