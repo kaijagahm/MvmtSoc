@@ -1,5 +1,5 @@
-load("data/contrib.Rda")
-source("ggplot_themes.R")
+load("data/derived/contrib.Rda")
+source("scripts/ggplot_themes.R")
 # Variable contribution plots
 
 # plots -------------------------------------------------------------------

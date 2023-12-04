@@ -5,8 +5,8 @@ library(sf)
 library(sp)
 library(raster)
 
-load("data/hrList_indivs.Rda")
-load("data/seasons.Rda")
+load("data/derived/hrList_indivs.Rda")
+load("data/derived/seasons.Rda")
 s <- map_chr(seasons, ~.x$seasonUnique[1])
 
 # For starters, let's see what href values we get when we run home range KUDs naively
@@ -33,11 +33,11 @@ plot(poly, add = TRUE)
 plot(sp, add = TRUE, cex = 0.01) # with image, this looks like a really bad representation, but with the 95% kernel it's a lot better.
 
 # okay, this is always going to be somewhat arbitrary. But maybe let's just go with 4000 for now?
-load("data/seasons_10min.Rda")
-load("data/seasons_20min.Rda")
-load("data/seasons_30min.Rda")
-load("data/seasons_60min.Rda")
-load("data/seasons_120min.Rda")
+load("data/orphan/seasons_10min.Rda")
+load("data/orphan/seasons_20min.Rda")
+load("data/orphan/seasons_30min.Rda")
+load("data/orphan/seasons_60min.Rda")
+load("data/orphan/seasons_120min.Rda")
 
 # Function to calculate home range size
 calcHR <- function(df, pct, h = 4000, idCol = "Nili_id"){
@@ -86,8 +86,8 @@ getHRs <- function(list){
 #   arrange(desc(rarefaction), .by_group = T) %>%
 #   mutate(areaVsAll = area/area[1],
 #          areaRelVsAll = areaRel/areaRel[1])
-# save(allHRs, file = "data/allHRs.Rda")
-load("data/allHRs.Rda")
+# save(allHRs, file = "data/derived/allHRs.Rda")
+load("data/derived/allHRs.Rda")
 
 (kdeRarefactions <- allHRs %>% 
   filter(areaVsAll < 1.5, areaVsAll > 0.6) %>% # eliminate some outliers

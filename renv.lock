@@ -16,6 +16,18 @@
       "Repository": "CRAN",
       "Hash": "68122010f01c4dcfbe58ce7112f2433d"
     },
+    "Brobdingnag": {
+      "Package": "Brobdingnag",
+      "Version": "1.2-9",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "Matrix",
+        "R",
+        "methods"
+      ],
+      "Hash": "00077243042334c50b74cdfafe172870"
+    },
     "CircStats": {
       "Package": "CircStats",
       "Version": "0.2-6",
@@ -596,12 +608,66 @@
       "Repository": "CRAN",
       "Hash": "d69a786e85775b126bddbee185ae6084"
     },
+    "bridgesampling": {
+      "Package": "bridgesampling",
+      "Version": "1.1-2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "Brobdingnag",
+        "Matrix",
+        "R",
+        "coda",
+        "methods",
+        "mvtnorm",
+        "parallel",
+        "scales",
+        "stringr",
+        "utils"
+      ],
+      "Hash": "a64d4be61a31696fec80dc24cef69a9c"
+    },
     "brio": {
       "Package": "brio",
       "Version": "1.1.3",
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "976cf154dfb043c012d87cddd8bca363"
+    },
+    "brms": {
+      "Package": "brms",
+      "Version": "2.20.4",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "Matrix",
+        "R",
+        "Rcpp",
+        "abind",
+        "backports",
+        "bayesplot",
+        "bridgesampling",
+        "coda",
+        "future",
+        "ggplot2",
+        "glue",
+        "grDevices",
+        "loo",
+        "matrixStats",
+        "methods",
+        "mgcv",
+        "nleqslv",
+        "nlme",
+        "parallel",
+        "posterior",
+        "rlang",
+        "rstan",
+        "rstantools",
+        "shinystan",
+        "stats",
+        "utils"
+      ],
+      "Hash": "157836c18abea8b51ef394f557309af8"
     },
     "broom": {
       "Package": "broom",
@@ -809,6 +875,22 @@
         "utils"
       ],
       "Hash": "5edbbabab6ce0bf7900a74fd4358628e"
+    },
+    "cmdstanr": {
+      "Package": "cmdstanr",
+      "Version": "0.6.1",
+      "Source": "unknown",
+      "Requirements": [
+        "R",
+        "R6",
+        "checkmate",
+        "data.table",
+        "jsonlite",
+        "posterior",
+        "processx",
+        "withr"
+      ],
+      "Hash": "56a08cc593fc5ddc263342209e5d1e14"
     },
     "coda": {
       "Package": "coda",
@@ -2739,6 +2821,13 @@
       ],
       "Hash": "c173af0ff1f3a9d4f6f4fbcc62d71c80"
     },
+    "nleqslv": {
+      "Package": "nleqslv",
+      "Version": "3.3.4",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "5825e6b8a2474066c5e7601a93ed1f17"
+    },
     "nlme": {
       "Package": "nlme",
       "Version": "3.1-162",
@@ -2863,6 +2952,22 @@
         "utils"
       ],
       "Hash": "8694e865941e3d79a29122f60a74249b"
+    },
+    "patchwork": {
+      "Package": "patchwork",
+      "Version": "1.1.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "ggplot2",
+        "grDevices",
+        "graphics",
+        "grid",
+        "gtable",
+        "stats",
+        "utils"
+      ],
+      "Hash": "63b611e9d909a9ed057639d9c3b77152"
     },
     "pbkrtest": {
       "Package": "pbkrtest",
@@ -3512,6 +3617,20 @@
         "stats4"
       ],
       "Hash": "4ac5b7639d28cd4fab19baaf46f33c6a"
+    },
+    "rstantools": {
+      "Package": "rstantools",
+      "Version": "2.3.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "Rcpp",
+        "RcppParallel",
+        "desc",
+        "stats",
+        "utils"
+      ],
+      "Hash": "5deb54a7658e89cc3d5ac4b534bcb344"
     },
     "rstatix": {
       "Package": "rstatix",

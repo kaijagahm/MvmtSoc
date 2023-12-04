@@ -19,12 +19,12 @@ library(broom.mixed)
 library(jtools) # similar to sjplot, for forest plots
 library(emmeans) # estimated marginal means/trends
 
-load("data/linked.Rda")
+load("data/derived/linked.Rda")
 
 # Set ggplot theme to classic
 theme_set(theme_classic())
 
-load("data/cc.Rda")
+load("data/derived/cc.Rda")
 
 # Here's an interesting reference article for some modeling stuff: https://biol607.github.io/lab/12_gzlm.html
 linked <- linked %>%
@@ -68,9 +68,9 @@ table(linked$situ) # as expected, we have more data for the roost network than f
 scaled_d <- scale(linked$degree)
 scaled_s <- scale(linked$strength)
 scaled_e <- scale(linked$evenness)
-save(scaled_d, file = "data/scaled_d.Rda")
-save(scaled_s, file = "data/scaled_s.Rda")
-save(scaled_e, file = "data/scaled_e.Rda")
+save(scaled_d, file = "data/derived/scaled_d.Rda")
+save(scaled_s, file = "data/derived/scaled_s.Rda")
+save(scaled_e, file = "data/derived/scaled_e.Rda")
 
 linked$degree_scl <- as.vector(scaled_d)
 linked$strength_scl <- as.vector(scaled_s)
@@ -80,7 +80,7 @@ getOption("rstudio.help.showDataPreview")# create and save a new dataset for mod
 minstrength <- linked %>% filter(strength != 0) %>% pull(strength) %>% min()
 forModeling <- linked %>%
   mutate(strength = strength + (minstrength/2))
-save(forModeling, file = "data/forModeling.Rda")
+save(forModeling, file = "data/derived/forModeling.Rda")
 
 ## Degree ------------------------------------------------------------------
 # 2023-06-05 going back to gaussian for now
@@ -195,6 +195,6 @@ evenness_mod <- NULL # for now
 # Get model effects ----------------------------------------------------------
 # We now have 3 models. Let's compile and tidy their outputs.
 mods <- list("d" = degree_mod, "s" = strength_mod, "e" = evenness_mod)
-save(mods, file = "data/mods.Rda")
+save(mods, file = "data/derived/mods.Rda")
 
 # here's info on how to interpret that log-transformed regression: https://data.library.virginia.edu/interpreting-log-transformations-in-a-linear-model/

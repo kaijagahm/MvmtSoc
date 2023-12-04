@@ -13,7 +13,7 @@ library(elevatr) # for getting elevation information
 library(raster) # for getting elevation information
 library(parallel) # for running long distance calculations in parallel
 library(future) # for parallel computing
-load("data/cc.Rda")
+load("data/derived/cc.Rda")
 
 distviz <- function(data, varname, seasoncol){
   p <- data %>%
@@ -31,9 +31,9 @@ distviz <- function(data, varname, seasoncol){
 }
 
 ## Load data ---------------------------------------------------------------
-base::load("data/seasons_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
-base::load("data/datasetAssignments.Rda")
-base::load("data/roosts_seasons.Rda") # don't need a separate roost dataset for the rarefied data, because roosts are only once per day, and it makes sense to use the most detailed dataset possible.
+base::load("data/derived/seasons_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
+base::load("data/orphan/datasetAssignments.Rda")
+base::load("data/derived/roosts_seasons.Rda") # don't need a separate roost dataset for the rarefied data, because roosts are only once per day, and it makes sense to use the most detailed dataset possible.
 roosts_seasons <- map(roosts_seasons, ~.x %>% group_by(Nili_id) %>% 
                         mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
 
@@ -41,7 +41,7 @@ roosts_seasons <- roosts_seasons[-1] # remove summer 2020
 datasetAssignments <- datasetAssignments[-1] # remove summer 2020
 test <- map2(roosts_seasons, datasetAssignments, ~left_join(.x, .y, by = "Nili_id"))
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
-roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
+roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
 
 durs <- map_dbl(seasons_10min, ~{
   dates <- lubridate::ymd(.x$dateOnly)
@@ -56,6 +56,8 @@ daysTracked_seasons <- map2(seasons_10min, durs, ~.x %>%
                               summarize(daysTracked = length(unique(dateOnly)),
                                         propDaysTracked = daysTracked/.y))
 names(daysTracked_seasons) <- seasonNames
+save(daysTracked_seasons, file = "data/derived/daysTracked_seasons.Rda")
+load("data/derived/daysTracked_seasons.Rda")
 dts <- purrr::list_rbind(daysTracked_seasons, names_to = "season")
 
 # VVV Visualize days tracked
@@ -73,19 +75,20 @@ hrList_indivs <- purrr::map(seasons_10min, ~.x %>%
                        st_drop_geometry() %>%
                        group_by(Nili_id) %>%
                        group_split(.keep = T))
-save(hrList_indivs, file = "data/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
-load("data/hrList_indivs.Rda")
+save(hrList_indivs, file = "data/derived/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
+load("data/derived/hrList_indivs.Rda")
 
 indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~sp::SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
-save(hrList_indivs_SP, file = "data/hrList_indivs_SP.Rda")
+save(hrList_indivs_SP, file = "data/derived/hrList_indivs_SP.Rda")
+load("data/derived/hrList_indivs_SP.Rda")
 
 kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
   if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
   else{k <- NULL} # changed back to the href value here--important to have different h for individuals with different numbers of points, and the fact that we'll take percentages of the resulting errors should mean that it comes out in the wash anyway.
   return(k)}, .progress = T))
-save(kuds_indivs, file = "data/kuds_indivs.Rda")
-load("data/kuds_indivs.Rda")
+save(kuds_indivs, file = "data/derived/kuds_indivs.Rda")
+load("data/derived/kuds_indivs.Rda")
 
 ### Core Area (50%) ---------------------------------------------------------
 coreAreas_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
@@ -274,8 +277,8 @@ calc_metrics <- function(data){
 
 # apply the calc_metrics() function to each season in the list using purrr::map()
 dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
-save(dailyMovementList_seasons, file = "data/dailyMovementList_seasons.Rda")
-load("data/dailyMovementList_seasons.Rda") 
+save(dailyMovementList_seasons, file = "data/derived/dailyMovementList_seasons.Rda")
+load("data/derived/dailyMovementList_seasons.Rda") 
 
 mnMvmt <- map(dailyMovementList_seasons, ~.x %>%
                 group_by(Nili_id) %>%
@@ -366,7 +369,7 @@ distviz(mbdf, varname = "mnTort", seasoncol = "seasonUnique")
 # I think these all look reasonable
 
 # Remove individuals not included for mode10 ------------------------------
-load("data/toKeep_fixrate.Rda")
+load("data/derived/toKeep_fixrate.Rda")
 toKeep_fixrate <- toKeep_fixrate[-1]
 movementBehavior_mode10 <- map2(movementBehavior, toKeep_fixrate, ~.x %>%
                                   filter(Nili_id %in% .y))
@@ -383,14 +386,14 @@ movementBehaviorScaled_mode10 <- map(movementBehavior_mode10, ~.x %>%
                                 })))
 
 ## Save raw movement data ------------------------------------------------------
-save(movementBehavior, file = "data/movementBehavior.Rda")
-save(movementBehaviorScaled, file = "data/movementBehaviorScaled.Rda")
+save(movementBehavior, file = "data/derived/movementBehavior.Rda")
+save(movementBehaviorScaled, file = "data/derived/movementBehaviorScaled.Rda")
 
-save(movementBehavior_mode10, file = "data/movementBehavior_mode10.Rda")
-save(movementBehaviorScaled_mode10, file = "data/movementBehaviorScaled_mode10.Rda") # not going to use this mode10 data--Noa and I have agreed that the PCA should be run on the main movementBehaviorScaled data, because we need to include all of the individuals that will eventually make it into *any* regression (e.g. roost situation). But I'm leaving this here just in case.
+save(movementBehavior_mode10, file = "data/derived/movementBehavior_mode10.Rda")
+save(movementBehaviorScaled_mode10, file = "data/derived/movementBehaviorScaled_mode10.Rda") # not going to use this mode10 data--Noa and I have agreed that the PCA should be run on the main movementBehaviorScaled data, because we need to include all of the individuals that will eventually make it into *any* regression (e.g. roost situation). But I'm leaving this here just in case.
 
 # Investigate the movement variables across datasets ----------------------
-load("data/toKeep_fixrate.Rda")
+load("data/derived/toKeep_fixrate.Rda")
 toKeep_fixrate <- toKeep_fixrate[-1]
 
 mb <- map2(movementBehavior, toKeep_fixrate, ~.x %>%

@@ -21,14 +21,14 @@ library(elevatr)
 # #   mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
 # #          year = as.numeric(lubridate::year(timestamp))) %>%
 # #   filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-05-15")) # cut this off at the same point as the ornitela data
-# # write_feather(inpadf_touse, "data/inpadf_touse.feather")
-# inpadf_touse <- read_feather("data/inpadf_touse.feather")
+# # write_feather(inpadf_touse, "data/derived/inpadf_touse.feather")
+# inpadf_touse <- read_feather("data/derived/inpadf_touse.feather")
 # # Ornitela: download data from movebank (just a subset of the times for now)
 # minDate <- "2020-09-01 00:00"
 # maxDate <- "2023-05-15 11:59"
 # # dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
-# # write_feather(dat, "data/dat.feather")
-# dat <- read_feather("data/dat.feather")
+# # write_feather(dat, "data/derived/dat.feather")
+# dat <- read_feather("data/derived/dat.feather")
 # # number of unique individuals
 # length(unique(dat$trackId)) # 127
 # length(unique(inpadf_touse$trackId)) # 77
@@ -56,7 +56,7 @@ library(elevatr)
 # length(unique(dat2$trackId)) # 206
 # 
 # # Add the Nili_id
-# ww <- read_excel("data/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
+# ww <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
 #   dplyr::select(Nili_id, Movebank_id) %>%
 #   distinct()
 # 
@@ -95,7 +95,7 @@ library(elevatr)
 # unique(dat3$Nili_id)
 # 
 # ## annotate the data with periods to remove
-# toRemove <- read_excel("data/whoswho_vultures_20230315_new.xlsx", sheet = "periods_to_remove")
+# toRemove <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "periods_to_remove")
 # 
 # toRemove <- toRemove %>%
 #   dplyr::select(Nili_id,
@@ -135,8 +135,8 @@ library(elevatr)
 # # Identify and remove capture dates using Marta's code --------------------
 # ## To identify the capture dates, first we need to classify the roosts (now using the get_roosts() function). Then, if the bird roosted within 500 m of the capture site, it was considered to be captured and that day, and the following day, are excluded from the dataset. This has been validated. Note: this protocol doesn't work for the Carmel because of the position of the roost sites relative to cages. But we're just dealing with southern individuals, so that's okay.
 # # roosts <- get_roosts_df(df = datAnnot, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
-# # save(roosts, file = "data/roosts.Rda")
-# load("data/roosts.Rda")
+# # save(roosts, file = "data/derived/roosts.Rda")
+# load("data/derived/roosts.Rda")
 # 
 # # Identify the period of time during which the capture sites are open (when we need to do this exclusion)
 # start.day <- 01
@@ -146,7 +146,7 @@ library(elevatr)
 # distance <- 500 # distance, in meters, to calculate from the cage
 # 
 # # Load the information about the capture sites
-# sites <- read.csv("data/capture_sites.csv")
+# sites <- read.csv("data/raw/capture_sites.csv")
 # 
 # # Subset the roost dataset with the start and end dates for the capture period
 # sub.roosts <- roosts %>%
@@ -190,7 +190,7 @@ library(elevatr)
 # sub.captured.no.carmel <- subset(sub.captured.dates, ClosestCaptureSite != "Carmel")
 # sub.captured.carmel <- subset(sub.captured.dates, ClosestCaptureSite == "Carmel")
 # 
-# AllCarmelDates <- read.csv("data/all_captures_carmel_2010-2021.csv")
+# AllCarmelDates <- read.csv("data/raw/all_captures_carmel_2010-2021.csv")
 # AllCarmelDates$Date <- as.Date(AllCarmelDates$Date, format = "%d/%m/%Y")
 # 
 # AllCarmelDates.1 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-1)))
@@ -236,7 +236,7 @@ library(elevatr)
 # 
 # # Age and sex info --------------------------------------------------------
 # # Attach age and sex information
-# as <- read_excel("data/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
+# as <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
 #   dplyr::select(Nili_id, birth_year, sex) %>%
 #   distinct()
 # 
@@ -250,10 +250,10 @@ library(elevatr)
 # 
 # # Clean the data
 # ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
-# mask <- sf::st_read("data/CutOffRegion.kml")
+# mask <- sf::st_read("data/raw/CutOffRegion.kml")
 # #datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 30, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) # XXX using 30 days overall. If we want 30 days per season, will have to do that differently (e.g. split the seasons earlier)--but I think that that'll be covered later in the data cleaning anyway.
-# #save(datAnnotCleaned, file = "data/datAnnotCleaned.Rda")
-# load("data/datAnnotCleaned.Rda")
+# #save(datAnnotCleaned, file = "data/derived/datAnnotCleaned.Rda")
+# load("data/derived/datAnnotCleaned.Rda")
 # length(unique(datAnnotCleaned$Nili_id)) # 172 individuals
 # # Fix time zone so dates make sense ---------------------------------------
 # ## Overwrite the dateOnly column from the new times
@@ -309,10 +309,10 @@ library(elevatr)
 #   group_split(.keep = T)
 # # extract the season names in case we need a separate vector at some point.
 # seasonNames_orig <- map_chr(seasons_orig, ~as.character(.x$seasonUnique[1])) # ok good, these are in the right order
-# save(seasons_orig, file = "data/seasons_orig.Rda")
-# save(seasonNames_orig, file = "data/seasonNames_orig.Rda")
-load("data/seasons_orig.Rda")
-load("data/seasonNames_orig.Rda")
+# save(seasons_orig, file = "data/derived/seasons_orig.Rda")
+# save(seasonNames_orig, file = "data/derived/seasonNames_orig.Rda")
+load("data/derived/seasons_orig.Rda")
+load("data/derived/seasonNames_orig.Rda")
 
 # Optionally remove individuals with a low fix rate -----------------------
 Mode <- function(x) { # function to calculate mode fix rate
@@ -336,18 +336,18 @@ toKeep_fixrate <- map(seasons, ~.x %>%
                         filter(minmode <= 10) %>%
                         pull(Nili_id) %>%
                         unique())
-save(toKeep_fixrate, file = "data/toKeep_fixrate.Rda")
-load("data/toKeep_fixrate.Rda")
+save(toKeep_fixrate, file = "data/derived/toKeep_fixrate.Rda")
+load("data/derived/toKeep_fixrate.Rda")
 seasons_mode10 <- map2(seasons, toKeep_fixrate, ~.x %>% filter(Nili_id %in% .y))
 
 # Save copies for social analysis
 # The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So, before I filter for ppd and for days tracked, going to save a copy to use for social analysis.
 seasons_forSoc <- seasons
 seasons_forSoc_mode10 <- seasons_mode10
-save(seasons_forSoc, file = "data/seasons_forSoc.Rda")
-save(seasons_forSoc_mode10, file = "data/seasons_forSoc_mode10.Rda")
-load("data/seasons_forSoc.Rda")
-load("data/seasons_forSoc_mode10.Rda")
+save(seasons_forSoc, file = "data/derived/seasons_forSoc.Rda")
+save(seasons_forSoc_mode10, file = "data/derived/seasons_forSoc_mode10.Rda")
+load("data/derived/seasons_forSoc.Rda")
+load("data/derived/seasons_forSoc_mode10.Rda")
 seasons_mode10 <- seasons_forSoc_mode10
 seasons <- seasons_forSoc
 
@@ -361,14 +361,14 @@ propRemoved # yikes that's a lot of birds. Alas.
 # roosts_seasons <- purrr::map(seasons, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
 # roosts_seasons <- roosts_seasons %>%
 #   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
-# save(roosts_seasons, file = "data/roosts_seasons.Rda")
-load("data/roosts_seasons.Rda")
+# save(roosts_seasons, file = "data/derived/roosts_seasons.Rda")
+load("data/derived/roosts_seasons.Rda")
 
 # roosts_seasons_mode10 <- purrr::map(seasons_mode10, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
 # roosts_seasons_mode10 <- roosts_seasons_mode10 %>%
 #   map(., ~st_as_sf(.x, crs = "WGS84", coords = c("location_long", "location_lat"), remove = F))
-# save(roosts_seasons_mode10, file = "data/roosts_seasons_mode10.Rda")
-load("data/roosts_seasons_mode10.Rda")
+# save(roosts_seasons_mode10, file = "data/derived/roosts_seasons_mode10.Rda")
+load("data/derived/roosts_seasons_mode10.Rda")
 
 # Remove nighttime points -------------------------------------------------
 # before <- map_dbl(seasons, nrow)
@@ -400,8 +400,8 @@ load("data/roosts_seasons_mode10.Rda")
 #                    sf::st_set_crs("WGS84") %>%
 #                    sf::st_transform(32636))
 # 
-# save(seasonsSF, file = "data/seasonsSF.Rda")
-load("data/seasonsSF.Rda")
+# save(seasonsSF, file = "data/derived/seasonsSF.Rda")
+load("data/derived/seasonsSF.Rda")
 
 ## Get centroids, so we can see who's "southern" for that season.
 centroids <- map(seasonsSF, ~.x %>%
@@ -599,12 +599,12 @@ seasons <- seasons[-1] # removing summer 2020
 # # XXXXXXX start here
 #seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
 #elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
-#save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
-load("data/elevs_z10_seasons.Rda")
+#save(elevs_z10_seasons, file = "data/derived/elevs_z10_seasons.Rda")
+load("data/derived/elevs_z10_seasons.Rda")
 
 # groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
-# save(groundElev_z10, file = "data/groundElev_z10.Rda")
-load("data/groundElev_z10.Rda")
+# save(groundElev_z10, file = "data/derived/groundElev_z10.Rda")
+load("data/derived/groundElev_z10.Rda")
 
 ## use elevation rasters to calculate height above ground level
 before <- seasons
@@ -619,14 +619,14 @@ after <- seasons
 all(map2_lgl(before, after, ~nrow(.x) == nrow(.y)))
 
 # Now restrict to the mode10 individuals ----------------------------------
-load("data/toKeep_fixrate.Rda")
+load("data/derived/toKeep_fixrate.Rda")
 toKeep_fixrate <- toKeep_fixrate[-1]
 seasons_mode10 <- map2(seasons, toKeep_fixrate, ~.x %>% filter(Nili_id %in% .y))
 
-save(seasons, file = "data/seasons.Rda")
-save(seasons_mode10, file = "data/seasons_mode10.Rda")
-load("data/seasons.Rda")
-load("data/seasons_mode10.Rda")
+save(seasons, file = "data/derived/seasons.Rda")
+save(seasons_mode10, file = "data/derived/seasons_mode10.Rda")
+load("data/derived/seasons.Rda")
+load("data/derived/seasons_mode10.Rda")
 
 # Downsample the data and save the downsampled data
 subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 10){
@@ -654,8 +654,8 @@ map_dbl(seasons_mode10, nrow)
 seasons_mode10_10min <- map(seasons_mode10_10min, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))))
 seasons_10min <- map(seasons_10min, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))))
 
-save(seasons_10min, file = "data/seasons_10min.Rda")
-save(seasons_mode10_10min, file = "data/seasons_mode10_10min.Rda")
+save(seasons_10min, file = "data/derived/seasons_10min.Rda")
+save(seasons_mode10_10min, file = "data/derived/seasons_mode10_10min.Rda")
 
 # no need to calculate roosts for the downsampled data because in theory there's only one point per night.
 

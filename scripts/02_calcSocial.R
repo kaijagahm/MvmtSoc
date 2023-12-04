@@ -4,17 +4,17 @@ library(vultureUtils)
 library(igraph)
 library(tidyverse)
 library(sf)
-source("evenness.R")
+source("scripts/evenness.R")
 
 ## Data ---------------------------------------------------------------
-load("data/seasons_forSoc.Rda")
-load("data/seasons_forSoc_mode10.Rda")
+load("data/derived/seasons_forSoc.Rda")
+load("data/derived/seasons_forSoc_mode10.Rda")
 seasons_forSoc <- map(seasons_forSoc, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
 seasons_forSoc_mode10 <- map(seasons_forSoc_mode10, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
-roostPolygons <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
-load("data/roosts_seasons.Rda")
-load("data/roosts_seasons_mode10.Rda")
-load("data/datasetAssignments.Rda")
+roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
+load("data/derived/roosts_seasons.Rda")
+load("data/derived/roosts_seasons_mode10.Rda")
+load("data/orphan/datasetAssignments.Rda")
 
 seasonNames <- map_chr(seasons_forSoc, ~as.character(.x$seasonUnique[1]))
 seasons_forSoc <- seasons_forSoc[-which(seasonNames == "2020_summer")]
@@ -52,15 +52,15 @@ feedingSeasons_mode10 <- map(feedingSeasons_mode10, ~.x$sri)
 roostSeasons <- map(roosts_seasons, ~vultureUtils::getRoostEdges(.x, mode = "polygon", roostPolygons = roostPolygons, return = "sri", latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "roost_date"))
 # NOTE: using roosts_seasons, not roosts_seasons_mode10, for the roost network. So we end up including a lot more individuals in that network. 
 # #
-save(flightSeasons_mode10, file = "data/flightSeasons_mode10.Rda")
-save(flightSeasons_mode10_edges, file = "data/flightSeasons_mode10_edges.Rda")
-save(feedingSeasons_mode10, file = "data/feedingSeasons_mode10.Rda")
-save(feedingSeasons_mode10_edges, file = "data/feedingSeasons_mode10_edges.Rda")
-save(roostSeasons, file = "data/roostSeasons.Rda")
+save(flightSeasons_mode10, file = "data/derived/flightSeasons_mode10.Rda")
+save(flightSeasons_mode10_edges, file = "data/derived/flightSeasons_mode10_edges.Rda")
+save(feedingSeasons_mode10, file = "data/derived/feedingSeasons_mode10.Rda")
+save(feedingSeasons_mode10_edges, file = "data/derived/feedingSeasons_mode10_edges.Rda")
+save(roostSeasons, file = "data/derived/roostSeasons.Rda")
 
-load("data/flightSeasons_mode10.Rda")
-load("data/feedingSeasons_mode10.Rda")
-load("data/roostSeasons.Rda")
+load("data/derived/flightSeasons_mode10.Rda")
+load("data/derived/feedingSeasons_mode10.Rda")
+load("data/derived/roostSeasons.Rda")
 
 flightSeasons_mode10_g <- map(flightSeasons_mode10, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 feedingSeasons_mode10_g <- map(feedingSeasons_mode10,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
@@ -116,7 +116,7 @@ networkMetrics <- networkMetrics %>%
 # Assign datasets
 datasetAssignments <- map2(datasetAssignments, seasonNames, ~.x %>% mutate(seasonUnique = .y)) %>% purrr::list_rbind()
 networkMetrics <- left_join(networkMetrics, datasetAssignments, by = c("Nili_id", "season" = "seasonUnique"))
-save(networkMetrics, file = "data/networkMetrics.Rda")
+save(networkMetrics, file = "data/derived/networkMetrics.Rda")
 
 # Investigate zeroes ------------------------------------------------------
 # Are zeroes for degree more likely to come from one dataset vs the other?
