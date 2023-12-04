@@ -50,6 +50,17 @@ linked %>%
   ylab("")+
   theme(text = element_text(size = 16))
 
+linked %>%
+  mutate(season = factor(season, levels = c("breeding", "summer", "fall"))) %>%
+  mutate(strength = strength + min(strength)/2) %>%
+  ggplot(aes(x = log(strength)))+
+  geom_density(aes(col = season), linewidth = 1.5)+
+  facet_wrap(~type, scales = "free_y")+
+  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["summerColor"]], cc[["fallColor"]]))+
+  xlab("Strength (log-transformed)")+
+  ylab("")+
+  theme(text = element_text(size = 16))
+
 # Number of vultures (all and focal) --------------------------------------
 
 focals <- linked %>%
