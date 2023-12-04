@@ -86,8 +86,8 @@ getHRs <- function(list){
 #   arrange(desc(rarefaction), .by_group = T) %>%
 #   mutate(areaVsAll = area/area[1],
 #          areaRelVsAll = areaRel/areaRel[1])
-# save(allHRs, file = "data/allHRs.Rda")
-load("data/allHRs.Rda")
+# save(allHRs, file = "data/derived/allHRs.Rda")
+load("data/derived/allHRs.Rda")
 
 (kdeRarefactions <- allHRs %>% 
   filter(areaVsAll < 1.5, areaVsAll > 0.6) %>% # eliminate some outliers
