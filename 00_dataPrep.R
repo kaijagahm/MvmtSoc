@@ -330,12 +330,12 @@ seasons <- map(seasons_orig, ~.x %>%
 
 # Exclude individuals that never have a daily mode of 10 minutes
 toKeep_fixrate <- map(seasons, ~.x %>%
-                sf::st_drop_geometry() %>%
-                group_by(Nili_id) %>%
-                summarize(minmode = min(mode, na.rm = T)) %>%
-                filter(minmode <= 10) %>%
-                pull(Nili_id) %>%
-                unique())
+                        sf::st_drop_geometry() %>%
+                        group_by(Nili_id) %>%
+                        summarize(minmode = min(mode, na.rm = T)) %>%
+                        filter(minmode <= 10) %>%
+                        pull(Nili_id) %>%
+                        unique())
 save(toKeep_fixrate, file = "data/toKeep_fixrate.Rda")
 load("data/toKeep_fixrate.Rda")
 seasons_mode10 <- map2(seasons, toKeep_fixrate, ~.x %>% filter(Nili_id %in% .y))
@@ -597,22 +597,22 @@ seasons <- after
 # Remove the first element of `seasons` because it doesn't have any data
 seasons <- seasons[-1] # removing summer 2020
 # # XXXXXXX start here
-seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
-save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
+#seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
+#elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
+#save(elevs_z10_seasons, file = "data/elevs_z10_seasons.Rda")
 load("data/elevs_z10_seasons.Rda")
 
 # groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
 # save(groundElev_z10, file = "data/groundElev_z10.Rda")
 load("data/groundElev_z10.Rda")
 
-
 ## use elevation rasters to calculate height above ground level
 before <- seasons
 seasons <- map2(.x = seasons, .y = groundElev_z10, 
-                ~.x %>% mutate(height_above_ground = .y,
-                               height_above_ground = case_when(height_above_ground < 0 ~ 0,
-                                                               TRUE ~ height_above_ground)))
+                ~.x %>% mutate(groundElev = .y) %>%
+                  mutate(height_above_ground = height_above_msl-groundElev,
+                         height_above_ground = case_when(height_above_ground < 0 ~ 0,
+                                                         TRUE ~ height_above_ground)))
 after <- seasons
 
 # There should be no change in the number of rows
@@ -662,11 +662,3 @@ save(seasons_mode10_10min, file = "data/seasons_mode10_10min.Rda")
 seasons_10min %>% purrr::list_rbind() %>% 
   group_by(seasonUnique) %>% 
   summarize(vultures = length(unique(Nili_id)))
-
-# 
-df <- data.frame(season = seasonNames,
-                 nBefore = map_dbl(seasons, nrow),
-                 nAfter = map_dbl(seasons_10min, nrow)) %>%
-  mutate(propChange = round((nBefore-nAfter)/nBefore, 2))
-
-
