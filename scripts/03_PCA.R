@@ -138,7 +138,7 @@ linked$PC2 <- linked$PC2*(-1) # flipping PC2 as well so it can be labeled as exp
 save(linked, file = "data/linked.Rda")
 contrib$PC1 <- contrib$PC1*(-1)
 contrib$PC2 <- contrib$PC2*(-1)
-save(contrib, file = "data/contrib.Rda")
+save(contrib, file = "data/derived/contrib.Rda")
 
 # Exploring ---------------------------------------------------------------
 # Orr wants to know whether higher tortuosity is correlated to a higher ratio between DDT and DMD. It should be.
