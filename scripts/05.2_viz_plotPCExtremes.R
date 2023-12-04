@@ -12,7 +12,7 @@ load("data/linked.Rda")
 load("data/seasons_10min.Rda")
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
 names(seasons_10min) <- seasonNames
-load("data/cc.Rda")
+load("data/derived/cc.Rda")
 
 daysTracked <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% dplyr::select(Nili_id, seasonUnique, daysTracked) %>% distinct()) %>% purrr::list_rbind()
 

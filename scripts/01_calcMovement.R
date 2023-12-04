@@ -13,7 +13,7 @@ library(elevatr) # for getting elevation information
 library(raster) # for getting elevation information
 library(parallel) # for running long distance calculations in parallel
 library(future) # for parallel computing
-load("data/cc.Rda")
+load("data/derived/cc.Rda")
 
 distviz <- function(data, varname, seasoncol){
   p <- data %>%

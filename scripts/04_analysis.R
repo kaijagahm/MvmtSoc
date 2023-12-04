@@ -24,7 +24,7 @@ load("data/linked.Rda")
 # Set ggplot theme to classic
 theme_set(theme_classic())
 
-load("data/cc.Rda")
+load("data/derived/cc.Rda")
 
 # Here's an interesting reference article for some modeling stuff: https://biol607.github.io/lab/12_gzlm.html
 linked <- linked %>%

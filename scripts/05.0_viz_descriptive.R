@@ -4,8 +4,8 @@ load("data/linked.Rda")
 
 # Set colors
 cc <- list("breedingColor" = "#2FF8CA", "summerColor" = "#CA2FF8", "fallColor" = "#F8CA2F", flightColor = "dodgerblue", roostingColor = "olivedrab4", "feedingColor" = "gold")
-save(cc, file = "data/cc.Rda")
-load("data/cc.Rda")
+save(cc, file = "data/derived/cc.Rda")
+load("data/derived/cc.Rda")
 
 # Check response variable distributions -----------------------------------
 linked %>%
