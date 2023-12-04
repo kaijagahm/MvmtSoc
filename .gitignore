@@ -2,6 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
-data/
 movebankCredentials/
-rosm.cache/cartolight/
+data/
