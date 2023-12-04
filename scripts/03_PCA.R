@@ -15,12 +15,12 @@ roostingColor = "brown1";
 flightColor = "skyblue3";
 
 ## Load data ------------------------------------------------------------
-load("data/movementBehavior.Rda")
-load("data/movementBehaviorScaled.Rda")
-load("data/networkMetrics.Rda")
+load("data/derived/movementBehavior.Rda")
+load("data/derived/movementBehaviorScaled.Rda")
+load("data/derived/networkMetrics.Rda")
 seasonNames <- map_chr(movementBehavior, ~.x$seasonUnique[1])
 all(networkMetrics$season %in% seasonNames) # check that season names match up--good.
-load("data/seasons_10min.Rda")
+load("data/derived/seasons_10min.Rda")
 
 # The summer season is mid-May through mid-September, but in 2020 we only have data starting September 4th. So I'm going to exclude summer 2020, since I don't think it's well represented.
 movementBehavior <- movementBehavior[seasonNames != "2020_summer"]
@@ -135,7 +135,7 @@ contrib # almost all the PC1 values are negative
 
 linked$PC1 <- linked$PC1*(-1)
 linked$PC2 <- linked$PC2*(-1) # flipping PC2 as well so it can be labeled as exploration
-save(linked, file = "data/linked.Rda")
+save(linked, file = "data/derived/linked.Rda")
 contrib$PC1 <- contrib$PC1*(-1)
 contrib$PC2 <- contrib$PC2*(-1)
 save(contrib, file = "data/derived/contrib.Rda")

@@ -7,13 +7,12 @@ library(extrafont)
 #font_import()
 loadfonts()
 
-source("ggplot_themes.R")
+source("scripts/ggplot_themes.R")
 
-#load("data/linked.Rda") # DO NOT LOAD THIS!!!
-load("data/forModeling.Rda") # loading this instead so we can run ggpredict properly.
-load("data/mods.Rda")
+load("data/derived/forModeling.Rda") # loading this instead so we can run ggpredict properly.
+load("data/derived/mods.Rda")
 load("data/derived/cc.Rda")
-load("data/scaled_d.Rda") # for un-scaling the degree model
+load("data/derived/scaled_d.Rda") # for un-scaling the degree model
 
 # Response variable distributions -----------------------------------------
 forModeling %>%

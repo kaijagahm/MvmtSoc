@@ -3,13 +3,13 @@ library(tidyverse)
 library(ggspatial)
 library(sf)
 library(grid)
-load("data/kuds_indivs.Rda")
-load("data/hrList_indivs.Rda")
+load("data/derived/kuds_indivs.Rda")
+load("data/derived/hrList_indivs.Rda")
 
 theme_set(theme_classic(base_size = 9))
 
-load("data/linked.Rda")
-load("data/seasons_10min.Rda")
+load("data/derived/linked.Rda")
+load("data/derived/seasons_10min.Rda")
 seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
 names(seasons_10min) <- seasonNames
 load("data/derived/cc.Rda")
@@ -223,10 +223,10 @@ indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 # get home ranges and core areas
 # hrs <- map(kuds_indivs, ~.x %>% map(., ~getverticeshr(.x, percent = 95)))
 # cas <- map(kuds_indivs, ~.x %>% map(., ~getverticeshr(.x, percent = 50)))
-# save(hrs, file = "data/hrs.Rda")
-# save(cas, file = "data/cas.Rda")
-load("data/hrs.Rda")
-load("data/cas.Rda")
+# save(hrs, file = "data/derived/hrs.Rda")
+# save(cas, file = "data/derived/cas.Rda")
+load("data/derived/hrs.Rda")
+load("data/derived/cas.Rda")
 
 # transform to sf objects
 hrs_sf <- map(hrs, ~do.call(rbind, .x)) %>% map(., ~sf::st_as_sf(.x))

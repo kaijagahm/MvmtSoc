@@ -9,11 +9,11 @@ library(ggspatial)
 library(grid)
 library(ggmap)
 library(Polychrome)
-load("data/seasonNames_orig.Rda")
+load("data/derived/seasonNames_orig.Rda")
 seasonNames <- seasonNames_orig[-1]
 
 # Roosts map --------------------------------------------------------------
-r <- sf::st_read("data/roosts50_kde95_cutOffRegion.kml")
+r <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
 # add an identifier column
 r$id <- factor(1:nrow(r))
 mapview(r, zcol = "id") # quick and dirty mapview
@@ -75,11 +75,11 @@ roostmap_2
 ggsave(roostmap_2, filename = "fig/roostmap_2.png")
 
 # Feeding stations map ----------------------------------------------------
-fs <- read_csv("data/feeding_station_south_coordinates.csv")
+fs <- read_csv("data/raw/feeding_station_south_coordinates.csv")
 fs$lat <- as.numeric(str_trim(fs$lat))
 fs$long <- as.numeric(str_trim(fs$long))
 fs_ll <- sf::st_as_sf(fs, coords = c("long", "lat"), crs = "WGS84")
-cs <- read_csv("data/capture_sites.csv")
+cs <- read_csv("data/raw/capture_sites.csv")
 cs_ll <- sf::st_as_sf(cs, coords = c("long", "lat"), crs = "WGS84")
 
 mapview(fs_ll) # quick and dirty map
@@ -97,8 +97,8 @@ feedingstationmap_1
 ggsave(feedingstationmap_1, file = "fig/feedingstationmap_1.png", width = 6)
 
 # Interactions map --------------------------------------------------------
-load("data/flightSeasons_mode10_edges.Rda")
-load("data/feedingSeasons_mode10_edges.Rda")
+load("data/derived/flightSeasons_mode10_edges.Rda")
+load("data/derived/feedingSeasons_mode10_edges.Rda")
 
 fl <- flightSeasons_mode10_edges %>% 
   map(., ~.x %>% 
