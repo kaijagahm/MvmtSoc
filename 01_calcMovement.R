@@ -13,6 +13,22 @@ library(elevatr) # for getting elevation information
 library(raster) # for getting elevation information
 library(parallel) # for running long distance calculations in parallel
 library(future) # for parallel computing
+load("data/cc.Rda")
+
+distviz <- function(data, varname, seasoncol){
+  p <- data %>%
+    ggplot(aes(x = .data[[varname]],
+               fill = factor(.data[[seasoncol]]),
+               color = factor(.data[[seasoncol]])))+
+    geom_histogram()+
+    facet_wrap(~.data[[seasoncol]])+
+    theme_classic()+
+    theme(legend.position = "none")+
+    xlab("")+
+    ylab("County")+
+    ggtitle(varname)
+  print(p)
+}
 
 ## Load data ---------------------------------------------------------------
 base::load("data/seasons_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
@@ -39,13 +55,19 @@ daysTracked_seasons <- map2(seasons_10min, durs, ~.x %>%
                               group_by(Nili_id) %>%
                               summarize(daysTracked = length(unique(dateOnly)),
                                         propDaysTracked = daysTracked/.y))
+names(daysTracked_seasons) <- seasonNames
+dts <- purrr::list_rbind(daysTracked_seasons, names_to = "season")
+
+# VVV Visualize days tracked
+distviz(dts, "propDaysTracked", "season")
 
 # Movement Behavior --------------------------------------------------------
 ## HOME RANGE ---------------------------------------------------------------
 ## Individual home ranges
-hrList_indivs <- purrr::map(seasons_10min, ~.x %>% # XXX not sure why this is throwing an error all of a sudden, as of 8/17/23
+hrList_indivs <- purrr::map(seasons_10min, ~.x %>%
                        dplyr::select(Nili_id) %>%
                        st_transform(32636) %>%
+                       ungroup() %>%
                        mutate(x = sf::st_coordinates(.)[,1],
                               y = sf::st_coordinates(.)[,2]) %>%
                        st_drop_geometry() %>%
@@ -63,6 +85,7 @@ kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
   else{k <- NULL} # changed back to the href value here--important to have different h for individuals with different numbers of points, and the fact that we'll take percentages of the resulting errors should mean that it comes out in the wash anyway.
   return(k)}, .progress = T))
 save(kuds_indivs, file = "data/kuds_indivs.Rda")
+load("data/kuds_indivs.Rda")
 
 ### Core Area (50%) ---------------------------------------------------------
 coreAreas_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
@@ -71,7 +94,6 @@ coreAreas_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
   else{area <- NA}
   return(area)
 }))
-
 
 ### Home Range (95%) ---------------------------------------------------------
 homeRanges_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
@@ -89,6 +111,13 @@ indsKUDAreas <- map2(indivs, areas, ~bind_cols("Nili_id" = .x, .y))
 ### Core Area Fidelity (50%/95%) --------------------------------------------
 indsKUDAreas <- map(indsKUDAreas, ~.x %>% 
                       mutate(coreAreaFidelity = coreArea/homeRange))
+names(indsKUDAreas) <- seasonNames
+ikuda_df <- purrr::list_rbind(indsKUDAreas, names_to = "season")
+
+# VVV Visualize core areas, home ranges, and ratios
+distviz(ikuda_df, "homeRange", "season")
+distviz(ikuda_df, "coreArea", "season")
+distviz(ikuda_df, "coreAreaFidelity", "season")
 
 ## ROOST SITE USE ----------------------------------------------------------
 # Make sure that each roost point intersects only one (or 0) roost (multi)polygon(s)
@@ -165,6 +194,44 @@ dfdSumm <- map(dfd, ~.x %>%
                            maxDFD = max(totalFlightDuration, na.rm = T),
                            medDFD = median(totalFlightDuration, na.rm = T)))
 
+names(dfdSumm) <- seasonNames
+dfddf <- purrr::list_rbind(dfdSumm, names_to = "season") %>%
+  mutate(meanDFD = meanDFD/60/60,
+         minDFD = minDFD/60/60,
+         maxDFD = maxDFD/60/60,
+         medDFD = medDFD/60/60)
+distviz(dfddf, "meanDFD", "season")
+distviz(dfddf, "minDFD", "season")
+distviz(dfddf, "maxDFD", "season")
+
+## Time spent flying in summer/fall/breeding
+dfddf <- dfddf %>%
+  mutate(szn = as.factor(str_extract(season, "summer|breeding|fall")),
+         year = str_extract(season, "[0-9]{4}"))
+
+# Do the seasons differ in mean daily flight duration?
+dfddf %>%
+  ggplot(aes(x = meanDFD, col = szn, group = factor(season)))+
+  geom_density(size = 1.5, alpha = 0.7)+
+  theme_classic()+
+  scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor))
+
+# what about min?
+dfddf %>%
+  ggplot(aes(x = minDFD, col = szn, group = factor(season)))+
+  geom_density(size = 1.5, alpha = 0.7)+
+  theme_classic()+
+  scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor)) # fewer zero days in summer! Makes sense.
+
+# what about max?
+dfddf %>%
+  ggplot(aes(x = maxDFD, col = szn, group = factor(season)))+
+  geom_density(size = 1.5, alpha = 0.7)+
+  theme_classic()+
+  scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor)) #less differentiation, but still the order we expect.
+
+# To see whether this trend is true within individuals, we'd have to do a mixed model. Seems like overkill for this, but it might be a worthwhile question in itself (or maybe someone has done it already?) #XXX add to questions for Marta
+
 ### Daily Distance Traveled/Mean Displacement -------------------------------
 
 # set up parallel backend with 4 sessions (change this to match your machine)
@@ -184,7 +251,8 @@ calc_displacements <- function(group) {
 calc_metrics <- function(data){
   # split the data by Nili_id and dateOnly
   groups <- data %>%
-    dplyr::group_split(Nili_id, dateOnly)
+    dplyr::group_by(Nili_id, dateOnly) %>%
+    group_split()
 
   # run the distance calculations in parallel using furrr::future_map()
   disp_data <- furrr::future_map_dfr(groups, calc_displacements)
@@ -217,25 +285,46 @@ mnMvmt <- map(dailyMovementList_seasons, ~.x %>%
 
 mnMvmt[[1]] %>% is.na() %>% colSums() # yessssssssssssssss
 
+names(mnMvmt) <- seasonNames
+mm <- purrr::list_rbind(mnMvmt, names_to = "season")
+distviz(mm, "meanDMD", "season")
+distviz(mm, "meanDDT", "season") # huh, those distributions do seem to differ more...
+distviz(mm, "mnTort", "season")
+
+# Would be good to do this by season same as above
+
 ### Altitude -------------------------------------------------
 # daily altitude stats
 # Note that I've already cleaned outlier altitudes in 00_dataPrep.R. 
 # Now just need to restrict to ground_speed > 5m/s
 dailyAltitudes <- map(seasons_10min, ~.x %>%
                         st_drop_geometry() %>%
-                        filter(ground_speed >= 5) %>%
+                        filter(ground_speed >= 5) %>% # we only care about the altitude of in-flight points.
                         group_by(Nili_id, dateOnly) %>%
                         summarize(meanAltitude = mean(height_above_ground, na.rm  =T),
                                   maxAltitude = max(height_above_ground, na.rm = T),
-                                  medAltitude = median(height_above_ground, na.rm = T),
-                                  propOver1km = sum(height_above_ground > 1000)/n()))
+                                  medAltitude = median(height_above_ground, na.rm = T)) %>%
+                        mutate(meanAltitude = case_when(meanAltitude < 0 ~ NA,
+                                                        TRUE ~ meanAltitude),
+                               maxAltitude = case_when(maxAltitude < 0 ~ NA, 
+                                                       TRUE ~ maxAltitude),
+                               medAltitude = case_when(medAltitude < 0 ~ NA,
+                                                       TRUE ~ medAltitude)))
 names(dailyAltitudes) <- seasonNames
+
+dailyAltitudes %>%
+  purrr::list_rbind(names_to = "season") %>%
+  ggplot(aes(x = meanAltitude, group = interaction(Nili_id, season), col = season))+
+  geom_density(alpha = 0.5)+
+  theme_classic()+
+  ylab("")+
+  xlab("Mean daily flight altitude (m)")+
+  facet_wrap(~season)
 
 dailyAltitudesSumm <- map(dailyAltitudes, ~.x %>%
                             group_by(Nili_id) %>%
                             summarize(mnDailyMaxAlt = mean(maxAltitude, na.rm = T),
                                       mnDailyMnAlt = mean(meanAltitude, na.rm = T),
-                                      mnDailyPropOver1km = mean(propOver1km, na.rm = T),
                                       mnDailyMedAlt = mean(medAltitude, na.rm = T)))
 
 ## ALL (compile movement metrics) --------------------------------------------
@@ -255,6 +344,26 @@ ageSex <- map(seasons_10min, ~.x %>% st_drop_geometry() %>%
 
 movementBehavior <- map2(movementBehavior, ageSex, ~left_join(.x, .y, by = "Nili_id"))
 
+
+# Visualize ---------------------------------------------------------------
+mbdf <- purrr::list_rbind(movementBehavior)
+distviz(mbdf, varname = "coreArea", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "homeRange", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "coreAreaFidelity", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "mnDailyMaxAlt", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "mnDailyMnAlt", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "mnDailyMedAlt", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "propSwitch", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "shannon", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "uniqueRoosts", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "meanDFD", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "minDFD", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "maxDFD", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "medDFD", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "meanDMD", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "meanDDT", seasoncol = "seasonUnique")
+distviz(mbdf, varname = "mnTort", seasoncol = "seasonUnique")
+# I think these all look reasonable
 
 # Remove individuals not included for mode10 ------------------------------
 load("data/toKeep_fixrate.Rda")
