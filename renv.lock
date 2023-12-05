@@ -4153,20 +4153,6 @@
       ],
       "Hash": "d683341b1fa2e8d817efde27d6e6d35b"
     },
-    "svMisc": {
-      "Package": "svMisc",
-      "Version": "1.2.3",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Requirements": [
-        "R",
-        "methods",
-        "stats",
-        "tools",
-        "utils"
-      ],
-      "Hash": "b13f5680860f67c32ccb006ad38f24f4"
-    },
     "svUnit": {
       "Package": "svUnit",
       "Version": "1.0.6",
