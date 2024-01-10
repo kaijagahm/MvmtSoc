@@ -234,6 +234,19 @@
       ],
       "Hash": "45f0398006e83a5b10b72a90663d8d8c"
     },
+    "RSpectra": {
+      "Package": "RSpectra",
+      "Version": "0.16-1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "Matrix",
+        "R",
+        "Rcpp",
+        "RcppEigen"
+      ],
+      "Hash": "6b5ab997fd5ff6d46a5f1d9f8b76961c"
+    },
     "Rcpp": {
       "Package": "Rcpp",
       "Version": "1.0.10",
@@ -2821,6 +2834,21 @@
       ],
       "Hash": "c173af0ff1f3a9d4f6f4fbcc62d71c80"
     },
+    "network": {
+      "Package": "network",
+      "Version": "1.18.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "magrittr",
+        "statnet.common",
+        "stats",
+        "tibble",
+        "utils"
+      ],
+      "Hash": "5e4fda9d3ed359d1b155d46a36681191"
+    },
     "nleqslv": {
       "Package": "nleqslv",
       "Version": "3.3.4",
@@ -4041,6 +4069,19 @@
       ],
       "Hash": "abdaf883004a4791545655d79ca3aae0"
     },
+    "sna": {
+      "Package": "sna",
+      "Version": "2.7-2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "network",
+        "statnet.common",
+        "utils"
+      ],
+      "Hash": "050b4098cef7fa1827c5c199559fde1f"
+    },
     "sourcetools": {
       "Package": "sourcetools",
       "Version": "0.1.7-1",
@@ -4094,6 +4135,21 @@
         "methods"
       ],
       "Hash": "55cafdb25f64a02bcbbe0467e5611a76"
+    },
+    "statnet.common": {
+      "Package": "statnet.common",
+      "Version": "4.9.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "coda",
+        "methods",
+        "parallel",
+        "tools",
+        "utils"
+      ],
+      "Hash": "be35aebf512f7b31de12200d5c3d1d67"
     },
     "stringi": {
       "Package": "stringi",
@@ -4418,6 +4474,18 @@
         "xfun"
       ],
       "Hash": "e4e357f28c2edff493936b6cb30c3d65"
+    },
+    "tnet": {
+      "Package": "tnet",
+      "Version": "3.0.16",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "igraph",
+        "survival"
+      ],
+      "Hash": "1625865c6eebcbef12a3e81cdb9fd2cd"
     },
     "tzdb": {
       "Package": "tzdb",
