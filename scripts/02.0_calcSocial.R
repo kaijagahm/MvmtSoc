@@ -66,6 +66,20 @@ flightSeasons_mode10_g <- map(flightSeasons_mode10, ~vultureUtils::makeGraph(mod
 feedingSeasons_mode10_g <- map(feedingSeasons_mode10,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 roostSeasons_g <- map(roostSeasons,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 
+# Describing the networks -------------------------------------------------
+# Network-level measures
+fldens <- map(flightSeasons_mode10_g, igraph::edge_density) %>% unlist()
+fedens <- map(feedingSeasons_mode10_g, igraph::edge_density) %>% unlist()
+rodens <- map(roostSeasons_g, igraph::edge_density) %>% unlist()
+dens <- data.frame(season = factor(seasonNames, levels = seasonNames), flight = fldens, feeding = fedens, roosting = rodens) %>%
+  pivot_longer(cols = c("flight", "feeding", "roosting"), names_to = "type", values_to = "density")
+
+dens %>%
+  ggplot(aes(x = season, y = density, col = type, group = type))+
+  geom_point()+
+  geom_line()
+
+# Extracting individual-level network measures ----------------------------
 networkMetrics <- map2_dfr(flightSeasons_mode10_g, seasonNames, ~{
   df <- data.frame(degree = igraph::degree(.x),
                    strength = igraph::strength(.x),
