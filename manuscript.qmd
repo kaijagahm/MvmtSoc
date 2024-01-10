@@ -1,0 +1,18 @@
+---
+title: "Manuscript draft"
+format: html
+editor: visual
+author: Kaija Gahm
+---
+
+# Introduction
+
+The social structure of animal groups has consequences for disease transmission, information sharing, and population dynamics. At the population level, the density and modularity of social interaction networks can drive epidemic probability and duration
+
+# Research Questions
+
+# Methods
+
+# Results
+
+# Discussion
