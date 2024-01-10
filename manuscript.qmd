@@ -29,6 +29,16 @@ Eurasian griffon vultures (*Gyps fulvus*) provide a study system well suited to 
 
     -   Feeding: Communal feeding at carcasses. Also sometimes standing around the carcass site. Sometimes associate for a while before beginning to feed, e.g. waiting for critical mass to be reached (Orr Spiegel, pers. comm.) Potentially also important for disease transmission \[but not, cf. ref Elvira Nili\].
 
+While some griffon vultures make long-range forays \[REFS\], there is a mostly resident population in a relatively small area in southern Israel \[REF\]. The population is small and restricted enough that individuals' home ranges are highly overlapping, with most individuals using a large fraction of available space in the region. This makes habitat features likely to affect most individuals similarly, though age has been shown to factor into flight skill and could therefore impact movement @harel2016. GPS fixes are taken once every 10 minutes, frequently enough to measure flight movements with good accuracy, and most individuals are tracked for several months to several years. Individuals have previously been shown to vary in their social network positions in each of the three social situations, with centrality in one situation not necessarily predicting centrality in another and each situation contributing differently to the overall social structure of the population @sharma2023.\
+\
+\[General introduction to the importance of time scale in social network analysis\]
+
+-   @blonder2012, @cantor2012, @hobson2013, @rasmussen2013, @holme2015, @farine2018, @fisher2021, @pasquaretta2021
+
+Social situations occur over different time scales, and this is an important consideration when studying the causes and consequences of their structure. In defining co-roosting, co-flight, and co-feeding interactions based on proximity in each of these behavioral situations, we have created social networks in which edges already conceptually represent interactions over different amounts of time. Because individuals have one roosting location per night, edge weights in the co-roosting network are measured in units of days, while pairs of individuals can interact many times in flight or at a carcass on a given day.\
+\
+The biological processes driving the execution of these behaviors and the formation of these networks are likewise happening over different time scales. An individual must decide once per day which roost to go to @harel2016. But flight is a continuous process driven by many decisions resulting from individual and social information @sassi2023, and feeding events are concentrated in time on a given day. Feeding events are driven by the temporal rhythm of the appearance of carcasses, which occur naturally or are provisioned every \[NUMBER\] days and persist for hours to a few days (Orr Spiegel, pers. comm.). Individuals may return to the same carcass on successive days. While at a carcass, individuals may fight and interact many times.
+
 # Research Questions
 
 # Methods
