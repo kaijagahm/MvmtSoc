@@ -2,12 +2,18 @@
 title: "Manuscript draft"
 format: html
 editor: visual
-author: Kaija Gahm
+date: last-modified
+author: Kaija Gahm, [others]
 bibliography: references.bib
 csl: the-american-naturalist.csl
 ---
 
 # Introduction
+
+```{r}
+#| include: false
+library(tidyverse)
+```
 
 The social structure of animal groups has consequences for disease transmission, information sharing, and population dynamics. At the population level, the density and modularity of social interaction networks can drive epidemic probability and duration (@sah2017, @silk2017), govern the flow of information about food resources \[REF\], and contribute to population persistence through Allee effects \[REF\]. Individuals differ in their encounter rates, number of contacts, and centrality in the population social network \[REF\]. For individual animals, which make up the social environment of the group. social centrality in different behavioral situations contributes to their likelihood of contracting disease, finding mates, or accessing resources \[REFS\]. For example, in networks with high levels of degree heterogeneity, the most connected individuals may function as disease superspreaders (@lloyd-smith2005). For example, possums with higher betweenness and closeness in a social network had higher infection rates (@corner2003), and higher connectivity in lizards was associated with a greater parasite load (@godfrey2009). In general, individuals that are more central in the social network both have a higher infection risk and transmit disease more quickly than those that are more peripheral (@romano2016, @balasubramaniam2019).
 
@@ -41,8 +47,190 @@ The biological processes driving the execution of these behaviors and the format
 
 # Research Questions
 
+Q1: What is the relationship between spatial phenotype and social interactions?
+
+-   H1A: Individuals that move more will have more, and stronger, encounters with other unique individuals.
+
+    -   P1A: Vultures that move more will encounter more others (higher degree centrality in the social network) and have more interactions (higher strength in the social network) than vultures who move less.
+
+-   H1B: Individuals that are more exploratory will have more but weaker encounters with other unique individuals.
+
+    -   P1B: Exploratory vultures will encounter more unique individuals (higher degree centrality), but will have fewer interactions (lower strength) compared to less exploratory vultures.
+
+Q2: How is the relationship between spatial phenotype and social interactions impacted by social situation and season?
+
+-   H2A: Social situations in which animals move more will have a greater impact on social interactions
+
+    -   P2A: Social centrality in co-flight networks will be more strongly associated with spatial phenotype than in co-roosting and co-feeding behavioral situations.
+
+-   H2B: Seasons in which animals move more will have a stronger impact on social interactions
+
+    -   P2B: The relationship between movement and social position will be stronger in the non-breeding seasons (summer and fall) than during the breeding season.
+
+Q3: How does the time scale of movement predict social interactions?
+
+-   H3A: The relationship between movement and social centrality will be strongest within the time scales at which change occurs in the social network.
+
+    -   P3A: Co-flight networks will change hourly to daily, co-feeding networks will change every few days, and co-roosting networks will change over longer periods of time (weeks to months).
+
+    -   P3B: Social position in each of the social situations will be best predicted by individuals' movement patterns aggregated over the corresponding time scale.
+
 # Methods
 
+## Study system
+
+To answer these questions, we drew on data from a free-flying population of Eurasian griffon vultures (Gyps fulvus) fitted with GPS tags. \[tag specs\]. Over the period 2020-09-01 to 2023-05-15, the dataset contained \[number\] of tagged vultures. Tags recorded GPS fixes, as well as speed and heading readings, every 10 minutes when battery conditions allowed. The GPS data are stored on Movebank @kays2022 and were loaded into R using the `move` package @kranstauber2023.
+
+## Tagging and aging
+
+\[Tagging methods\] For each vulture, age was determined using \[methods\]
+
+## Data cleaning
+
+We subsetted the dataset to exclude periods of time that vultures spent in capture cages, in the wildlife hospital following poisonings or injuries, or in captivity prior to wild release (in the case of captive-born birds). We cleaned the remaining data to remove invalid GPS fixes \[more details\]. Then we split data from each into three seasons. The fall, or "pre-breeding," season includes dates from 15 September through 14 December; the breeding season lasts from 15 December through 14 May of the following year; and the summer lasts from 15 May through 14 September. These season boundaries were chosen based on biological knowledge of the vultures' breeding timelines (see more details in the Study System section). Therefore, the analysis contained a total of 8 seasons, from the fall of 2020 through the 2023 breeding season (Table X). All of these data was reserved for use in proximity-based social network analysis. Since the GPS tags give few to no fixes overnight, and since reception is often very poor on the cliffs where vultures roost, we combined information from individuals' last locations of the evening and first locations of the morning to assign a roost site for each individual on each night \[more details\]. Full details about the data cleaning and roost assignment procedure can be found in the supplementary material.
+
+To characterize individual movement behavior and spatial phenotype, we cleaned the data further. We restricted movement points to the period between sunrise and sunset (calculated for each day with respect to a point at the centroid of Israel using the R package suncalc @thieurmel2022. We restricted movement calculations to a set of focal individuals with activity regions centered in the Negev region of Israel, the site of most of our tagging effort. For each vulture, we also removed days with too few GPS fixes. Fixes were ideally collected every 10 minutes, but sometimes they were less frequent due to bad cellular reception in the cliff areas where vultures often sit or due to low battery charge. For each individual, only days with 10 or more GPS fixes per day were retained, unless the battery charge never dipped below 50% during that day. In those cases, the low number of points was attributed to the vultures spending most of their time sitting on a cliff without much movement, rather than to missed points due to low battery. Since these sedentary days represent an important component of vulture movement behavior, we retained this information (Orr Spiegel, pers. obs.).
+
+\[Geography\]
+
+For each season, we calculated movement measures only for individuals tracked for at least 30 days (after removing low-point days as described above). We calculated flight altitude by extracting ground elevation information from elevation rasters obtained from the `elevatr` R package @hollister2022, at a zoom level of \[level–more details about resolution?\] and subtracting those numbers from the vultures' tag-mounted altimeter readings. Finally, since some tags were occasionally set to a much higher fix rate (e.g. every 1 minute) for short periods of time, we downsampled the data to a 10 minute fix rate to make sure that all individuals had comparable fix rates.
+
+## Movement calculations
+
+For each focal individual, we characterized a pattern-based spatial phenotype (Webber et al. 2023) by calculating a variety of movement and space use measures over the course of each of the eight seasons. Using the `adehabitatHR` package @calenge2023, we calculated home range as the 95% kernel utilization distribution (KUD) of a vulture's GPS fixes in a season; core area as the 50% KUD, and core area use intensity as the ratio of the 50% to the 95% KUD.
+
+To quantify roosting behavior, we assigned each individual's night roost site to a pre-defined roost site polygon determined from clustering of \[years\] of vulture roost locations \[more details?\]. Then, for each vulture in each season, we calculated the number of unique roosts used, the proportion of nights switching roosts (versus returning to the same roost as the previous night), and the diversity of roosts used (Shannon diversity index).
+
+We identified in-flight fixes (ground speed \>= 5 m/s) and calculated measures of daily flight behavior, including maximum and median daily flight altitude and daily flight time (the sum of time intervals between adjacent in-flight fixes). Finally, we used all fixes to calculate daily distance traveled (the sum of all distances between successive fixes); daily maximum displacement (the straight-line distance between the beginning of the daily movement track and the farthest point reached on that day); and movement tortuosity (cumulative distance to the point of maximum displacement divided by the straight-line distance to the point of maximum displacement @benhamou2004). We took seasonal means of each of these individual daily measures to get a single value per individual vulture, per season.
+
+## Summarizing movement measures
+
+To gain a complete picture of individual vultures' spatial phenotype, we summarized the above-described movement measures (centered and scaled) in a principal component analysis. The first two principal components together explained 65% of the variance in spatial phenotype (Table X).
+
+PC1 explained 47.6% of the variance in spatial phenotype. All movement variables except tortuosity loaded positively on PC1, with the strongest contributors being mean daily maximum displacement, roost diversity, and proportion of nights roost-switching (Figure X). Overall, we can understand PC1 as an aggregate measure of individual movement. Vultures with high PC1 values cover more area, use more different roosts, travel farther, spend more time flying, and have straighter trajectories.
+
+PC2 explained 17.4% of the variance in spatial phenotype. The space use variables loaded positively on this principal component, while flight variables (both altitude measures, daily distance traveled, and daily flight time) contributed strongly negatively (Figure X). We can understand PC2 as a rough measure of exploratory behavior. Vultures with high PC2 values use a larger spatial area, while those with low PC2 values fly higher and spend more time flying (in a more concentrated area).
+
+## Construction of proximity-based social networks
+
+Using GPS fixes from the tagged vultures, we created proximity-based social networks in three different social situations, following @sharma2023: co-flight, co-feeding (diurnal ground interactions) and co-roosting (nocturnal ground interactions). Networks were created separately for each of the eight seasons. For each social situation in each season, we created a weighted, undirected network. Because not all individuals were tagged for exactly the same period of time, and to account for missing data due to low tag battery or poor reception, we calculated the simple ratio index (SRI) to quantify the strength of the association between each pair of vultures in each social situation. We calculated SRI by dividing the number of 10-minute time periods during which two vultures were observed interacting by the number of time periods during which both vultures had a recorded GPS fix (whether or not they were interacting during that period) @ginsberg1992. Thus, two vultures who never interacted in a given social situation would have an SRI of 0, while two individuals who were interacting in every time period during which a GPS fix was collected for both of them would have an SRI of 1.
+
+Non-focal vultures (e.g. those that did not always have enough points per day, or those that were not tracked for at least 30 days per season) were included in our calculations of social interactions. Even if an individual did not have enough data to calculate meaningful movement measures, it could still contribute to a focal individual's position in the social network. Defining edge weights with SRI ensured that missing data for these non-focal birds did not bias edge weight estimates for their social relationships.
+
+### Co-flight
+
+Vultures were considered to be flying if their ground speed (collected by a sensor on the GPS tags) was \> 5 m/s @spiegel2013 . Because vultures can see each other over long distances @pennycuick1972, @spiegel2013a , and in accordance with @sharma2023, we defined a co-flight interaction as two individuals flying within 1000m of each other for at least two consecutive 10-minute time periods.
+
+Co-feeding
+
+Vultures that were not flying (ground speed \< 5 m/s, @spiegel2013) who came within 50m of each other for at least two consecutive 10-minute time periods, were considered to be having a ground interaction @sharma2023. Any ground interactions that occurred at night or within the boundaries of a known roost site were excluded. Therefore, the remaining diurnal ground interactions should represent vultures' interactions while feeding or while present at feeding sites (Orr Spiegel and Nili Anglister, pers. comm.). Co-roosting Roost sites were assigned using \[methods\]. Unlike flight and diurnal ground GPS fixes, vultures were only assigned one roosting location per night. Two vultures that roosted within the boundaries of the same roost site polygon on a given night were considered to be co-roosting.
+
+## Calculation of social network measures
+
+\[Explain the reasons for choosing the social network measures in the earlier hypotheses/predictions/introduction section\]
+
+We used the R package `igraph` @csardi2005 to calculate each individual's degree and strength for each social situation in each season. Degree is defined as the number of other individuals that a vulture is connected to (i.e. ever interacted with). Strength measures how much an individual interacts, and is calculated as the sum of the weights of all edges that the focal vulture is involved in.
+
+## Model fitting and selection
+
+We modeled the relationship between the spatial phenotype variables and the network measures using linear mixed-effects regression models, fitted using the lme4 and lmerTest packages @bates2015, @kuznetsova2017. We fit separate models for each response variable (degree and strength). The predictors included were movement (PC1), exploration (PC2), situation (feeding, flight, roosting), age group (juvenile/subadult, adult), and season (breeding, summer, fall). To account for the different numbers of individuals in the network in each unique season, we included a random effect for the interaction of season and year, e.g. "2022_fall" (8 levels). To account for consistent individual differences in network position or behavior, and because individuals varied in how many seasons they were included in, we also included an individual-level random effect.
+
+Degree values were scaled and standardized before modeling. Because the distribution of strength values was extremely right-skewed, the strength values were incremented by one-half the minimum non-zero strength value (0.018) and then log-transformed.
+
+For each response variable, we began by fitting a model without any interaction terms to check for multicollinearity between the predictors and check model assumptions, using the performance and DHARMa packages @lüdecke2021, @hartig2022. Next, we fitted a model containing two three-way interaction terms (between season, situation, and each of the spatial phenotype variables), all of the included two-way interaction terms, age as a main effect, and the two random effects (individual ID; season by year). Examining the model summaries and p values produced by lmerTest, we then removed non-significant higher-order interaction terms, one by one, stopping when all remaining interaction terms were significant. All main and random effects were retained in the final model.
+
+For each model, we calculated marginal effects using the emmeans package @lenth2023 and created visualizations using ggeffects and ggplot2 @wickham2016, @lüdecke2018.
+
 # Results
+
+```{r}
+#| echo: false
+#| output: true
+#| label: fig-nvultures
+#| fig-cap: "Number of vultures in different social situations over the study period. Lines for the 'feeding' situation have been jittered upward because they overlap completely with the 'flight' situation. Dashed lines and open circles represent the total number of vultures tracked in the population. Solid lines and filled circles represent the number of focal vultures."
+
+load("data/derived/forModeling.Rda")
+load("data/derived/cc.Rda")
+load("data/derived/seasonNames_orig.Rda")
+seasonNames <- seasonNames_orig[-1]
+focals <- forModeling %>%
+  filter(!is.na(PC1)) %>%
+  group_by(season, year, type) %>%
+  summarize(total = n[1],
+            focal = length(unique(Nili_id)), .groups = "drop") %>%
+  arrange(year, season, type) %>%
+  mutate(seasonUnique = paste(year, season, sep = "_")) %>%
+  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding"))) %>%
+  mutate(seasonU = str_replace(seasonUnique, "breeding", "B")) %>%
+  mutate(seasonU = str_replace(seasonU, "fall", "F")) %>%
+  mutate(seasonU = str_replace(seasonU, "summer", "S")) %>%
+  mutate(seasonU = str_remove(seasonU, "_")) %>%
+  mutate(seasonU = str_remove(seasonU, "(?<=^)20")) %>%
+  mutate(seasonU = factor(seasonU, levels = c("20F", "21B", "21S", "21F", "22B", "22S", "22F", "23B")))  %>%
+  pivot_longer(cols = c(total, focal), names_to = "Vultures", values_to = "n") %>%
+  rename("Situation" = "type") %>%
+  ungroup()
+
+focals %>%
+  mutate(n = case_when(Situation == "feeding" ~ n + 1, # just adding a tiny bit of jitter so as to more easily see the different lines 
+                       TRUE ~ n)) %>%
+  ggplot(aes(x = seasonU, y = n, col = Situation))+
+  geom_line(aes(group = interaction(Situation, Vultures), linetype = Vultures), linewidth = 1)+
+  geom_point(size = 4, aes(pch = Vultures))+
+  scale_shape_manual(values = c(19, 1))+
+  theme_classic()+
+  ylab("# vultures")+
+  xlab("Season")+
+  scale_color_manual(values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
+  theme(text = element_text(size = 16))
+
+wide <- focals %>%
+  pivot_wider(id_cols = c("season", "year", "Situation", "seasonUnique", "seasonU"), names_from = "Vultures", values_from = "n")
+```
+
+Networks varied in the total and focal number of individuals, from a minimum of `r min(wide$total)` vultures (`r wide$focal[wide$total == min(wide$total)][1]` focal) in the `r wide$year[wide$total == min(wide$total)][1]` `r wide$season[wide$total == min(wide$total)][1]` season to a maximum of `r max(wide$total)` vultures (`r wide$focal[wide$total == max(wide$total)]` focal) in the `r wide$year[wide$total == max(wide$total)]` `r wide$season[wide$total == max(wide$total)]` season in the co-roosting network (@fig-nvultures) . The number of vultures tagged generally increased over time as more individuals were fitted with tags over the course of the study period.
+
+```{r}
+#| echo: false
+#| output: true
+#| label: fig-density
+#| fig-cap: "Density of the proximity-based social networks created for each season and social situation."
+
+load("data/derived/flightSeasons_mode10.Rda")
+load("data/derived/feedingSeasons_mode10.Rda")
+load("data/derived/roostSeasons.Rda")
+
+flightSeasons_mode10_g <- map(flightSeasons_mode10, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+feedingSeasons_mode10_g <- map(feedingSeasons_mode10,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+roostSeasons_g <- map(roostSeasons,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+
+# Describing the networks -------------------------------------------------
+# Network-level measures
+fldens <- map(flightSeasons_mode10_g, igraph::edge_density) %>% unlist()
+fedens <- map(feedingSeasons_mode10_g, igraph::edge_density) %>% unlist()
+rodens <- map(roostSeasons_g, igraph::edge_density) %>% unlist()
+dens <- data.frame(season = factor(seasonNames, levels = seasonNames), flight = fldens, feeding = fedens, roosting = rodens) %>%
+  pivot_longer(cols = c("flight", "feeding", "roosting"), names_to = "Situation", values_to = "Density") %>%
+  mutate(seasonU = str_replace(season, "breeding", "B")) %>%
+  mutate(seasonU = str_replace(seasonU, "fall", "F")) %>%
+  mutate(seasonU = str_replace(seasonU, "summer", "S")) %>%
+  mutate(seasonU = str_remove(seasonU, "_")) %>%
+  mutate(seasonU = str_remove(seasonU, "(?<=^)20")) %>%
+  mutate(seasonU = factor(seasonU, levels = c("20F", "21B", "21S", "21F", "22B", "22S", "22F", "23B")))
+
+dens %>%
+  ggplot(aes(x = seasonU, y = Density, col = Situation))+
+  geom_line(aes(group = Situation), linewidth = 1)+
+  geom_point(size = 4)+
+  theme_classic()+
+  ylab("Network density")+
+  xlab("Season")+
+  scale_color_manual(values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
+  theme(text = element_text(size = 16))
+```
+
+Seasonal social networks varied in density from `r min(dens$Density)` (`r stringr::str_extract(dens$season[dens$Density == min(dens$Density)], "[a-z]+")` `r str_extract(dens$season[dens$Density == min(dens$Density)], "[0-9]+")` ) to `r max(dens$Density)` (`r stringr::str_extract(dens$season[dens$Density == max(dens$Density)], "[a-z]+")` `r str_extract(dens$season[dens$Density == max(dens$Density)], "[0-9]+")`) (@fig-density). Co-roosting networks were generally denser than co-feeding or co-flight networks.
+
+Two-way interactions between situation and both movement (PC1) and exploration (PC2) were retained in the degree model. No interaction effects including season were retained, and the main effect of season was not significant (Table XX).
 
 # Discussion
