@@ -3,11 +3,31 @@ title: "Manuscript draft"
 format: html
 editor: visual
 author: Kaija Gahm
+bibliography: references.bib
+csl: the-american-naturalist.csl
 ---
 
 # Introduction
 
-The social structure of animal groups has consequences for disease transmission, information sharing, and population dynamics. At the population level, the density and modularity of social interaction networks can drive epidemic probability and duration
+The social structure of animal groups has consequences for disease transmission, information sharing, and population dynamics. At the population level, the density and modularity of social interaction networks can drive epidemic probability and duration (@sah2017, @silk2017), govern the flow of information about food resources \[REF\], and contribute to population persistence through Allee effects \[REF\]. Individuals differ in their encounter rates, number of contacts, and centrality in the population social network \[REF\]. For individual animals, which make up the social environment of the group. social centrality in different behavioral situations contributes to their likelihood of contracting disease, finding mates, or accessing resources \[REFS\]. For example, in networks with high levels of degree heterogeneity, the most connected individuals may function as disease superspreaders (@lloyd-smith2005). For example, possums with higher betweenness and closeness in a social network had higher infection rates (@corner2003), and higher connectivity in lizards was associated with a greater parasite load (@godfrey2009). In general, individuals that are more central in the social network both have a higher infection risk and transmit disease more quickly than those that are more peripheral (@romano2016, @balasubramaniam2019).
+
+An individual's social centrality may be determined by many factors. Differences in social position have been attributed to individual phenotypic characteristics, such as age, sex, or personality \[REFS\]. Of course, how an animal uses space is also an important driver of how many conspecifics it interacts with, and how frequently. The relationship between movement, space use, and social interaction patterns has been an area of active research in recent years. Webber et al -@webber2023 have characterized the variation in patterns of animal movement and space use as the "spatial phenotype," as part of a larger framework for understanding the relationships between social and spatial drivers of animal behavior. In this light, the "spatial phenotype" may be considered in addition to more conventional phenotypic measures to explain why some individuals are more central than others in their social networks.
+
+Additionally, sociality has many dimensions. Individuals interact in different social and behavioral contexts, defined by the types of activities being performed (e.g. feeding, playing, sleeping) and/or the intent and consequences of the interaction itself (e.g. agonistic vs. affiliative interactions) \[REFS\]. The overall social environment experienced by an individual is made up of its interactions in all of these different contexts @silk2013. Individuals differ in their centrality in these different contexts @sharma2023. Different types of interactions are also localized differently in space. For example, social foraging occurs, by definition, while individuals move concurrently across a landscape, so which individuals forage together and co-foraging rates are likely to be directly tied to movement behavior and spatial phenotypes of the individuals involved. By contrast, mating or fighting interactions might be more localized to specific places where these behaviors occur, such as nest or den sites, leks, territorial boundaries, or scarce food resources. An informed understanding of the relationship between the spatial and social phenotypes, then, should allow for the possibility that the spatial phenotype relates differently to an individual's position in each situation-specific social network.
+
+Eurasian griffon vultures (*Gyps fulvus*) provide a study system well suited to ascertaining the relationship between individuals' spatial phenotypes and their social centrality.
+
+-   obligate scavengers, large soaring fliers, lots of movement
+
+-   Unusual GPS tracking coverage of the population–high proportion of individuals tracked, so we can get a population-level sense of movement behavior and social interaction patterns
+
+-   Three clear social situations in which they interact, each with a different significance/relevance.
+
+    -   Communal roosts: many individuals together at once, variability in size/density of roosts. Used for information exchange \[REFS\] and also important for disease transmission \[or not–cf Elvira Nili\]. Breeding/nesting also occurs at/near roost sites, on cliffs.
+
+    -   Flight: interactions in flight are important for information transfer @harel2017, finding locations of thermal uplift @sassi2023 and feeding sites @spiegel2013, @cortés-avizanda2014
+
+    -   Feeding: Communal feeding at carcasses. Also sometimes standing around the carcass site. Sometimes associate for a while before beginning to feed, e.g. waiting for critical mass to be reached (Orr Spiegel, pers. comm.) Potentially also important for disease transmission \[but not, cf. ref Elvira Nili\].
 
 # Research Questions
 
