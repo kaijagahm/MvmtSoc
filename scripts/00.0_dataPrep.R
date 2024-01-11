@@ -8,30 +8,30 @@ library(move)
 library(feather)
 library(readxl)
 library(elevatr)
-# 
-# ## Download data from movebank
-# base::load("movebankCredentials/pw.Rda")
-# MB.LoginObject <- move::movebankLogin(username = "kaijagahm", password = pw)
-# rm(pw)
-# 
-# # Hatzofe INPA data
-# # inpa <- move::getMovebankData(study = 6071688, login = MB.LoginObject, removeDuplicatedTimestamps = TRUE)
-# # inpadf <- methods::as(inpa, "data.frame")
-# # inpadf_touse <- inpadf %>%
-# #   mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
-# #          year = as.numeric(lubridate::year(timestamp))) %>%
-# #   filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-05-15")) # cut this off at the same point as the ornitela data
-# # write_feather(inpadf_touse, "data/derived/inpadf_touse.feather")
-# inpadf_touse <- read_feather("data/derived/inpadf_touse.feather")
-# # Ornitela: download data from movebank (just a subset of the times for now)
-# minDate <- "2020-09-01 00:00"
-# maxDate <- "2023-05-15 11:59"
-# # dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
-# # write_feather(dat, "data/derived/dat.feather")
-# dat <- read_feather("data/derived/dat.feather")
-# # number of unique individuals
-# length(unique(dat$trackId)) # 127
-# length(unique(inpadf_touse$trackId)) # 77
+
+## Download data from movebank
+base::load("movebankCredentials/pw.Rda")
+MB.LoginObject <- move::movebankLogin(username = "kaijagahm", password = pw)
+rm(pw)
+
+# Hatzofe INPA data
+# inpa <- move::getMovebankData(study = 6071688, login = MB.LoginObject, removeDuplicatedTimestamps = TRUE)
+# inpadf <- methods::as(inpa, "data.frame")
+# inpadf_touse <- inpadf %>%
+#   mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
+#          year = as.numeric(lubridate::year(timestamp))) %>%
+#   filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-05-15")) # cut this off at the same point as the ornitela data
+# write_feather(inpadf_touse, "data/derived/inpadf_touse.feather")
+inpadf_touse <- read_feather("data/derived/inpadf_touse.feather")
+# Ornitela: download data from movebank (just a subset of the times for now)
+minDate <- "2020-09-01 00:00"
+maxDate <- "2023-05-15 11:59"
+# dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
+# write_feather(dat, "data/derived/dat.feather")
+dat <- read_feather("data/derived/dat.feather")
+# number of unique individuals
+length(unique(dat$trackId)) # 127
+length(unique(inpadf_touse$trackId)) # 77
 # 
 # # Will there be a problem joining these?
 # names(dat)[!(names(dat) %in% names(inpadf_touse))] # all names in "dat" are found in inpadf_touse
