@@ -6,9 +6,9 @@ format:
 editor: visual
 ---
 
-## Goals
+## Goals and introduction
 
-Prepare data for the movement/social analysis
+Prepare data for the movement/social analysis. This involves loading the data from Movebank and cleaning it.
 
 ## Setup
 
@@ -42,19 +42,19 @@ Inputs:
 
 Outputs:
 
--   `data/derived/inpadf_touse.feather`
+-   `data/derived/inpa.feather`
 
 ```{r download-inpa}
 #| eval: false
 inpa <- move::getMovebankData(study = 6071688, login = MB.LoginObject, removeDuplicatedTimestamps = TRUE)
-inpadf <- methods::as(inpa, "data.frame")
-inpadf_touse <- inpadf %>%
+inpa <- methods::as(inpa, "data.frame")
+inpa <- inpa %>%
   mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
          year = as.numeric(lubridate::year(timestamp))) %>%
   filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-05-15")) # cut this off at the same point as the ornitela data
-write_feather(inpadf_touse, "data/derived/inpadf_touse.feather")
+write_feather(inpa, "data/derived/inpa.feather")
 
-length(unique(inpadf_touse$trackId)) # 77
+length(unique(inpa$trackId)) # 77
 ```
 
 ### Ornitela data
@@ -65,60 +65,61 @@ Inputs:
 
 Outputs:
 
--   `data/derived/dat.feather`
+-   `data/derived/ornitela.feather`
 
 ```{r download-ornitela}
 #| eval: false
 # Ornitela: download data from movebank (just a subset of the times for now)
 minDate <- "2020-09-01 00:00"
 maxDate <- "2023-05-15 11:59"
-dat <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
-write_feather(ornitela, "data/derived/dat.feather")
+ornitela <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
+write_feather(ornitela, "data/derived/ornitela.feather")
 
-length(unique(dat$trackId)) # 127
+length(unique(ornitela$trackId)) # 127
 ```
 
 ## Join INPA and Ornitela data
 
 *Inputs:*
 
--   `data/derived/inpadf_touse.feather`
+-   `data/derived/inpa.feather`
 
--   `data/derived/dat.feather`
+-   `data/derived/ornitela.feather`
 
 *Outputs:*
 
--   `data/derived/dat3.feather`
+-   `data/derived/joined.feather`
 
 ```{r load-inpa-ornitela}
-inpadf_touse <- read_feather("data/derived/inpadf_touse.feather")
-dat <- read_feather("data/derived/dat.feather")
+inpa <- read_feather("data/derived/inpa.feather")
+ornitela <- read_feather("data/derived/ornitela.feather")
 ```
 
 ```{r join-inpa-ornitela}
 #| eval: false
 
 # Will there be a problem joining these?
-names(dat)[!(names(dat) %in% names(inpadf_touse))] # all names in "dat" are found in inpadf_touse
-names(inpadf_touse)[!(names(inpadf_touse) %in% names(dat))] # many are not found in "dat" that are found in inpadf_touse.
+names(ornitela)[!(names(ornitela) %in% names(inpa))] # all names in "ornitela" are found in inpa
+names(inpa)[!(names(inpa) %in% names(ornitela))] # many are not found in "ornitela" that are found in inpa
 
 # Add the dataset names so we can keep track of where the data comes from
-inpadf_tojoin <- inpadf_touse[,names(dat)] %>%
+inpa_tojoin <- inpa[,names(ornitela)] %>%
   mutate(dataset = "inpa")
-dat <- dat %>%
+ornitela <- ornitela %>%
   mutate(dataset = "ornitela")
 
 # Join the two datasets
-joined <- bind_rows(inpadf_tojoin, dat)
-dim(joined)
+joined0 <- bind_rows(inpa_tojoin, ornitela)
+dim(joined0)
 
 ## fix trackId
-dat2 <- joined %>%
+joined0 <- joined0 %>%
   mutate(trackId = as.character(trackId),
          trackId = case_when(trackId == "E03" ~ "E03w",
                              TRUE ~ trackId))
+
 # number of unique individuals
-length(unique(dat2$trackId)) # 206
+length(unique(joined0$trackId)) # 206
 
 # Add the Nili_id
 ww <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
@@ -126,39 +127,42 @@ ww <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "all gps
   distinct()
 
 # Are there any other individuals who have two different associated trackId's?
-ww %>% filter(Movebank_id %in% dat2$trackId) %>% dplyr::select(Nili_id, Movebank_id) %>% distinct() %>% group_by(Nili_id) %>% summarize(n = length(unique(Movebank_id))) %>% arrange(desc(n)) # Note that there is one Nili_id in our dataset that has two associated trackId's--it's yomtov.
+ww %>% filter(Movebank_id %in% joined$trackId) %>% dplyr::select(Nili_id, Movebank_id) %>% distinct() %>% group_by(Nili_id) %>% summarize(n = length(unique(Movebank_id))) %>% arrange(desc(n)) # Note that there is one Nili_id in our dataset that has two associated trackId's--it's yomtov.
 ww %>% filter(Nili_id =="yomtov") # Y26 and Y26b. So we should expect to once again "lose" an individual once we change to Nili ID's
 
-all(dat2$trackId %in% ww$Movebank_id) # false.
+all(joined0$trackId %in% ww$Movebank_id) # false.
 
 # Okay, let's investigate the ones that aren't included
-dat2 %>%
+joined0 %>%
   filter(!(trackId %in% ww$Movebank_id)) %>%
   pull(trackId) %>% unique() # looks like this is going to be an issue of character matching. Let's transform everything to lowercase and remove all characters and spaces
 
-dat2$trackId <- str_replace_all(tolower(dat2$trackId), "\\.", "")
+joined0$trackId <- str_replace_all(tolower(joined0$trackId), "\\.", "")
 ww$mb_id <- str_replace_all(tolower(ww$Movebank_id), "\\s|\\(|\\)|\\>", "") %>% str_replace_all(., "whiite", "white")
 
 sort(unique(ww$mb_id))
-unique(dat2$trackId)[!(unique(dat2$trackId) %in% ww$mb_id)]
-dat2$trackId[dat2$trackId == "y01t60w"] <- "t60white"
-dat2$trackId[dat2$trackId == "e86white"] <- "e86"
-unique(dat2$trackId)[!(unique(dat2$trackId) %in% ww$mb_id)]
+unique(joined0$trackId)[!(unique(joined0$trackId) %in% ww$mb_id)]
+joined0$trackId[joined0$trackId == "y01t60w"] <- "t60white"
+joined0$trackId[joined0$trackId == "e86white"] <- "e86"
+unique(joined0$trackId)[!(unique(joined0$trackId) %in% ww$mb_id)]
 # Investigate the remaining ones:
-dat2 %>% filter(!(trackId %in% ww$mb_id)) %>% dplyr::select(dateOnly, trackId, local_identifier, ring_id, dataset) %>% group_by(trackId, local_identifier, ring_id, dataset) %>% summarize(earlyDate = min(dateOnly)) # okay, looks like these three come from the INPA dataset and haven't been entered into the who's who yet.
+joined0 %>% filter(!(trackId %in% ww$mb_id)) %>% 
+  dplyr::select(dateOnly, trackId, local_identifier, ring_id, dataset) %>%
+  group_by(trackId, local_identifier, ring_id, dataset) %>% 
+  summarize(earlyDate = min(dateOnly)) # okay, looks like these three come from the INPA dataset and haven't been entered into the who's who yet.
 # I guess for now let's just make their trackId's into Nili_id's
 
-dat3 <- left_join(dat2, ww %>% dplyr::select(mb_id, Nili_id) %>% distinct(),
+joined <- left_join(joined0, ww %>% dplyr::select(mb_id, Nili_id) %>% distinct(),
                   by = c("trackId" = "mb_id"))
-nrow(dat3) == nrow(dat2) # good, same number of rows. (check that the join worked)
-length(unique(dat3$Nili_id))
+nrow(joined) == nrow(joined0) # good, same number of rows. (check that the join worked)
+length(unique(joined$Nili_id))
 # For any that didn't get Nili_ids assigned, make it the trackId
-dat3 %>% filter(is.na(Nili_id)) %>% pull(trackId) %>% unique() # as expecfted.
-dat3 <- dat3 %>%
+joined %>% filter(is.na(Nili_id)) %>% pull(trackId) %>% unique() # as expecfted.
+joined <- joined %>%
   mutate(Nili_id = case_when(is.na(Nili_id) ~ trackId,
                              TRUE ~ Nili_id))
-unique(dat3$Nili_id)
-write_feather(dat3, "data/derived/dat3.feather")
+unique(joined$Nili_id)
+write_feather(joined, "data/derived/joined.feather")
 ```
 
 ## Remove invalid periods
@@ -169,14 +173,14 @@ Removing known invalid periods, such as times when the vultures were in the hosp
 
 -   `data/raw/whoswho_vultures_20230315_new.xlsx`
 
--   `data/derived/dat3.feather`
+-   `data/derived/joined.feather`
 
 *Outputs:*
 
--   `datAnnot`
+-   `removed`
 
 ```{r load-hospital}
-dat3 <- read_feather("data/derived/dat3.feather")
+joined <- read_feather("data/derived/joined.feather")
 toRemove <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "periods_to_remove")
 ```
 
@@ -190,14 +194,12 @@ toRemove <- toRemove %>%
                 remove_end,
                 reason) %>%
   mutate(across(c(remove_start, remove_end), .fns = function(x){
-    lubridate::ymd(x)
-  })) %>%
-  dplyr::filter(!is.na(remove_end))
-
-toRemove_long <- toRemove %>%
+    lubridate::ymd(x)})) %>%
+  dplyr::filter(!is.na(remove_end)) %>%
   group_by(Nili_id, reason) %>%
   # sequence of daily dates for each corresponding start, end elements
-  dplyr::mutate(dateOnly = map2(remove_start, remove_end, seq, by = "1 day")) %>%
+  dplyr::mutate(dateOnly = map2(remove_start, remove_end, 
+                                seq, by = "1 day")) %>%
   # unnest the list column
   unnest(cols = c(dateOnly)) %>%
   # remove any duplicate rows
@@ -206,27 +208,31 @@ toRemove_long <- toRemove %>%
   rename("status" = reason)
 
 # Join to the original data
-datAnnot <- dat3 %>%
-  left_join(toRemove_long, by = c("Nili_id", "dateOnly")) %>%
+removal_annotated <- joined %>%
+  left_join(toRemove, by = c("Nili_id", "dateOnly")) %>%
   mutate(status = replace_na(status, "valid"))
-nrow(datAnnot) == nrow(dat3) #T: good, same number of rows.
+nrow(removal_annotated) == nrow(joined) #T: good, same number of rows.
 
 # Actually REMOVE the periods to remove...
-datAnnot <- datAnnot %>%
+removed <- removal_annotated %>%
   filter(status == "valid")
-nrow(datAnnot)
-length(unique(datAnnot$Nili_id))
-nrow(dat3)
-nrow(datAnnot)
+nrow(removed)
+length(unique(removal_annotated$Nili_id))
+nrow(joined)
+nrow(removal_annotated)
 ```
 
 ## Identify and remove capture cage periods
 
 This is Marta's code for identifying periods when the vultures were in the capture cages and removing days of data around those occasions.
 
+To identify the capture dates, first we need to classify the roosts (now using the get_roosts() function). Then, if the bird roosted within 500m of the capture site, it was considered to be captured and that day, and the following day, are excluded from the dataset. This has been validated. This, however, does not work for the Carmel, because the roosts are within 500m of the cage and very often the birds roost on top of the cage without actually being inside it. So for the Carmel captures, we will use another protocol: if the birds were sleeping within 50m of the cage and it was a capture day (or 3 days before the release day), we consider the birds were captured and we remove the data
+
 *Inputs:*
 
--   `datAnnot`
+-   `removed`
+
+-   `data/raw/capture_sites.csv`
 
 *Outputs:*
 
@@ -234,13 +240,12 @@ This is Marta's code for identifying periods when the vultures were in the captu
 
 -   `data/derived/roosts.Rda`
 
-```{r}
+```{r remove-capture-cage}
 #| eval: false
 
 # Identify and remove capture dates using Marta's code --------------------
-## To identify the capture dates, first we need to classify the roosts (now using the get_roosts() function). Then, if the bird roosted within 500 m of the capture site, it was considered to be captured and that day, and the following day, are excluded from the dataset. This has been validated. Note: this protocol doesn't work for the Carmel because of the position of the roost sites relative to cages. But we're just dealing with southern individuals, so that's okay.
-# roosts <- get_roosts_df(df = datAnnot, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
-# save(roosts, file = "data/derived/roosts.Rda")
+roosts <- get_roosts_df(df = removed, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
+save(roosts, file = "data/derived/roosts.Rda")
 load("data/derived/roosts.Rda")
 
 # Identify the period of time during which the capture sites are open (when we need to do this exclusion)
@@ -250,7 +255,7 @@ end.day <-  30
 end.month <- 11
 distance <- 500 # distance, in meters, to calculate from the cage
 
-# Load the information about the capture sites
+# Load information about the capture sites
 sites <- read.csv("data/raw/capture_sites.csv")
 
 # Subset the roost dataset with the start and end dates for the capture period
@@ -290,7 +295,7 @@ sub.captured.dates <- subset(sub.captured,
                                         "ClosestCaptureDist",
                                         "Captured"))
 
-## This, however, does not work for the Carmel, because the roosts are within 500m of the cage and very often the birds roost on top of the cage without actually being inside it. So for the Carmel captures, we will use another protocol: if the birds were sleeping within 50m of the cage and it was a capture day (or 3 days before the release day), we consider the birds were captured and we remove the data
+## For Carmel--different protocol.
 
 sub.captured.no.carmel <- subset(sub.captured.dates, ClosestCaptureSite != "Carmel")
 sub.captured.carmel <- subset(sub.captured.dates, ClosestCaptureSite == "Carmel")
@@ -324,22 +329,22 @@ sub.captured.dates <- sub.captured.dates %>%
   dplyr::distinct(Nili_id, date, .keep_all = T)
 
 # It all looks ok, so we can subset the dataset to exclude the capture dates
-datAnnot_noCaptures <- datAnnot %>%
+removed_captures <- removed %>%
   left_join(sub.captured.dates, by = c("Nili_id", "dateOnly" = "date"))
-nrow(datAnnot) == nrow(datAnnot_noCaptures) # should be TRUE. NOW we can filter.
-datAnnot_noCaptures <- datAnnot_noCaptures %>%
+nrow(removed) == nrow(removed_captures) # should be TRUE. NOW we can filter.
+removed_captures <- removed_captures %>%
   dplyr::filter(Captured != "Yes"|is.na(Captured)) # remove the individual*days when they were captured
 
 # How many rows and individuals did we remove?
-before <- nrow(datAnnot)
-after <- nrow(datAnnot_noCaptures)
+before <- nrow(removed)
+after <- nrow(removed_captures)
 (propChange <- (before-after)/before) # approx. 1% of data removed.
-length(unique(datAnnot$Nili_id)) == length(unique(datAnnot_noCaptures$Nili_id)) # no change in number of individuals! As expected.
+length(unique(removed$Nili_id)) == length(unique(removed_captures$Nili_id)) # no change in number of individuals! As expected.
 
-datAnnot_noCaptures <- datAnnot_noCaptures %>%
+removed_captures <- removed_captures %>%
   dplyr::select(-c("ClosestCaptureSite", "ClosestCaptureDist", "Captured"))
 
-write_feather(datAnnot_noCaptures, "data/derived/datAnnot_noCaptures.feather")
+write_feather(removed_captures, "data/derived/removed_captures.feather")
 ```
 
 ## Attach age and sex information
@@ -348,14 +353,14 @@ write_feather(datAnnot_noCaptures, "data/derived/datAnnot_noCaptures.feather")
 
 -   `data/raw/whoswho_vultures_20230315_new.xlsx`
 
--   `data/derived/datAnnot_noCaptures.feather`
+-   `data/derived/removed_captures.feather`
 
 *Outputs:*
 
 -   `datAnnot` (`datAnnot2`)
 
-```{r}
-datAnnot_noCaptures <- read_feather("data/derived/datAnnot_noCaptures.feather")
+```{r attach-age-sex}
+removed_captures <- read_feather("data/derived/removed_captures.feather")
 ```
 
 ```{r}
@@ -366,13 +371,14 @@ as <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "all gps
   dplyr::select(Nili_id, birth_year, sex) %>%
   distinct()
 
-datAnnot2 <- datAnnot_noCaptures %>%
+# Whenever I do left_joins, I save the result as something different before reassigning it to the variable name so I can make sure the join worked before committing to it. Hence the temporary "test" object.
+test <- removed_captures %>%
   dplyr::select(-c("sex")) %>%
   left_join(as, by = "Nili_id")
-nrow(datAnnot2) == nrow(datAnnot)
-length(unique(datAnnot2$Nili_id)) # 196
-
-datAnnot <- datAnnot2 # a hack so the rest of the code will work
+nrow(test) == nrow(removed_captures)
+length(unique(removed_captures$Nili_id)) # 196
+removed_captures <- test
+rm(test) # don't need this anymore after we know the join worked.
 ```
 
 ## Clean data
@@ -381,29 +387,29 @@ datAnnot <- datAnnot2 # a hack so the rest of the code will work
 
 -   `data/raw/CutOffRegion.kml`
 
--   `datAnnot`
+-   `removed_captures`
 
 *Outputs:*
 
--   `data/derived/datAnnotCleaned.Rda`
+-   `data/derived/cleaned.Rda`
 
-```{r}
+```{r clean-data}
 #| eval: false
 # Clean the data
 ## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
 mask <- sf::st_read("data/raw/CutOffRegion.kml")
-datAnnotCleaned <- vultureUtils::cleanData(dataset = datAnnot, mask = mask, inMaskThreshold = 30, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) # XXX using 30 days overall. If we want 30 days per season, will have to do that differently (e.g. split the seasons earlier)--but I think that that'll be covered later in the data cleaning anyway.
-length(unique(datAnnotCleaned$Nili_id)) # 172 individuals
+cleaned <- vultureUtils::cleanData(dataset = removed_captures, mask = mask, inMaskThreshold = 30, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) # XXX using 30 days overall. If we want 30 days per season, will have to do that differently (e.g. split the seasons earlier)--but I think that that'll be covered later in the data cleaning anyway.
+length(unique(cleaned$Nili_id)) # 172 individuals
 # Fix time zone so dates make sense ---------------------------------------
 ## Overwrite the dateOnly column from the new times
-datAnnotCleaned <- datAnnotCleaned %>%
+cleaned <- cleaned %>%
   mutate(timestampIsrael = lubridate::with_tz(timestamp, tzone = "Israel"),
          dateOnly = lubridate::date(timestampIsrael),
          month = lubridate::month(dateOnly),
          year = lubridate::year(dateOnly))
 
-save(datAnnotCleaned, file = "data/derived/datAnnotCleaned.Rda")
-load("data/derived/datAnnotCleaned.Rda")
+save(cleaned, file = "data/derived/cleaned.Rda")
+load("data/derived/cleaned.Rda")
 ```
 
 ## Split into seasons
@@ -412,7 +418,7 @@ Season definitions, and code to split the data into seasons, come from Marta.
 
 *Inputs:*
 
--   `datAnnotCleaned`
+-   `cleaned`
 
 *Outputs:*
 
@@ -420,7 +426,7 @@ Season definitions, and code to split the data into seasons, come from Marta.
 
 -   `data/derived/seasonNames_orig.Rda`
 
-```{r}
+```{r split-seasons}
 #| eval: false
 # Split into Marta's 3 seasons --------------------------------------------
 s1 <- datAnnotCleaned %>%
