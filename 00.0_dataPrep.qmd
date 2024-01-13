@@ -6,11 +6,11 @@ format:
 editor: visual
 ---
 
-## Goals and introduction
+# Goals and introduction
 
 Prepare data for the movement/social analysis. This involves loading the data from Movebank and cleaning it.
 
-## Setup
+# Setup
 
 ```{r load-packages}
 library(vultureUtils)
@@ -21,6 +21,8 @@ library(feather)
 library(readxl)
 library(elevatr)
 ```
+
+# Processing for all data
 
 ## Download data from Movebank
 
@@ -83,6 +85,8 @@ length(unique(ornitela$trackId)) # 127
 
 # tidy up
 rm(ornitela)
+rm(minDate)
+rm(maxDate)
 gc()
 ```
 
@@ -184,6 +188,8 @@ gc()
 
 ## Remove invalid periods
 
+### Hospital/pre-determined invalid
+
 Removing known invalid periods, such as times when the vultures were in the hospital or the tags were known not to be attached to birds. These times are derived from a separate Excel sheet.
 
 *Inputs:*
@@ -194,7 +200,7 @@ Removing known invalid periods, such as times when the vultures were in the hosp
 
 *Outputs:*
 
--   `removed`
+-   `data/derived/removed_periods.feather`
 
 ```{r load-hospital}
 joined <- read_feather("data/derived/joined.feather")
@@ -246,7 +252,7 @@ rm(removed_periods)
 gc()
 ```
 
-## Remove capture cage periods
+### Capture cages
 
 This is Marta's code for identifying periods when the vultures were in the capture cages and removing days of data around those occasions.
 
@@ -260,9 +266,13 @@ Note: I'm calling the roosts data frame generated here `roosts0.Rda` because I w
 
 -   `data/raw/capture_sites.csv`
 
+-   `data/raw/all_captures_carmel_2010-2021.csv`
+
 *Outputs:*
 
 -   `data/derived/roosts0.Rda`
+
+-   `data/derived/removed_captures.feather`
 
 ```{r}
 removed_periods <- read_feather("data/derived/removed_periods.feather")
@@ -400,6 +410,12 @@ rm(before)
 rm(ClosestCaptureDist)
 rm(ClosestCaptureSite)
 rm(distance)
+rm(start.day)
+rm(start.month)
+rm(end.day)
+rm(end.month)
+rm(propChange)
+
 gc()
 ```
 
@@ -570,8 +586,6 @@ gc()
 
 ## Remove individuals with low fix rate
 
-START HERE!!!
-
 Some of the INPA vultures were tracked only once an hour, or some other low fix rate. However, determining which birds these are is tricky because even the vultures that should have a 10-minute fix rate do not always have points every 10 minutes, e.g. due to lack of reception or low tag battery.\
 \
 Therefore, we have to identify **low fix rate (lfr) individuals**, which are those that *never* have a 10-minute fix rate. To do this, we will find the mode (most common) fix frequency for each individual on each day. Then, we will exclude individuals who never have observations at 10-minute intervals. We will keep any that theoretically have a 10-minute fix rate (i.e. their observation frequency was 10 minutes at some point), even if in practice they often have much less frequent observations.
@@ -582,9 +596,7 @@ Therefore, we have to identify **low fix rate (lfr) individuals**, which are tho
 
 *Outputs:*
 
--   `data/derived/toRemove_lfr.Rda`
-
--   `data/derived/seasons_list_removed_lfr.Rda`
+-   `data/derived/removed_lfr.Rda`
 
 ```{r}
 load("data/derived/seasons_list.Rda")
@@ -615,13 +627,16 @@ toRemove_lfr <- map(with_modes, ~.x %>%
                         filter(minmode > 10) %>%
                         pull(Nili_id) %>%
                         unique())
-save(toRemove_lfr, file = "data/derived/toRemove_lfr.Rda")
-seasons_list_removed_lfr <- map2(seasons_list, toRemove_lfr, ~.x %>% filter(!(Nili_id %in% .y)))
-save(seasons_list_removed_lfr, file = "data/derived/seasons_list_removed_lfr.Rda")
+
+removed_lfr <- map2(seasons_list, toRemove_lfr, ~.x %>% 
+                                   filter(!(Nili_id %in% .y)))
+
+save(removed_lfr, 
+     file = "data/derived/removed_lfr.Rda")
 
 # Tidy up
 rm(seasons_list)
-rm(seasons_list_removed_lfr)
+rm(removed_lfr)
 rm(with_modes)
 rm(toRemove_lfr)
 gc()
@@ -629,7 +644,7 @@ gc()
 
 ### Data for social analysis
 
-The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `seasons_list_removed_lfr` and not anything further along.
+The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `removed_lfr` and not anything further along.
 
 ## Get roosts before removing night points
 
@@ -637,20 +652,20 @@ We are going to need to get nightly roost locations for all of the remaining vul
 
 *Inputs:*
 
--   `data/derived/seasons_list_removed_lfr`
+-   `data/derived/removed_lfr`
 
 *Outputs:*
 
--   \`data/derived/roosts_seasons_list.
+-   `data/derived/roosts.Rda`
 
 ```{r}
-load("data/derived/seasons_list_removed_lfr.Rda")
+load("data/derived/removed_lfr.Rda")
 ```
 
 ```{r}
 #| eval: false
 # Get roosts for each season ----------------------------------------------
-roosts <- purrr::map(seasons_list_removed_lfr, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
+roosts <- purrr::map(removed_lfr, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
 roosts <- roosts %>%
   map(., ~st_as_sf(.x, crs = "WGS84", 
                    coords = c("location_long", "location_lat"), 
@@ -658,30 +673,33 @@ roosts <- roosts %>%
 save(roosts, file = "data/derived/roosts.Rda")
 
 # Tidy up
-rm(seasons_list_removed_lfr)
+rm(removed_lfr)
 rm(roosts)
 gc()
 ```
 
+# Further processing for movement data
+
 ## Remove nighttime points
-
-START HERE
-
-XXX do we not also remove nighttime points for seasons_mode10?
 
 *Inputs:*
 
--   `seasons`
+-   `data/derived/removed_lfr.Rda`
+-   `data/derived/season_names.Rda`
 
 *Outputs:*
 
--   `seasons`
+-   `data/derived/removed_nightime.Rda`
+
+```{r}
+load("data/derived/removed_lfr.Rda")
+load("data/derived/season_names.Rda")
+```
 
 ```{r}
 #| eval: false
 # Remove nighttime points -------------------------------------------------
-before <- map_dbl(seasons, nrow)
-seasons <- map(seasons, ~{
+removed_nighttime <- map(removed_lfr, ~{
   times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
                                      lat = 31.434306, lon = 34.991889, # XXX revisit this!
                                      keep = c("sunrise", "sunset")) %>%
@@ -694,44 +712,44 @@ seasons <- map(seasons, ~{
     dplyr::select(-c(sunrise, sunset)) %>%
     dplyr::filter(daylight == "day")
 })
-after <- map_dbl(seasons, nrow)
-change <- after-before
-changeDF <- data.frame(seasonName = seasonNames_orig, nBefore = before, nAfter = after) %>%
-  mutate(propRowsRemoved = round((before-after)/before, 2))
-changeDF
+
+save(removed_nighttime, file = "data/derived/removed_nighttime.Rda")
+
+# tidy up
+rm(removed_nighttime)
+rm(removed_lfr)
+rm(season_names)
+gc()
 ```
 
-## Restrict to Southern individuals
+## Restrict to southern population
 
 Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (UTM 36N, <https://epsg.io/32636)>
 
-XXX why are we using `seasons_orig` here? shouldn't it be `seasons`?
-
 *Inputs:*
 
--   `seasons_orig`
+-   `data/derived/removed_nighttime.Rda`
+-   `data/derived/season_names.Rda`
 
 *Outputs:*
 
--   `data/derived/seasonsSF.Rda`
+-   `data/derived/removed_northern.Rda`
 
--   `seasons` XXX seems wrong!
+```{r}
+load("data/derived/removed_nighttime.Rda")
+load("data/derived/season_names.Rda")
+```
 
 ```{r}
 #| eval: false
-# Restrict to southern individuals ----------------------------------------
-# 
 # Transform to SF object, so we can get centroids
-seasonsSF <- map(seasons_orig, ~.x %>%
+seasons_sf <- map(removed_nighttime, ~.x %>%
                    sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
                    sf::st_set_crs("WGS84") %>%
                    sf::st_transform(32636))
 
-save(seasonsSF, file = "data/derived/seasonsSF.Rda")
-load("data/derived/seasonsSF.Rda")
-
 ## Get centroids, so we can see who's "southern" for that season.
-centroids <- map(seasonsSF, ~.x %>%
+centroids <- map(seasons_sf, ~.x %>%
                    group_by(Nili_id) %>%
                    summarize(geometry = st_union(geometry)) %>%
                    st_centroid())
@@ -740,51 +758,80 @@ centroids <- map(seasonsSF, ~.x %>%
 walk(centroids, ~hist(st_coordinates(.x)[,2])) # looks like 3550000 is generally a good cutoff point here.
 
 ## Get southern individuals for each season, so we can filter the data
-southernIndivs <- map(centroids, ~.x %>%
+southern_indivs <- map(centroids, ~.x %>%
                         filter(st_coordinates(.)[,2] < 3550000) %>%
                         pull(Nili_id))
 
 ## Remove individuals not in the south
-before <- seasons
-seasons <- map2(.x = seasons, .y = southernIndivs, ~.x %>% filter(Nili_id %in% .y))
-after <- seasons
+before <- removed_nighttime
+removed_northern <- map2(.x = removed_nighttime, 
+                         .y = southern_indivs, ~.x 
+                         %>% filter(Nili_id %in% .y))
+after <- removed_northern
 
 beforeRows <- map_dbl(before, nrow)
 afterRows <- map_dbl(after, nrow)
 beforeIndivs <- map_dbl(before, ~length(unique(.x$Nili_id)))
 afterIndivs <- map_dbl(after, ~length(unique(.x$Nili_id)))
-df <- data.frame(season = seasonNames_orig, nBefore = beforeRows, nAfter = afterRows, indivsBefore = beforeIndivs, indivsAfter = afterIndivs)
+df <- data.frame(season = season_names, nBefore = beforeRows, nAfter = afterRows, indivsBefore = beforeIndivs, indivsAfter = afterIndivs)
 df$propRowsRemoved <- round((df$nBefore - df$nAfter)/df$nBefore, 2)
 df
+
+save(removed_northern, file = "data/derived/removed_northern.Rda")
+
+# tidy up
+rm(removed_nighttime)
+rm(season_names)
+rm(seasons_sf)
 rm(centroids)
-rm(seasonsSF)
+rm(southern_indivs)
+rm(before)
+rm(after)
+rm(removed_northern)
+rm(df)
+rm(afterIndivs)
+rm(afterRows)
+rm(beforeIndivs)
+rm(beforeRows)
+gc()
 ```
 
 ## Remove individuals with too few points per day
 
 *Inputs:*
 
--   `seasons`
+-   `data/derived/removed_northern.Rda`
 
 *Outputs:*
 
--   `seasons`
+-   `data/derived/removed_lowppd.Rda`
+
+```{r}
+load("data/derived/removed_northern.Rda")
+```
 
 ```{r}
 #| eval: false
-# Include only individuals with enough points per day ------------------------
-# Investigate battery percentage vs points per day ------------------------
-# Is there some way we can relate battery charge percentage to number of points per day?
-test <- seasons[[5]]
-names(test)
-
-ppd <- map_dfr(seasons, ~.x %>%
+# Calculate number of points per day for each individual
+ppd <- map_dfr(removed_northern, ~.x %>%
                  st_drop_geometry() %>%
                  group_by(seasonUnique, season, Nili_id, dateOnly) %>%
                  summarize(n = n(),
                            minBatt = min(battery_charge_percent, na.rm = T),
                            meanBatt = mean(battery_charge_percent, na.rm = T),
                            medBatt = mean(battery_charge_percent, na.rm = T)))
+
+# Sometimes, fewer points per day is due to low battery charge percent. Let's examine the relationship between battery charge and number of points per day.
+ppd %>%
+  filter(n < 100) %>% # only interested in lower numbers of points per day
+  ggplot(aes(x = minBatt, y = n))+
+  geom_point()+
+  facet_wrap(~seasonUnique)+
+  theme_classic()
+
+# What if we decide to exclude based on the combination of battery charge and points per day, with the minimum battery threshold at 50% and the points threshold at 10?
+
+# That is, if the minimum battery threshold was <= 50, a bird must have > 10 points on a given day for that day to be included. But if the minimum battery threshold was never less than 50%, it's okay to keep the ones with fewer points per day, since we know it was due to some reason other than battery charge.
 
 excl_batt <- 50
 excl_pts <- 10
@@ -799,247 +846,161 @@ ppd %>%
   scale_color_manual(values = c("black", "red")) +
   theme_classic()
 
-# # cumulative histogram to look at the results of removing days based only on ppd
-# ppd %>%
-#   filter(n < 100) %>%
-#   ggplot(aes(x = n)) +
-#   stat_ecdf(aes(y = after_stat(y)*100))+
-#   ylab("Percentage of vulture-days included")+
-#   xlab("Points per day")+
-#   theme_classic()+
-#   facet_wrap(~seasonUnique)
-# 
-# # cumulative histogram to look at results of removing days based on ppd after battery is taken into account (min pct < 50)
-# ppd %>%
-#   filter(n < 100, minBatt > 50) %>%
-#   ggplot(aes(x = n)) +
-#   stat_ecdf(aes(y = after_stat(y)*100))+
-#   ylab("Percentage of vulture-days included")+
-#   xlab("Points per day")+
-#   theme_classic()+
-#   facet_wrap(~seasonUnique)
-# 
-# # same thing, but with batery set at 75
-# # cumulative histogram to look at results of removing days based on ppd after battery is taken into account (min pct < 50)
-# ppd %>%
-#   filter(n < 100, minBatt > 75) %>%
-#   ggplot(aes(x = n)) +
-#   stat_ecdf(aes(y = after_stat(y)*100))+
-#   ylab("Percentage of vulture-days included")+
-#   xlab("Points per day")+
-#   theme_classic()+
-#   facet_wrap(~seasonUnique)
-# 
-# # What if instead we decide we want a certain number of ppd--battery cuttoff may be sharper. Say, 30 ppd: is there a discernible battery cutoff that distinguishes "real" from "battery artifact" days?
-# ppd %>%
-#   filter(n < 30) %>%
-#   ggplot(aes(x = minBatt))+
-#   stat_ecdf(aes(y = after_stat(y)*100))+
-#   ylim(c(0, 100))+
-#   facet_wrap(~seasonUnique)+
-#   ylab("Percentage of vulture-days included")+
-#   xlab("Minimum battery percentage") # we do seem to see crooks here around 75%!
-# 
-# # Same thing but with 10 points per day? Predict much sharper cutoffs.
-# ppd %>%
-#   filter(n < 10) %>%
-#   ggplot(aes(x = minBatt))+
-#   stat_ecdf(aes(y = ..y..*100))+
-#   ylim(c(0, 100))+
-#   facet_wrap(~seasonUnique)+
-#   ylab("Percentage of vulture-days included")+
-#   xlab("Minimum battery percentage") # crooks around 50% battery minimum for 10ppd. This seems like a pretty good way to go!
-
-# Let's throw out anything with < 10ppd unless the battery has a min charge > 50%.
-
-# Orr suggests to just restrict to vulture*days with >30 points per day. Let's see what that would look like.
-thresh <- 30
-# ppd %>%
-#   mutate(Status = ifelse(n < thresh, "removed", "kept")) %>%
-#   ggplot(aes(x = n))+
-#   geom_histogram(aes(fill = Status))+
-#   facet_wrap(~seasonUnique, scales ="free")+
-#   geom_vline(aes(xintercept = thresh), col = "red")+
-#   scale_fill_manual(values = c("darkgray", "red"))+
-#   theme_classic()+
-#   ggtitle(paste("n removed =", thresh, sep = " "))+
-#   ylab("# vulture*days")+
-#   xlab("# points per vulture*day") # short days in breeding season, and vultures sitting on nests
-# 
-# ppd <- ppd %>%
-#   ungroup() %>%
-#   mutate(removed = ifelse(n < thresh, T, F))
-# 
-# # what proportion of vulture*days are removed overall?
-# (propRemoved <- ppd %>%
-#     group_by(seasonUnique, season) %>%
-#     summarize(nTot = n(),
-#               nRemoved = sum(removed),
-#               propRemoved = nRemoved/nTot))
-# propRemoved %>%
-#   ggplot(aes(x = seasonUnique, y = propRemoved, col = season))+
-#   geom_point(size = 10)+
-#   theme_classic()+
-#   scale_color_manual(values = c("blue", "red", "darkorange"))
-# 
-# # I'm a bit concerned about this because it removes more data for the breeding season than for the non-breeding seasons (likely because less sunlight during those seasons)
-# 
-# # what about by individual over each season?
-# ppd %>%
-#   group_by(seasonUnique, season, Nili_id) %>%
-#   summarize(propRemoved = sum(removed)/n()) %>%
-#   ggplot(aes(x = seasonUnique, y = propRemoved))+
-#   geom_boxplot(aes(group = seasonUnique, fill = season))+
-#   geom_jitter(width = 0.2, alpha = 0.3, size = 2)+
-#   scale_fill_manual(name = "Season", values = c("blue", "red", "darkorange"))+
-#   theme_classic()+ # tells the same story
-#   ylab("Proportion of days removed")+
-#   xlab("")
-
-# Based on the battery charge analysis above, going to remove individuals that have 10 or fewer points per day, but only if the minimum battery charge is less than 50%.
-
-
 ## Keep days with more than 10 points, or with fewer than 10 if the minimum battery charge that day is >50%
-seasons <- map(seasons, ~.x %>%
+removed_lowppd <- map(removed_northern, ~.x %>%
                  group_by(Nili_id, dateOnly) %>%
-                 filter(n() >= 10 | (n() < 10 & min(battery_charge_percent, na.rm = T) > 50)) %>%
+                 filter(n() >= 10 | (n() < 10 & 
+                                       min(battery_charge_percent, 
+                                           na.rm = T) > 50)) %>%
                  ungroup())
+
+save(removed_lowppd, file = "data/derived/removed_lowppd.Rda")
+
+# tidying up
+rm(removed_northern)
+rm(ppd)
+rm(excl_batt)
+rm(excl_pts)
+rm(removed_lowppd)
+gc()
 ```
 
 ## Remove individuals with too few days tracked
 
+Now that we've removed days with too few points per day, we are left with only "valid" movement days for each individual. Now we want to exclude *individuals* (rather than individual-days) if the individual has too few valid days of movement data to accurately calculate movement metrics.
+
+Somewhat arbitrarily, we are removing individuals that are tracked for **fewer than 30 days in a given season.**
+
 *Inputs:*
 
--   `seasons`
+-   `data/derived/removed_lowppd.Rda`
+-   `data/derived/season_names.Rda`
 
 *Outputs:*
 
--   `seasons`
+-   `data/derived/removed_too_few_days.Rda`
+-   `data/derived/season_durations.Rda`
+
+```{r}
+load("data/derived/removed_lowppd.Rda")
+load("data/derived/season_names.Rda")
+```
 
 ```{r}
 #| eval: false
+
+# How long are the seasons?
+season_durations <- map_dbl(removed_lowppd, ~max(.x$dateOnly)-min(.x$dateOnly))
+names(season_durations) <- season_names
+season_durations
+
 # Include only individuals with enough days tracked -----------------------
-## Must be tracked for at least 30 days per season
-durs <- map_dbl(seasons, ~length(unique(.x$dateOnly)))
-
-# walk2(seasons, durs, ~.x %>%
-#         st_drop_geometry() %>%
-#         group_by(Nili_id) %>%
-#         summarize(nDaysTracked = length(unique(dateOnly)),
-#                   propDaysTracked = nDaysTracked/.y) %>%
-#         pull(propDaysTracked) %>%
-#         hist())
-
-indivsToKeep <- map2(.x = seasons, .y = durs, ~.x %>%
+indivsToKeep <- map(removed_lowppd, ~.x %>%
                        st_drop_geometry() %>%
                        group_by(Nili_id) %>%
-                       summarize(nDaysTracked = length(unique(dateOnly)),
-                                 propDaysTracked = nDaysTracked/.y) %>%
+                       summarize(nDaysTracked = 
+                                   length(unique(dateOnly))) %>%
                        filter(nDaysTracked >= 30) %>%
                        pull(Nili_id))
 
 ## remove those individuals not tracked for enough days
-before <- seasons
-after <- map2(.x = seasons, .y = indivsToKeep, ~.x %>% filter(Nili_id %in% .y))
+removed_too_few_days <- map2(.x = removed_lowppd, 
+                             .y = indivsToKeep, ~.x %>% 
+                filter(Nili_id %in% .y))
 
-beforeIndivs <- map_dbl(before, ~length(unique(.x$Nili_id)))
-afterIndivs <- map_dbl(after, ~length(unique(.x$Nili_id)))
-seasons <- after
+beforeIndivs <- map_dbl(removed_lowppd, ~length(unique(.x$Nili_id)))
+afterIndivs <- map_dbl(removed_too_few_days, ~length(unique(.x$Nili_id)))
+
+save(removed_too_few_days, file = "data/derived/removed_too_few_days.Rda")
+save(season_durations, file = "data/derived/season_durations.Rda")
+
+# tidy up
+rm(removed_lowppd)
+rm(season_names)
+rm(season_durations)
+rm(indivsToKeep)
+rm(removed_too_few_days)
+rm(beforeIndivs)
+rm(afterIndivs)
+gc()
 ```
 
 ## Calculate flight altitude
 
 *Inputs:*
 
--   `seasons`
+-   `data/derived/removed_too_few_days`
 
 *Outputs:*
 
--   `data/derived/elevs_z10_seasons.Rda`
+-   `data/derived/elevs_z10.Rda`
 
--   `data/derived/groundElev_z10.Rda`
+-   `data/derived/with_altitudes.Rda`
 
--   `seasons`
+```{r}
+load("data/derived/removed_too_few_days.Rda")
+```
+
+```{r}
+# Get elevation rasters ---------------------------------------------------
+sf <- map(removed_too_few_days, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
+elevs_z10 <- map(sf, ~elevatr::get_elev_raster(.x , z = 10))
+save(elevs_z10, file = "data/derived/elevs_z10.Rda")
+```
+
+```{r}
+load("data/derived/elevs_z10.Rda")
+```
 
 ```{r}
 #| eval: false
-# Get elevation rasters ---------------------------------------------------
-# Remove the first element of `seasons` because it doesn't have any data
-seasons <- seasons[-1] # removing summer 2020
-# # XXXXXXX start here
-#seasons <- map(seasons, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-#elevs_z10_seasons <- map(seasons, ~elevatr::get_elev_raster(.x , z = 10))
-#save(elevs_z10_seasons, file = "data/derived/elevs_z10_seasons.Rda")
-load("data/derived/elevs_z10_seasons.Rda")
-
-# groundElev_z10 <- map2(elevs_z10_seasons, seasons, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
-# save(groundElev_z10, file = "data/derived/groundElev_z10.Rda")
-load("data/derived/groundElev_z10.Rda")
+groundElev_z10 <- map2(elevs_z10, sf, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
 
 ## use elevation rasters to calculate height above ground level
-before <- seasons
-seasons <- map2(.x = seasons, .y = groundElev_z10, 
+with_altitudes <- map2(.x = removed_too_few_days, .y = groundElev_z10, 
                 ~.x %>% mutate(groundElev = .y) %>%
                   mutate(height_above_ground = height_above_msl-groundElev,
                          height_above_ground = case_when(height_above_ground < 0 ~ 0,
                                                          TRUE ~ height_above_ground)))
-after <- seasons
 
 # There should be no change in the number of rows
-all(map2_lgl(before, after, ~nrow(.x) == nrow(.y)))
-```
+all(map2_lgl(removed_too_few_days, with_altitudes, ~nrow(.x) == nrow(.y)))
 
-## Restrict to mode10 individuals
+save(with_altitudes, file = "data/derived/with_altitudes.Rda")
 
-XXX what is happening here
-
-*Inputs:*
-
--   `data/derived/toKeep_fixrate.Rda`
-
--   `seasons`
-
-*Outputs:*
-
--   `data/derived/seasons.Rda`
-
--   `data/derived/seasons_mode10.Rda`
-
-```{r}
-#| eval: false
-# Now restrict to the mode10 individuals ----------------------------------
-load("data/derived/toKeep_fixrate.Rda")
-toKeep_fixrate <- toKeep_fixrate[-1]
-seasons_mode10 <- map2(seasons, toKeep_fixrate, ~.x %>% filter(Nili_id %in% .y))
-
-save(seasons, file = "data/derived/seasons.Rda")
-save(seasons_mode10, file = "data/derived/seasons_mode10.Rda")
-load("data/derived/seasons.Rda")
-load("data/derived/seasons_mode10.Rda")
+# tidy up
+rm(removed_too_few_days)
+rm(sf)
+rm(elevs_z10)
+rm(groundElev_z10)
+rm(with_altitudes)
 ```
 
 ## Remove high-frequency fixes
 
-Downsampling data to 10-minute intervals exclusively
+We already removed individuals that had too low a fix rate. We are left with individuals that had a fix rate of 10 minutes or more frequent. But occasionally, there were periods of high-frequency sampling. This might mess up our movement calculations, so let's downsample the data so that any points that were sampled at a frequency much higher than 1 fix/10 minutes will be reduced to the same frequency as the others.
 
 *Inputs:*
 
--   `seasons`
+-   `data/derived/with_altitudes.Rda`
 
--   `seasons_mode10`
+-   `data/derived/season_names.Rda`
 
 *Outputs:*
 
--   `data/derived/seasons_10min.Rda`
+-   `data/derived/downsampled_10min.Rda`
 
--   `data/derived/seasons_mode10_10min.Rda`
-
-XXX this is confusing. Need to rename after concepts, not minutes.
+```{r}
+load("data/derived/with_altitudes.Rda")
+load("data/derived/season_names.Rda")
+```
 
 ```{r}
 #| eval: false
-# Downsample the data and save the downsampled data
-subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 10){
+
+# Function to downsample the data
+subsample <- function(df, idCol = "Nili_id", 
+                      timestampCol = "timestamp", mins = 10){
   sub <- df %>%
     arrange(idCol, timestampCol) %>%
     group_by(.data[[idCol]]) %>%
@@ -1054,16 +1015,19 @@ subsample <- function(df, idCol = "Nili_id", timestampCol = "timestamp", mins = 
 }
 
 # create and save downsampled datasets for later use
-seasons_10min <- map(seasons, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # basically just trying to remove any data from the occasional bursts of more concentrated and frequent sampling.
-seasons_mode10_10min <- map(seasons_mode10, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T)
+downsampled_10min <- map(with_altitudes, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # basically just trying to remove any data from the occasional bursts of more concentrated and frequent sampling.
 
-map_dbl(seasons, nrow)
-map_dbl(seasons_10min, nrow)
-map_dbl(seasons_mode10, nrow)
+# Add information on # of days tracked for each individual
+downsampled_10min <- map(downsampled_10min, ~.x %>% group_by(Nili_id) %>% 
+                       mutate(daysTracked = length(unique(dateOnly))))
 
-seasons_mode10_10min <- map(seasons_mode10_10min, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))))
-seasons_10min <- map(seasons_10min, ~.x %>% group_by(Nili_id) %>% mutate(daysTracked = length(unique(dateOnly))))
+save(downsampled_10min, file = "data/derived/downsampled_10min.Rda")
 
-save(seasons_10min, file = "data/derived/seasons_10min.Rda")
-save(seasons_mode10_10min, file = "data/derived/seasons_mode10_10min.Rda")
+map_dbl(with_altitudes, nrow) %>% setNames(season_names)
+map_dbl(downsampled_10min, nrow) %>% setNames(season_names)
+
+# tidying
+rm(with_altitudes)
+rm(downsampled_10min)
+gc()
 ```
