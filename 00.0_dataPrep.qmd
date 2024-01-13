@@ -44,7 +44,7 @@ Inputs:
 
 Outputs:
 
--   `data/derived/inpa.feather`
+-   `data/dataPrep/inpa.feather`
 
 ```{r download-inpa}
 #| eval: false
@@ -54,7 +54,7 @@ inpa <- inpa %>%
   mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
          year = as.numeric(lubridate::year(timestamp))) %>%
   filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-05-15")) # cut this off at the same point as the ornitela data
-write_feather(inpa, "data/derived/inpa.feather")
+write_feather(inpa, "data/dataPrep/inpa.feather")
 
 length(unique(inpa$trackId)) # 77
 
@@ -71,7 +71,7 @@ Inputs:
 
 Outputs:
 
--   `data/derived/ornitela.feather`
+-   `data/``dataPrep``/ornitela.feather`
 
 ```{r download-ornitela}
 #| eval: false
@@ -79,7 +79,7 @@ Outputs:
 minDate <- "2020-09-01 00:00"
 maxDate <- "2023-05-15 11:59"
 ornitela <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
-write_feather(ornitela, "data/derived/ornitela.feather")
+write_feather(ornitela, "data/dataPrep/ornitela.feather")
 
 length(unique(ornitela$trackId)) # 127
 
@@ -94,17 +94,17 @@ gc()
 
 *Inputs:*
 
--   `data/derived/inpa.feather`
+-   `data/dataPrep/inpa.feather`
 
--   `data/derived/ornitela.feather`
+-   `data/dataPrep/ornitela.feather`
 
 *Outputs:*
 
--   `data/derived/joined.feather`
+-   `data/dataPrep/joined.feather`
 
 ```{r load-inpa-ornitela}
-inpa <- read_feather("data/derived/inpa.feather")
-ornitela <- read_feather("data/derived/ornitela.feather")
+inpa <- read_feather("data/dataPrep/inpa.feather")
+ornitela <- read_feather("data/dataPrep/ornitela.feather")
 ```
 
 ```{r join-inpa-ornitela}
@@ -178,7 +178,7 @@ joined <- joined %>%
   mutate(Nili_id = case_when(is.na(Nili_id) ~ trackId,
                              TRUE ~ Nili_id))
 length(unique(joined$Nili_id))
-write_feather(joined, "data/derived/joined.feather")
+write_feather(joined, "data/dataPrep/joined.feather")
 
 # tidy up
 rm(joined0)
@@ -196,14 +196,14 @@ Removing known invalid periods, such as times when the vultures were in the hosp
 
 -   `data/raw/whoswho_vultures_20230315_new.xlsx`
 
--   `data/derived/joined.feather`
+-   `data/``dataPrep``/joined.feather`
 
 *Outputs:*
 
--   `data/derived/removed_periods.feather`
+-   `data/``dataPrep``/removed_periods.feather`
 
 ```{r load-hospital}
-joined <- read_feather("data/derived/joined.feather")
+joined <- read_feather("data/dataPrep/joined.feather")
 periods_to_remove <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "periods_to_remove")
 ```
 
@@ -242,7 +242,7 @@ length(unique(removal_annotated$Nili_id))
 nrow(joined) == nrow(removal_annotated) # true
 nrow(removed_periods) != nrow(removal_annotated) # true
 
-write_feather(removed_periods, "data/derived/removed_periods.feather")
+write_feather(removed_periods, "data/dataPrep/removed_periods.feather")
 
 # tidy up
 rm(periods_to_remove)
@@ -262,7 +262,7 @@ Note: I'm calling the roosts data frame generated here `roosts0.Rda` because I w
 
 *Inputs:*
 
--   `data/derived/removed_periods.feather`
+-   `data/``dataPrep``/removed_periods.feather`
 
 -   `data/raw/capture_sites.csv`
 
@@ -270,25 +270,25 @@ Note: I'm calling the roosts data frame generated here `roosts0.Rda` because I w
 
 *Outputs:*
 
--   `data/derived/roosts0.Rda`
+-   `data/``dataPrep``/roosts0.Rda`
 
--   `data/derived/removed_captures.feather`
+-   `data/``dataPrep``/removed_captures.feather`
 
 ```{r}
-removed_periods <- read_feather("data/derived/removed_periods.feather")
+removed_periods <- read_feather("data/dataPrep/removed_periods.feather")
 ```
 
 ```{r remove-capture-cage-getroosts}
 #| eval: false
 # Identify and remove capture dates using Marta's code --------------------
 roosts0 <- get_roosts_df(df = removed_periods, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
-save(roosts0, file = "data/derived/roosts0.Rda")
+save(roosts0, file = "data/dataPrep/roosts0.Rda")
 ```
 
 ```{r}
 # Load information about the capture sites
 capture_sites <- read.csv("data/raw/capture_sites.csv")
-load("data/derived/roosts0.Rda")
+load("data/dataPrep/roosts0.Rda")
 AllCarmelDates <- read.csv("data/raw/all_captures_carmel_2010-2021.csv")
 ```
 
@@ -384,7 +384,7 @@ length(unique(removed_periods$Nili_id)) == length(unique(removed_captures$Nili_i
 removed_captures <- removed_captures %>%
   dplyr::select(-c("ClosestCaptureSite", "ClosestCaptureDist", "Captured"))
 
-write_feather(removed_captures, "data/derived/removed_captures.feather")
+write_feather(removed_captures, "data/dataPrep/removed_captures.feather")
 
 # tidy up
 rm(AllCarmelDates)
@@ -427,14 +427,14 @@ Note: the actual calculation of age happens later on, after cleaning the data, f
 
 -   `data/raw/whoswho_vultures_20230315_new.xlsx`
 
--   `data/derived/removed_captures.feather`
+-   `data/dataPrep/removed_captures.feather`
 
 *Outputs:*
 
--   `data/derived/with_age_sex.feather`
+-   `data/dataPrep/with_age_sex.feather`
 
 ```{r attach-age-sex}
-removed_captures <- read_feather("data/derived/removed_captures.feather")
+removed_captures <- read_feather("data/dataPrep/removed_captures.feather")
 age_sex <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
   dplyr::select(Nili_id, birth_year, sex) %>%
   distinct()
@@ -448,7 +448,7 @@ with_age_sex <- removed_captures %>%
 nrow(with_age_sex) == nrow(removed_captures)
 length(unique(with_age_sex$Nili_id)) # 196
 
-write_feather(with_age_sex, "data/derived/with_age_sex.feather")
+write_feather(with_age_sex, "data/dataPrep/with_age_sex.feather")
 
 # tidy up
 rm(removed_captures)
@@ -465,15 +465,15 @@ Here, we set the `inMaskThreshold` to 30 days overall. If we wanted 30 days per 
 
 -   `data/raw/CutOffRegion.kml`
 
--   `data/derived/with_age_sex.feather`
+-   `data/dataPrep/with_age_sex.feather`
 
 *Outputs:*
 
--   `data/derived/cleaned.feather`
+-   `data/dataPrep/cleaned.feather`
 
 ```{r}
 mask <- sf::st_read("data/raw/CutOffRegion.kml")
-with_age_sex <- read_feather("data/derived/with_age_sex.feather")
+with_age_sex <- read_feather("data/dataPrep/with_age_sex.feather")
 ```
 
 ```{r clean-data}
@@ -493,7 +493,7 @@ cleaned <- cleaned %>%
 # This produces a huge file because it's an SF file. We don't really need it to be sf at this stage. Let's remove that.
 cleaned <- sf::st_drop_geometry(cleaned)
 
-save(cleaned, file = "data/derived/cleaned.Rda")
+save(cleaned, file = "data/dataPrep/cleaned.Rda")
 
 # tidy up
 rm(mask)
@@ -508,16 +508,16 @@ Season definitions, and code to split the data into seasons, come from Marta.
 
 *Inputs:*
 
--   `data/derived/cleaned.Rda`
+-   `data/dataPrep/cleaned.Rda`
 
 *Outputs:*
 
--   `data/derived/seasons_list.Rda`
+-   `data/``dataPrep``/seasons_list.Rda`
 
--   `data/derived/season_names.Rda`
+-   `data/``dataPrep``/season_names.Rda`
 
 ```{r}
-load("data/derived/cleaned.Rda")
+load("data/dataPrep/cleaned.Rda")
 ```
 
 ```{r split-seasons}
@@ -573,8 +573,8 @@ seasons_list <- with_seasons %>%
 length(seasons_list) # should be 8
 # extract the season names in case we need a separate vector at some point.
 season_names <- map_chr(seasons_list, ~as.character(.x$seasonUnique[1])) # ok good, these are in the right order
-save(seasons_list, file = "data/derived/seasons_list.Rda")
-save(season_names, file = "data/derived/season_names.Rda")
+save(seasons_list, file = "data/dataPrep/seasons_list.Rda")
+save(season_names, file = "data/dataPrep/season_names.Rda")
 
 # tidy up
 rm(cleaned)
@@ -592,14 +592,14 @@ Therefore, we have to identify **low fix rate (lfr) individuals**, which are tho
 
 *Inputs:*
 
--   `data/derived/seasons_list.Rda`
+-   `data/dataPrep/seasons_list.Rda`
 
 *Outputs:*
 
--   `data/derived/removed_lfr.Rda`
+-   `data/dataPrep/removed_lfr.Rda`
 
 ```{r}
-load("data/derived/seasons_list.Rda")
+load("data/dataPrep/seasons_list.Rda")
 ```
 
 ```{r}
@@ -632,7 +632,7 @@ removed_lfr <- map2(seasons_list, toRemove_lfr, ~.x %>%
                                    filter(!(Nili_id %in% .y)))
 
 save(removed_lfr, 
-     file = "data/derived/removed_lfr.Rda")
+     file = "data/dataPrep/removed_lfr.Rda")
 
 # Tidy up
 rm(seasons_list)
@@ -652,14 +652,14 @@ We are going to need to get nightly roost locations for all of the remaining vul
 
 *Inputs:*
 
--   `data/derived/removed_lfr`
+-   `data/dataPrep/removed_lfr`
 
 *Outputs:*
 
--   `data/derived/roosts.Rda`
+-   `data/dataPrep/roosts.Rda`
 
 ```{r}
-load("data/derived/removed_lfr.Rda")
+load("data/dataPrep/removed_lfr.Rda")
 ```
 
 ```{r}
@@ -670,7 +670,7 @@ roosts <- roosts %>%
   map(., ~st_as_sf(.x, crs = "WGS84", 
                    coords = c("location_long", "location_lat"), 
                    remove = F))
-save(roosts, file = "data/derived/roosts.Rda")
+save(roosts, file = "data/dataPrep/roosts.Rda")
 
 # Tidy up
 rm(removed_lfr)
@@ -684,16 +684,16 @@ gc()
 
 *Inputs:*
 
--   `data/derived/removed_lfr.Rda`
--   `data/derived/season_names.Rda`
+-   `data/dataPrep/removed_lfr.Rda`
+-   `data/dataPrep/season_names.Rda`
 
 *Outputs:*
 
--   `data/derived/removed_nightime.Rda`
+-   `data/dataPrep/removed_nightime.Rda`
 
 ```{r}
-load("data/derived/removed_lfr.Rda")
-load("data/derived/season_names.Rda")
+load("data/dataPrep/removed_lfr.Rda")
+load("data/dataPrep/season_names.Rda")
 ```
 
 ```{r}
@@ -713,7 +713,7 @@ removed_nighttime <- map(removed_lfr, ~{
     dplyr::filter(daylight == "day")
 })
 
-save(removed_nighttime, file = "data/derived/removed_nighttime.Rda")
+save(removed_nighttime, file = "data/dataPrep/removed_nighttime.Rda")
 
 # tidy up
 rm(removed_nighttime)
@@ -728,16 +728,16 @@ Based on previous investigations for the 2022 breeding and non-breeding seasons,
 
 *Inputs:*
 
--   `data/derived/removed_nighttime.Rda`
--   `data/derived/season_names.Rda`
+-   `data/dataPrep/removed_nighttime.Rda`
+-   `data/dataPrep/season_names.Rda`
 
 *Outputs:*
 
--   `data/derived/removed_northern.Rda`
+-   `data/dataPrep/removed_northern.Rda`
 
 ```{r}
-load("data/derived/removed_nighttime.Rda")
-load("data/derived/season_names.Rda")
+load("data/dataPrep/removed_nighttime.Rda")
+load("data/dataPrep/season_names.Rda")
 ```
 
 ```{r}
@@ -777,7 +777,7 @@ df <- data.frame(season = season_names, nBefore = beforeRows, nAfter = afterRows
 df$propRowsRemoved <- round((df$nBefore - df$nAfter)/df$nBefore, 2)
 df
 
-save(removed_northern, file = "data/derived/removed_northern.Rda")
+save(removed_northern, file = "data/dataPrep/removed_northern.Rda")
 
 # tidy up
 rm(removed_nighttime)
@@ -800,14 +800,14 @@ gc()
 
 *Inputs:*
 
--   `data/derived/removed_northern.Rda`
+-   `data/dataPrep/removed_northern.Rda`
 
 *Outputs:*
 
--   `data/derived/removed_lowppd.Rda`
+-   `data/dataPrep/removed_lowppd.Rda`
 
 ```{r}
-load("data/derived/removed_northern.Rda")
+load("data/dataPrep/removed_northern.Rda")
 ```
 
 ```{r}
@@ -854,7 +854,7 @@ removed_lowppd <- map(removed_northern, ~.x %>%
                                            na.rm = T) > 50)) %>%
                  ungroup())
 
-save(removed_lowppd, file = "data/derived/removed_lowppd.Rda")
+save(removed_lowppd, file = "data/dataPrep/removed_lowppd.Rda")
 
 # tidying up
 rm(removed_northern)
@@ -873,17 +873,17 @@ Somewhat arbitrarily, we are removing individuals that are tracked for **fewer t
 
 *Inputs:*
 
--   `data/derived/removed_lowppd.Rda`
--   `data/derived/season_names.Rda`
+-   `data/dataPrep/removed_lowppd.Rda`
+-   `data/dataPrep/season_names.Rda`
 
 *Outputs:*
 
--   `data/derived/removed_too_few_days.Rda`
--   `data/derived/season_durations.Rda`
+-   `data/dataPrep/removed_too_few_days.Rda`
+-   `data/dataPrep/season_durations.Rda`
 
 ```{r}
-load("data/derived/removed_lowppd.Rda")
-load("data/derived/season_names.Rda")
+load("data/dataPrep/removed_lowppd.Rda")
+load("data/dataPrep/season_names.Rda")
 ```
 
 ```{r}
@@ -911,8 +911,8 @@ removed_too_few_days <- map2(.x = removed_lowppd,
 beforeIndivs <- map_dbl(removed_lowppd, ~length(unique(.x$Nili_id)))
 afterIndivs <- map_dbl(removed_too_few_days, ~length(unique(.x$Nili_id)))
 
-save(removed_too_few_days, file = "data/derived/removed_too_few_days.Rda")
-save(season_durations, file = "data/derived/season_durations.Rda")
+save(removed_too_few_days, file = "data/dataPrep/removed_too_few_days.Rda")
+save(season_durations, file = "data/dataPrep/season_durations.Rda")
 
 # tidy up
 rm(removed_lowppd)
@@ -929,27 +929,27 @@ gc()
 
 *Inputs:*
 
--   `data/derived/removed_too_few_days`
+-   `data/dataPrep/removed_too_few_days`
 
 *Outputs:*
 
--   `data/derived/elevs_z10.Rda`
+-   `data/dataPrep/elevs_z10.Rda`
 
--   `data/derived/with_altitudes.Rda`
+-   `data/dataPrep/with_altitudes.Rda`
 
 ```{r}
-load("data/derived/removed_too_few_days.Rda")
+load("data/dataPrep/removed_too_few_days.Rda")
 ```
 
 ```{r}
 # Get elevation rasters ---------------------------------------------------
 sf <- map(removed_too_few_days, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
 elevs_z10 <- map(sf, ~elevatr::get_elev_raster(.x , z = 10))
-save(elevs_z10, file = "data/derived/elevs_z10.Rda")
+save(elevs_z10, file = "data/dataPrep/elevs_z10.Rda")
 ```
 
 ```{r}
-load("data/derived/elevs_z10.Rda")
+load("data/dataPrep/elevs_z10.Rda")
 ```
 
 ```{r}
@@ -966,7 +966,7 @@ with_altitudes <- map2(.x = removed_too_few_days, .y = groundElev_z10,
 # There should be no change in the number of rows
 all(map2_lgl(removed_too_few_days, with_altitudes, ~nrow(.x) == nrow(.y)))
 
-save(with_altitudes, file = "data/derived/with_altitudes.Rda")
+save(with_altitudes, file = "data/dataPrep/with_altitudes.Rda")
 
 # tidy up
 rm(removed_too_few_days)
@@ -982,17 +982,17 @@ We already removed individuals that had too low a fix rate. We are left with ind
 
 *Inputs:*
 
--   `data/derived/with_altitudes.Rda`
+-   `data/dataPrep/with_altitudes.Rda`
 
--   `data/derived/season_names.Rda`
+-   `data/dataPrep/season_names.Rda`
 
 *Outputs:*
 
--   `data/derived/downsampled_10min.Rda`
+-   `data/dataPrep/downsampled_10min.Rda`
 
 ```{r}
-load("data/derived/with_altitudes.Rda")
-load("data/derived/season_names.Rda")
+load("data/dataPrep/with_altitudes.Rda")
+load("data/dataPrep/season_names.Rda")
 ```
 
 ```{r}
@@ -1021,7 +1021,7 @@ downsampled_10min <- map(with_altitudes, ~subsample(df = .x, idCol = "Nili_id", 
 downsampled_10min <- map(downsampled_10min, ~.x %>% group_by(Nili_id) %>% 
                        mutate(daysTracked = length(unique(dateOnly))))
 
-save(downsampled_10min, file = "data/derived/downsampled_10min.Rda")
+save(downsampled_10min, file = "data/dataPrep/downsampled_10min.Rda")
 
 map_dbl(with_altitudes, nrow) %>% setNames(season_names)
 map_dbl(downsampled_10min, nrow) %>% setNames(season_names)
