@@ -584,11 +584,15 @@ rm(season_names)
 gc()
 ```
 
-## Remove individuals with low fix rate
+## Identify individuals with low fix rate
 
 Some of the INPA vultures were tracked only once an hour, or some other low fix rate. However, determining which birds these are is tricky because even the vultures that should have a 10-minute fix rate do not always have points every 10 minutes, e.g. due to lack of reception or low tag battery.\
 \
-Therefore, we have to identify **low fix rate (lfr) individuals**, which are those that *never* have a 10-minute fix rate. To do this, we will find the mode (most common) fix frequency for each individual on each day. Then, we will exclude individuals who never have observations at 10-minute intervals. We will keep any that theoretically have a 10-minute fix rate (i.e. their observation frequency was 10 minutes at some point), even if in practice they often have much less frequent observations.
+Therefore, we have to identify **low fix rate (lfr) individuals**, which are those that *never* have a 10-minute fix rate. To do this, we will find the mode (most common) fix frequency for each individual on each day. Then, we will identify individuals who never have observations at 10-minute intervals. We will keep any that theoretically have a 10-minute fix rate (i.e. their observation frequency was 10 minutes at some point), even if in practice they often have much less frequent observations.
+
+Because tags can be put on and off and the fix rate can change, I'm calculating the fix rate on a per-season basis (which is why I didn't put this step earlier in the pipeline–it had to come after the season splitting).
+
+I suppose we could leave in the low fix rate individuals, especially for co-roosting. \[Actually, maybe we should leave them in for co-roosting, but not the others... which makes me think maybe we should leave them in for roost and social, just not movement, because they can contribute to the background information. Aaaarrrrrrggghhhhh.... XXX\]
 
 *Inputs:*
 
@@ -596,10 +600,11 @@ Therefore, we have to identify **low fix rate (lfr) individuals**, which are tho
 
 *Outputs:*
 
--   `data/dataPrep/removed_lfr.Rda`
+-   `data/dataPrep/low_fix_rate_indivs.Rda`
 
 ```{r}
 load("data/dataPrep/seasons_list.Rda")
+load("data/dataPrep/season_names.Rda")
 ```
 
 ```{r}
@@ -619,53 +624,52 @@ with_modes <- map(seasons_list, ~.x %>%
                  mutate(mode = Mode(round(diff))) %>%
                  ungroup())
 
-# Exclude individuals that never have a daily mode of 10 minutes
-toRemove_lfr <- map(with_modes, ~.x %>%
+# Identify individuals that never have a daily mode of 10 minutes
+low_fix_rate_indivs <- map(with_modes, ~.x %>%
                         sf::st_drop_geometry() %>%
                         group_by(Nili_id) %>%
                         summarize(minmode = min(mode, na.rm = T)) %>%
                         filter(minmode > 10) %>%
                         pull(Nili_id) %>%
                         unique())
+names(low_fix_rate_indivs) <- season_names
 
-removed_lfr <- map2(seasons_list, toRemove_lfr, ~.x %>% 
-                                   filter(!(Nili_id %in% .y)))
-
-save(removed_lfr, 
-     file = "data/dataPrep/removed_lfr.Rda")
+save(low_fix_rate_indivs, 
+     file = "data/dataPrep/low_fix_rate_indivs.Rda")
+# Don't need to save with_modes because we've already used this step to identify low fix rate individuals.
 
 # Tidy up
 rm(seasons_list)
-rm(removed_lfr)
+rm(season_names)
+rm(low_fix_rate_indivs)
 rm(with_modes)
-rm(toRemove_lfr)
 gc()
 ```
 
 ### Data for social analysis
 
-The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `removed_lfr` and not anything further along.
+The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `seasons_list` and not anything further along.
 
 ## Get roosts before removing night points
 
-We are going to need to get nightly roost locations for all of the remaining vultures. We have to do this now because getting roost locations requires using points that occur at night, which we will eventually want to remove in order to do the movement analysis.
+We are going to need to get nightly roost locations for all of the vultures. We have to do this now because getting roost locations requires using points that occur at night, which we will eventually want to remove in order to do the movement analysis.
 
 *Inputs:*
 
--   `data/dataPrep/removed_lfr`
+-   `data/dataPrep/seasons_list.Rda`
 
 *Outputs:*
 
 -   `data/dataPrep/roosts.Rda`
 
 ```{r}
-load("data/dataPrep/removed_lfr.Rda")
+load("data/dataPrep/seasons_list.Rda")
 ```
 
 ```{r}
 #| eval: false
 # Get roosts for each season ----------------------------------------------
-roosts <- purrr::map(removed_lfr, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
+roosts <- purrr::map(seasons_list, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
 roosts <- roosts %>%
   map(., ~st_as_sf(.x, crs = "WGS84", 
                    coords = c("location_long", "location_lat"), 
@@ -673,12 +677,37 @@ roosts <- roosts %>%
 save(roosts, file = "data/dataPrep/roosts.Rda")
 
 # Tidy up
-rm(removed_lfr)
+rm(seasons_list)
 rm(roosts)
 gc()
 ```
 
-# Further processing for movement data
+# Further processing for movement analysis
+
+## Remove low fix rate individuals
+
+*Inputs:*
+
+-   `data/dataPrep/seasons_list.Rda`
+
+-   `data/dataPrep/low_fix_rate_indivs.Rda`
+
+```{r}
+load("data/dataPrep/seasons_list.Rda")
+load("data/dataPrep/low_fix_rate_indivs.Rda")
+```
+
+```{r}
+removed_lfr <- map2(seasons_list, low_fix_rate_indivs,
+                    ~.x %>% filter(!(Nili_id %in% .y)))
+save(removed_lfr, file = "data/dataPrep/removed_lfr.Rda")
+
+# tidy up
+rm(seasons_list)
+rm(low_fix_rate_indivs)
+rm(removed_lfr)
+gc()
+```
 
 ## Remove nighttime points
 
@@ -796,7 +825,7 @@ rm(beforeRows)
 gc()
 ```
 
-## Remove individuals with too few points per day
+## Remove vulture-days with too few points per day
 
 *Inputs:*
 
@@ -865,7 +894,7 @@ rm(removed_lowppd)
 gc()
 ```
 
-## Remove individuals with too few days tracked
+## Remove individuals with too few high-ppd days tracked
 
 Now that we've removed days with too few points per day, we are left with only "valid" movement days for each individual. Now we want to exclude *individuals* (rather than individual-days) if the individual has too few valid days of movement data to accurately calculate movement metrics.
 
