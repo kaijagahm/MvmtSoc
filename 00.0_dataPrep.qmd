@@ -592,8 +592,6 @@ Therefore, we have to identify **low fix rate (lfr) individuals**, which are tho
 
 Because tags can be put on and off and the fix rate can change, I'm calculating the fix rate on a per-season basis (which is why I didn't put this step earlier in the pipeline–it had to come after the season splitting).
 
-I suppose we could leave in the low fix rate individuals, especially for co-roosting. \[Actually, maybe we should leave them in for co-roosting, but not the others... which makes me think maybe we should leave them in for roost and social, just not movement, because they can contribute to the background information. Aaaarrrrrrggghhhhh.... XXX\]
-
 *Inputs:*
 
 -   `data/dataPrep/seasons_list.Rda`
@@ -971,14 +969,17 @@ load("data/dataPrep/removed_too_few_days.Rda")
 ```
 
 ```{r}
+#| eval: false
 # Get elevation rasters ---------------------------------------------------
 sf <- map(removed_too_few_days, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
 elevs_z10 <- map(sf, ~elevatr::get_elev_raster(.x , z = 10))
 save(elevs_z10, file = "data/dataPrep/elevs_z10.Rda")
+save(sf, file = "data/dataPrep/sf.Rda")
 ```
 
 ```{r}
 load("data/dataPrep/elevs_z10.Rda")
+load("data/dataPrep/sf.Rda")
 ```
 
 ```{r}
@@ -1003,6 +1004,7 @@ rm(sf)
 rm(elevs_z10)
 rm(groundElev_z10)
 rm(with_altitudes)
+gc()
 ```
 
 ## Remove high-frequency fixes
