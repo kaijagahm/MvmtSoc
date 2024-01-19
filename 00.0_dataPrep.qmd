@@ -71,7 +71,7 @@ Inputs:
 
 Outputs:
 
--   `data/``dataPrep``/ornitela.feather`
+-   `data/dataPrep/ornitela.feather`
 
 ```{r download-ornitela}
 #| eval: false
@@ -196,11 +196,11 @@ Removing known invalid periods, such as times when the vultures were in the hosp
 
 -   `data/raw/whoswho_vultures_20230315_new.xlsx`
 
--   `data/``dataPrep``/joined.feather`
+-   `data/dataPrep/joined.feather`
 
 *Outputs:*
 
--   `data/``dataPrep``/removed_periods.feather`
+-   `data/dataPrep/removed_periods.feather`
 
 ```{r load-hospital}
 joined <- read_feather("data/dataPrep/joined.feather")
@@ -262,7 +262,7 @@ Note: I'm calling the roosts data frame generated here `roosts0.Rda` because I w
 
 *Inputs:*
 
--   `data/``dataPrep``/removed_periods.feather`
+-   `data/dataPrep/removed_periods.feather`
 
 -   `data/raw/capture_sites.csv`
 
@@ -270,9 +270,9 @@ Note: I'm calling the roosts data frame generated here `roosts0.Rda` because I w
 
 *Outputs:*
 
--   `data/``dataPrep``/roosts0.Rda`
+-   `data/dataPrep/roosts0.Rda`
 
--   `data/``dataPrep``/removed_captures.feather`
+-   `data/dataPrep/removed_captures.feather`
 
 ```{r}
 removed_periods <- read_feather("data/dataPrep/removed_periods.feather")
@@ -512,9 +512,9 @@ Season definitions, and code to split the data into seasons, come from Marta.
 
 *Outputs:*
 
--   `data/``dataPrep``/seasons_list.Rda`
+-   `data/dataPrep/seasons_list.Rda`
 
--   `data/``dataPrep``/season_names.Rda`
+-   `data/dataPrep/season_names.Rda`
 
 ```{r}
 load("data/dataPrep/cleaned.Rda")
@@ -644,6 +644,29 @@ rm(with_modes)
 gc()
 ```
 
+## Remove low fix rate individuals
+
+*Inputs:*
+
+-   `data/dataPrep/seasons_list.Rda`
+
+-   `data/dataPrep/low_fix_rate_indivs.Rda`
+
+```{r}
+load("data/dataPrep/seasons_list.Rda") 
+load("data/dataPrep/low_fix_rate_indivs.Rda")
+```
+
+```{r}
+removed_lfr <- map2(seasons_list, low_fix_rate_indivs,                     ~.x %>% filter(!(Nili_id %in% .y))) 
+save(removed_lfr, file = "data/dataPrep/removed_lfr.Rda")  
+# tidy up 
+rm(seasons_list) 
+rm(low_fix_rate_indivs) 
+rm(removed_lfr) 
+gc()
+```
+
 ### Data for social analysis
 
 The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `seasons_list` and not anything further along.
@@ -661,13 +684,13 @@ We are going to need to get nightly roost locations for all of the vultures. We 
 -   `data/dataPrep/roosts.Rda`
 
 ```{r}
-load("data/dataPrep/seasons_list.Rda")
+load("data/dataPrep/removed_lfr.Rda")
 ```
 
 ```{r}
 #| eval: false
 # Get roosts for each season ----------------------------------------------
-roosts <- purrr::map(seasons_list, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
+roosts <- purrr::map(removed_lfr, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
 roosts <- roosts %>%
   map(., ~st_as_sf(.x, crs = "WGS84", 
                    coords = c("location_long", "location_lat"), 
@@ -675,37 +698,12 @@ roosts <- roosts %>%
 save(roosts, file = "data/dataPrep/roosts.Rda")
 
 # Tidy up
-rm(seasons_list)
+rm(removed_lfr)
 rm(roosts)
 gc()
 ```
 
 # Further processing for movement analysis
-
-## Remove low fix rate individuals
-
-*Inputs:*
-
--   `data/dataPrep/seasons_list.Rda`
-
--   `data/dataPrep/low_fix_rate_indivs.Rda`
-
-```{r}
-load("data/dataPrep/seasons_list.Rda")
-load("data/dataPrep/low_fix_rate_indivs.Rda")
-```
-
-```{r}
-removed_lfr <- map2(seasons_list, low_fix_rate_indivs,
-                    ~.x %>% filter(!(Nili_id %in% .y)))
-save(removed_lfr, file = "data/dataPrep/removed_lfr.Rda")
-
-# tidy up
-rm(seasons_list)
-rm(low_fix_rate_indivs)
-rm(removed_lfr)
-gc()
-```
 
 ## Remove nighttime points
 
