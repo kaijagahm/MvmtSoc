@@ -123,8 +123,58 @@ gg <- ff %>%
 length(tokeep)
 length(unique(ff$Nili_id)) # retained 28 out of 33 individuals
 
+df <- data.frame(rows = c(nrow(bb), nrow(cc), nrow(dd), nrow(ee), nrow(ff), nrow(gg)),
+                 indivs = c(length(unique(bb$Nili_id)), length(unique(cc$Nili_id)), length(unique(dd$Nili_id)), length(unique(ee$Nili_id)), length(unique(ff$Nili_id)), length(unique(gg$Nili_id))),
+                 step = c("1_after removing lfr indivs", "2_after interpolating", "3_after removing nighttime points", "4_after removing southern indivs", "5_after removing days with too few points", "6_after removing indivs not tracked for enough days"),
+                 group = "interpolated")
+
+df %>%
+  ggplot(aes(x = step, y = indivs))+
+  geom_point()+
+  geom_line(aes(group = group))+
+  scale_x_discrete(labels = label_wrap_gen(width = 20))+
+  theme_classic()
+
+  
 ####################
 # Now compare this result to how many individuals were retained in the real dataset
+load("data/dataPrep/removed_lfr.Rda")
+BB <- removed_lfr[[2]]
+load("data/dataPrep/removed_nighttime.Rda")
+DD <- removed_nighttime[[2]]
+rm(removed_nighttime)
+load("data/dataPrep/removed_northern.Rda")
+EE <- removed_northern[[2]]
+rm(removed_northern)
+load("data/dataPrep/removed_lowppd.Rda")
+FF <- removed_lowppd[[2]]
+rm(removed_lowppd)
 load("data/dataPrep/removed_too_few_days.Rda")
-forComparison <- removed_too_few_days[[2]]
+GG <- removed_too_few_days[[2]]
+rm(removed_too_few_days)
+
+DF <- data.frame(rows = c(nrow(BB), NA, nrow(DD), nrow(EE), nrow(FF), nrow(GG)),
+                 indivs = c(length(unique(BB$Nili_id)), NA, length(unique(DD$Nili_id)), length(unique(EE$Nili_id)), length(unique(FF$Nili_id)), length(unique(GG$Nili_id))),
+                 step = c("1_after removing lfr indivs", "2_after interpolating", "3_after removing nighttime points", "4_after removing southern indivs", "5_after removing days with too few points", "6_after removing indivs not tracked for enough days"),
+                 group = "no interpolation")
+
+dDfF <- bind_rows(df, DF)
+
+dDfF %>%
+  ggplot(aes(x = factor(step), y = indivs, group = group, col = factor(group)))+
+  geom_point()+
+  geom_line()+
+  scale_x_discrete(labels = label_wrap_gen(width = 20))+
+  theme_classic() # welp
+
+dDfF %>%
+  ggplot(aes(x = factor(step), y = rows, group = group, col = factor(group)))+
+  geom_point()+
+  geom_line()+
+  scale_x_discrete(labels = label_wrap_gen(width = 20))+
+  theme_classic() # as expected, interpolation increases the number of points, but 
+
+# Note that this interpolation was performed AFTER the removing-low-fix-rate-individuals step, which seems counter-intuitive at first. But this is actually important! We weren't trying to interpolate points in order to fix those gaps, because those gaps are caused by tags functioning normally that are just set to a low fix rate. The gaps we're trying to fix are the ones that were caused by e.g. missed tag reads in an otherwise normal tag.
+
+
 length(unique(forComparison$Nili_id)) # 28 individuals retained for this season
