@@ -47,16 +47,15 @@ Outputs:
 -   `data/dataPrep/inpa.feather`
 
 ```{r download-inpa}
-#| eval: false
 inpa <- move::getMovebankData(study = 6071688, login = MB.LoginObject, removeDuplicatedTimestamps = TRUE)
 inpa <- methods::as(inpa, "data.frame")
 inpa <- inpa %>%
   mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
          year = as.numeric(lubridate::year(timestamp))) %>%
-  filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-05-15")) # cut this off at the same point as the ornitela data
+  filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-09-15")) # cut this off at the same point as the ornitela data
 write_feather(inpa, "data/dataPrep/inpa.feather")
 
-length(unique(inpa$trackId)) # 77
+length(unique(inpa$trackId))
 
 # tidy up
 rm(inpa)
@@ -74,14 +73,13 @@ Outputs:
 -   `data/dataPrep/ornitela.feather`
 
 ```{r download-ornitela}
-#| eval: false
 # Ornitela: download data from movebank (just a subset of the times for now)
 minDate <- "2020-09-01 00:00"
-maxDate <- "2023-05-15 11:59"
+maxDate <- "2023-09-15 11:59"
 ornitela <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
 write_feather(ornitela, "data/dataPrep/ornitela.feather")
 
-length(unique(ornitela$trackId)) # 127
+length(unique(ornitela$trackId))
 
 # tidy up
 rm(ornitela)
@@ -138,7 +136,7 @@ joined0 <- joined0 %>%
 length(unique(joined0$trackId))
 
 # Add the Nili_id
-ww <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
+ww <- read_excel("data/raw/whoswho_vultures_20230920_new.xlsx", sheet = "all gps tags")[,1:35] %>%
   dplyr::select(Nili_id, Movebank_id) %>%
   distinct()
 
@@ -194,7 +192,7 @@ Removing known invalid periods, such as times when the vultures were in the hosp
 
 *Inputs:*
 
--   `data/raw/whoswho_vultures_20230315_new.xlsx`
+-   `data/raw/whoswho_vultures_20230920_new.xlsx`
 
 -   `data/dataPrep/joined.feather`
 
@@ -204,7 +202,7 @@ Removing known invalid periods, such as times when the vultures were in the hosp
 
 ```{r load-hospital}
 joined <- read_feather("data/dataPrep/joined.feather")
-periods_to_remove <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "periods_to_remove")
+periods_to_remove <- read_excel("data/raw/whoswho_vultures_20230920_new.xlsx", sheet = "periods_to_remove")
 ```
 
 ```{r remove-periods}
@@ -230,7 +228,7 @@ periods_to_remove <- periods_to_remove %>%
 
 # Join to the original data
 removal_annotated <- joined %>%
-  left_join(toRemove, by = c("Nili_id", "dateOnly")) %>%
+  left_join(periods_to_remove, by = c("Nili_id", "dateOnly")) %>%
   mutate(status = replace_na(status, "valid"))
 nrow(removal_annotated) == nrow(joined) #T: good, same number of rows.
 
@@ -283,6 +281,9 @@ removed_periods <- read_feather("data/dataPrep/removed_periods.feather")
 # Identify and remove capture dates using Marta's code --------------------
 roosts0 <- get_roosts_df(df = removed_periods, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
 save(roosts0, file = "data/dataPrep/roosts0.Rda")
+
+# tidy up
+rm(roosts0)
 ```
 
 ```{r}
@@ -425,7 +426,7 @@ Note: the actual calculation of age happens later on, after cleaning the data, f
 
 *Inputs:*
 
--   `data/raw/whoswho_vultures_20230315_new.xlsx`
+-   `data/raw/whoswho_vultures_20230920_new.xlsx`
 
 -   `data/dataPrep/removed_captures.feather`
 
@@ -434,8 +435,9 @@ Note: the actual calculation of age happens later on, after cleaning the data, f
 -   `data/dataPrep/with_age_sex.feather`
 
 ```{r attach-age-sex}
+#| message: false
 removed_captures <- read_feather("data/dataPrep/removed_captures.feather")
-age_sex <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "all gps tags")[,1:35] %>%
+age_sex <- read_excel("data/raw/whoswho_vultures_20230920_new.xlsx", sheet = "all gps tags")[,1:35] %>%
   dplyr::select(Nili_id, birth_year, sex) %>%
   distinct()
 ```
@@ -445,8 +447,8 @@ age_sex <- read_excel("data/raw/whoswho_vultures_20230315_new.xlsx", sheet = "al
 with_age_sex <- removed_captures %>%
   dplyr::select(-c("sex")) %>%
   left_join(age_sex, by = "Nili_id")
-nrow(with_age_sex) == nrow(removed_captures)
-length(unique(with_age_sex$Nili_id)) # 196
+nrow(with_age_sex) == nrow(removed_captures) # should be TRUE
+length(unique(with_age_sex$Nili_id)) #201
 
 write_feather(with_age_sex, "data/dataPrep/with_age_sex.feather")
 
@@ -488,7 +490,7 @@ cleaned <- cleaned %>%
   mutate(timestampIsrael = lubridate::with_tz(timestamp, tzone = "Israel"),
          dateOnly = lubridate::date(timestampIsrael),
          month = lubridate::month(dateOnly),
-         year = lubridate::year(dateOnly))
+         year = lubridate::year(dateOnly)) # XXX consider removing the downsample argument. Also this function is insanely slow and needs to be fixed, good grief.
 
 # This produces a huge file because it's an SF file. We don't really need it to be sf at this stage. Let's remove that.
 cleaned <- sf::st_drop_geometry(cleaned)
@@ -537,7 +539,7 @@ cleaned <- cleaned %>%
            dateOnly >= start_breeding & dateOnly < start_summer ~ "breeding",
            dateOnly >= start_summer & dateOnly <= start_fall ~ "summer",
            dateOnly >= start_fall & dateOnly < start_breeding ~ "fall")) %>%
-  filter(dateOnly != "2023-05-15") # remove May 15 2023, because it turns out the season boundaries are supposed to be non-inclusive and this is the latest one.
+  filter(dateOnly != "2023-09-15") # remove September 15 2023, because it turns out the season boundaries are supposed to be non-inclusive and this is the latest one.
 
 with_seasons <- cleaned %>%
   mutate(age = year - birth_year, #XXX consider moving this up to the age/sex section. Why is it happening here?
@@ -554,7 +556,7 @@ with_seasons <- cleaned %>%
                                   season == "breeding" & month == 12 ~ paste(year + 1, season, sep = "_"),
                                   season == "breeding" & month != 12 ~ paste(year, season, sep = "_"))) %>%
   # explicitly set the factor levels in temporal order
-  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding")),
+  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding", "2023_summer")),
          season = factor(season, levels = c("breeding", "summer", "fall")))
 
 # remove columns that were used in the season calculation
@@ -564,15 +566,16 @@ with_seasons <- with_seasons %>%
 # REMOVE SUMMER 2020--we don't need to use it
 with_seasons <- with_seasons %>%
   filter(seasonUnique != "2020_summer")
-length(unique(with_seasons$seasonUnique))
+length(unique(with_seasons$seasonUnique)) # should be 9
 
 # Separate the seasons -----------------------------
 seasons_list <- with_seasons %>%
   group_by(seasonUnique) %>%
   group_split(.keep = T)
-length(seasons_list) # should be 8
+length(seasons_list) # should be 9
 # extract the season names in case we need a separate vector at some point.
 season_names <- map_chr(seasons_list, ~as.character(.x$seasonUnique[1])) # ok good, these are in the right order
+length(season_names) # should also be 9
 save(seasons_list, file = "data/dataPrep/seasons_list.Rda")
 save(season_names, file = "data/dataPrep/season_names.Rda")
 
@@ -595,6 +598,7 @@ Because tags can be put on and off and the fix rate can change, I'm calculating 
 *Inputs:*
 
 -   `data/dataPrep/seasons_list.Rda`
+-   `data/dataPrep/season_names.Rda`
 
 *Outputs:*
 
@@ -607,7 +611,6 @@ load("data/dataPrep/season_names.Rda")
 
 ```{r}
 #| eval: false
-# Optionally remove individuals with a low fix rate -----------------------
 # function to calculate mode (most common) fix rate
 Mode <- function(x) { 
   ux <- unique(x)
@@ -677,7 +680,7 @@ We are going to need to get nightly roost locations for all of the vultures. We 
 
 *Inputs:*
 
--   `data/dataPrep/seasons_list.Rda`
+-   `data/dataPrep/removed_lfr.Rda`
 
 *Outputs:*
 
@@ -734,7 +737,6 @@ removed_nighttime <- map(removed_lfr, ~{
     dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
     dplyr::left_join(times, by = "dateOnly") %>%
     dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
-    dplyr::select(-c(sunrise, sunset)) %>%
     dplyr::filter(daylight == "day")
 })
 
@@ -842,9 +844,7 @@ ppd <- map_dfr(removed_northern, ~.x %>%
                  st_drop_geometry() %>%
                  group_by(seasonUnique, season, Nili_id, dateOnly) %>%
                  summarize(n = n(),
-                           minBatt = min(battery_charge_percent, na.rm = T),
-                           meanBatt = mean(battery_charge_percent, na.rm = T),
-                           medBatt = mean(battery_charge_percent, na.rm = T)))
+                           minBatt = min(battery_charge_percent, na.rm = T)))
 
 # Sometimes, fewer points per day is due to low battery charge percent. Let's examine the relationship between battery charge and number of points per day.
 ppd %>%
