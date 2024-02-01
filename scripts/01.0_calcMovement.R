@@ -33,8 +33,6 @@ distviz <- function(data, varname, seasoncol){
 ## Load data ---------------------------------------------------------------
 base::load("data/dataPrep/downsampled_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
 base::load("data/dataPrep/season_names.Rda")
-base::load("data/orphan/datasetAssignments.Rda") # XXX START HERE--THIS IS 9 LONG AND NEEDS TO BE SHORTER
-datasetAssignments <- datasetAssignments[-1]
 base::load("data/dataPrep/roosts.Rda")
 roosts <- map(roosts, ~.x %>% group_by(Nili_id) %>% 
                         mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
@@ -340,8 +338,7 @@ movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by
   map2(., dfdSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
   map2(., mnMvmt, ~left_join(.x, .y, by = "Nili_id")) %>%
   map2(., daysTracked_seasons, ~left_join(.x, .y, by = "Nili_id")) %>%
-  map2(., .y = season_names, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id")) %>%
-  map2(., datasetAssignments, ~.x %>% left_join(.y))
+  map2(., .y = season_names, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id"))
 
 ## Add age and sex
 ageSex <- map(downsampled_10min_sf, ~.x %>% st_drop_geometry() %>% 
@@ -371,15 +368,8 @@ distviz(mbdf, varname = "meanDDT", seasoncol = "seasonUnique")
 distviz(mbdf, varname = "mnTort", seasoncol = "seasonUnique")
 # I think these all look reasonable
 
-## Scale vars
-movementBehaviorScaled <- map(movementBehavior, ~.x %>%
-                                mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, dataset), function(x){
-                                  as.numeric(as.vector(scale(x)))
-                                })))
-
 ## Save raw movement data ------------------------------------------------------
 save(movementBehavior, file = "data/calcMovement/movementBehavior.Rda")
-save(movementBehaviorScaled, file = "data/calcMovement/movementBehaviorScaled.Rda")
 
 # tidy up
 rm(ageSex)
@@ -408,7 +398,6 @@ rm(mbdf)
 rm(mm)
 rm(mnMvmt)
 rm(movementBehavior)
-rm(movementBehaviorScaled)
 rm(roostIDs)
 rm(roostPolygons)
 rm(roosts)
