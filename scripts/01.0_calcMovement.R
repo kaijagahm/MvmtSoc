@@ -13,6 +13,7 @@ library(elevatr) # for getting elevation information
 library(raster) # for getting elevation information
 library(parallel) # for running long distance calculations in parallel
 library(future) # for parallel computing
+library(ctmm)
 load("data/derived/cc.Rda")
 
 distviz <- function(data, varname, seasoncol){
@@ -31,37 +32,90 @@ distviz <- function(data, varname, seasoncol){
 }
 
 ## Load data ---------------------------------------------------------------
-base::load("data/derived/seasons_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
+base::load("data/dataPrep/downsampled_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
 base::load("data/orphan/datasetAssignments.Rda")
-base::load("data/derived/roosts_seasons.Rda") # don't need a separate roost dataset for the rarefied data, because roosts are only once per day, and it makes sense to use the most detailed dataset possible.
-roosts_seasons <- map(roosts_seasons, ~.x %>% group_by(Nili_id) %>% 
+base::load("data/dataPrep/season_names.Rda")
+base::load("data/dataPrep/roosts.Rda") # don't need a separate roost dataset for the rarefied data, because roosts are only once per day, and it makes sense to use the most detailed dataset possible.
+roosts <- map(roosts, ~.x %>% group_by(Nili_id) %>% 
                         mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
 
-roosts_seasons <- roosts_seasons[-1] # remove summer 2020
-datasetAssignments <- datasetAssignments[-1] # remove summer 2020
-test <- map2(roosts_seasons, datasetAssignments, ~left_join(.x, .y, by = "Nili_id"))
-seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
+test <- map2(roosts, datasetAssignments, ~left_join(.x, .y, by = "Nili_id"))
 roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
 
-durs <- map_dbl(seasons_10min, ~{
+durs <- map_dbl(downsampled_10min, ~{
   dates <- lubridate::ymd(.x$dateOnly)
   dur <- difftime(max(dates), min(dates), units = "days")
 })
 
 
 # Get number of days tracked for each individual --------------------------
-daysTracked_seasons <- map2(seasons_10min, durs, ~.x %>%
+daysTracked_seasons <- map2(downsampled_10min, durs, ~.x %>%
                               st_drop_geometry() %>%
                               group_by(Nili_id) %>%
                               summarize(daysTracked = length(unique(dateOnly)),
                                         propDaysTracked = daysTracked/.y))
-names(daysTracked_seasons) <- seasonNames
-save(daysTracked_seasons, file = "data/derived/daysTracked_seasons.Rda")
-load("data/derived/daysTracked_seasons.Rda")
+names(daysTracked_seasons) <- season_names
+save(daysTracked_seasons, file = "data/calcMovement/daysTracked_seasons.Rda")
+load("data/calcMovement/daysTracked_seasons.Rda")
 dts <- purrr::list_rbind(daysTracked_seasons, names_to = "season")
 
 # VVV Visualize days tracked
 distviz(dts, "propDaysTracked", "season")
+
+
+# Testing out AKDE --------------------------------------------------------
+test <- downsampled_10min[[2]]
+animal0 <- test %>% filter(Nili_id == unique(test$Nili_id)[1]) %>%
+  dplyr::select("ID" = Nili_id, timestamp, 
+                "longitude" = location_long, "latitude" = location_lat)
+telem <- as.telemetry(animal0) # if left unspecified, as.telemetry() will assume timezone = UTC, datum = WGS84
+plot(telem)
+
+## checking for the range residency assumption
+level <- 0.95 #95% confidence intervals
+xlim <- c(0,2 %#% "month") # to create a window of 2 months
+svf <- variogram(telem)
+plot(svf, fraction = 1, level = level)
+# It looks like the semi-variogram flattens (reaches an asymptote) after a few days, but then it goes up again. Maybe because the animal went and traveled somewhere else? Or maybe we just don't have enough data for this animal?
+max(telem$timestamp)-min(telem$timestamp) # ah, this animal was only tracked for 1 month. Let's check a different animal that was tracked for longer.
+
+animal1 <- test %>% filter(Nili_id == unique(test$Nili_id)[2]) %>%
+  dplyr::select("ID" = Nili_id, timestamp,
+                "longitude" = location_long, "latitude" = location_lat)
+telem1 <- as.telemetry(animal1)
+plot(telem1)
+svf1 <- variogram(telem1)
+plot(svf1, fraction = 1, level = level) # this looks much more normal! reaches an asymptote after maybe a week, or a few days? Not sure why the other one didn't...
+
+# XXX question: what do we do if some of the animals don't seem to be range-resident? Is it okay if they do, in general, reach asymptotes to assume that the other individuals are too? Or should those be excluded? How do you automatically check for an asymptote?
+
+# Selecting the best-fit movement model through model selection
+guess0 <- ctmm.guess(telem, interactive = FALSE)
+fit0_ml <- ctmm.select(telem, guess0, method = "ML")
+fit0_phreml <- ctmm.select(telem, guess0, method = "pHREML")
+summary(fit0_ml) # okay this gives a huge huge confidence interval for the home range size. Proceeding anyway just to get the process down, but it's worth noting that this might just be too big.
+summary(fit0_phreml) # didn't get this one to finish running.
+
+# feeding a movement model into the home range estimator
+ud0_ml <- akde(telem, fit0_ml)
+summary(ud0_ml)$CI # okay nice, we have a home range estimate! It's still pretty big and I don't love that, but maybe phreml will be better? And maybe another animal with more data will be better?
+
+# Evaluating additional biases, applying mitigation measures
+summary(ud0_ml)$DOF["area"] # effective sample size of animal
+nrow(telem) # absolute sample size
+# if the fix rate is not constant, then the animal is well suited to weighted akde
+ud0w_ml <- akde(telem, fit0_ml, weights = TRUE)
+summary(ud0w_ml)$CI # home range area estimation (weighted)
+
+# Plot home range estimates (weighted and unweighted)
+ext <- extent(list(ud0_ml, ud0w_ml), level = 0.95)
+
+# plotting ml with and without weights side by side
+par(mfrow = c(1, 2))
+plot(telem, ud = ud0_ml, ext = ext)
+title(expression("ML AKDE"["C"]))
+plot(telem, ud = ud0w_ml, ext = ext)
+title(expression("ML wAKDE"["C"]))
 
 # Movement Behavior --------------------------------------------------------
 ## HOME RANGE ---------------------------------------------------------------
