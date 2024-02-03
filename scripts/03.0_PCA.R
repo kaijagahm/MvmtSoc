@@ -19,7 +19,6 @@ load("data/calcMovement/movementBehavior.Rda")
 load("data/calcMovement/movementBehaviorScaled.Rda")
 ### load("data/calcSocial/networkMetrics.Rda") #XXX
 load("data/dataPrep/season_names.Rda")
-load("data/derived/seasons_10min.Rda") # XXX
 
 # Create a dataset with all seasons combined
 allMovementBehavior <- purrr::list_rbind(movementBehavior)
@@ -100,6 +99,7 @@ ggsave(biplot, filename = "fig/biplot.png", width = 6, height = 4)
 contrib <- round(pca_all$rotation[,1:3]*100, 2) %>%
   as.data.frame()
 contrib
+save(contrib, file = "data/PCA/contrib.Rda")
 
 fviz_screeplot(pca_all, addLabels = T)+
   ggtitle("Overall PCA: Sep 2020-Nov 2022")
@@ -113,7 +113,7 @@ mvmt <- allMovementBehavior %>%
   dplyr::select(Nili_id, birth_year, sex, seasonUnique, coreArea, homeRange, coreAreaFidelity, mnDailyMaxAlt, mnDailyMedAlt, propSwitch, shannon, meanDFD, meanDMD, meanDDT, mnTort) %>%
   left_join(mvmtPCVals, by = c("Nili_id", "seasonUnique"))
 
-# COMBINE movement and social data # XXX waiting for social ---------------------------------------------
+# COMBINE movement and social data # XXX waiting for social, start here ---------------------------------------------
 linked <- networkMetrics %>%
   left_join(mvmt, by = c("Nili_id", "season" = "seasonUnique")) %>%
   mutate(year = factor(as.numeric(str_extract(season, "[0-9]{4}"))),
