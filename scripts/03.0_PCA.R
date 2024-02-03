@@ -15,15 +15,10 @@ roostingColor = "brown1";
 flightColor = "skyblue3";
 
 ## Load data ------------------------------------------------------------
-load("data/derived/movementBehavior.Rda")
-load("data/derived/movementBehaviorScaled.Rda")
-load("data/derived/networkMetrics.Rda")
-seasonNames <- map_chr(movementBehavior, ~.x$seasonUnique[1])
-all(networkMetrics$season %in% seasonNames) # check that season names match up--good.
-load("data/derived/seasons_10min.Rda")
-
-# The summer season is mid-May through mid-September, but in 2020 we only have data starting September 4th. So I'm going to exclude summer 2020, since I don't think it's well represented.
-movementBehavior <- movementBehavior[seasonNames != "2020_summer"]
+load("data/calcMovement/movementBehavior.Rda")
+load("data/calcMovement/movementBehaviorScaled.Rda")
+### load("data/calcSocial/networkMetrics.Rda") #XXX
+load("data/dataPrep/season_names.Rda")
 
 # Create a dataset with all seasons combined
 allMovementBehavior <- purrr::list_rbind(movementBehavior)
@@ -104,6 +99,7 @@ ggsave(biplot, filename = "fig/biplot.png", width = 6, height = 4)
 contrib <- round(pca_all$rotation[,1:3]*100, 2) %>%
   as.data.frame()
 contrib
+save(contrib, file = "data/PCA/contrib.Rda")
 
 fviz_screeplot(pca_all, addLabels = T)+
   ggtitle("Overall PCA: Sep 2020-Nov 2022")
@@ -117,7 +113,7 @@ mvmt <- allMovementBehavior %>%
   dplyr::select(Nili_id, birth_year, sex, seasonUnique, coreArea, homeRange, coreAreaFidelity, mnDailyMaxAlt, mnDailyMedAlt, propSwitch, shannon, meanDFD, meanDMD, meanDDT, mnTort) %>%
   left_join(mvmtPCVals, by = c("Nili_id", "seasonUnique"))
 
-# COMBINE movement and social data ---------------------------------------------
+# COMBINE movement and social data # XXX waiting for social, start here ---------------------------------------------
 linked <- networkMetrics %>%
   left_join(mvmt, by = c("Nili_id", "season" = "seasonUnique")) %>%
   mutate(year = factor(as.numeric(str_extract(season, "[0-9]{4}"))),

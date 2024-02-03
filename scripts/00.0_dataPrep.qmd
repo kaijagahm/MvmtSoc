@@ -1,0 +1,1062 @@
+---
+title: "Data Prep"
+format:
+  html:
+    embed-resources: true
+editor: visual
+---
+
+# Goals and introduction
+
+Prepare data for the movement/social analysis. This involves loading the data from Movebank and cleaning it.
+
+# Setup
+
+```{r load-packages}
+library(vultureUtils)
+library(sf)
+library(tidyverse)
+library(move)
+library(feather)
+library(readxl)
+library(elevatr)
+```
+
+# Processing for all data
+
+## Download data from Movebank
+
+### Authenticate to Movebank
+
+```{r}
+base::load("movebankCredentials/pw.Rda")
+MB.LoginObject <- move::movebankLogin(username = "kaijagahm", password = pw)
+rm(pw)
+```
+
+### INPA data
+
+Data collected by Ohad Hatzofe and team with GPS loggers deployed for their study.
+
+Inputs:
+
+-   `MB.LoginObject`
+
+Outputs:
+
+-   `data/dataPrep/inpa.feather`
+
+```{r download-inpa}
+inpa <- move::getMovebankData(study = 6071688, login = MB.LoginObject, removeDuplicatedTimestamps = TRUE)
+inpa <- methods::as(inpa, "data.frame")
+inpa <- inpa %>%
+  mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
+         year = as.numeric(lubridate::year(timestamp))) %>%
+  filter(lubridate::ymd(dateOnly) >= lubridate::ymd("2020-09-01"), lubridate::ymd(dateOnly) <= lubridate::ymd("2023-09-15")) # cut this off at the same point as the ornitela data
+write_feather(inpa, "data/dataPrep/inpa.feather")
+
+length(unique(inpa$trackId))
+
+# tidy up
+rm(inpa)
+gc()
+```
+
+### Ornitela data
+
+Inputs:
+
+-   `MB.LoginObject`
+
+Outputs:
+
+-   `data/dataPrep/ornitela.feather`
+
+```{r download-ornitela}
+# Ornitela: download data from movebank (just a subset of the times for now)
+minDate <- "2020-09-01 00:00"
+maxDate <- "2023-09-15 11:59"
+ornitela <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = minDate, dateTimeEndUTC = maxDate)
+write_feather(ornitela, "data/dataPrep/ornitela.feather")
+
+length(unique(ornitela$trackId))
+
+# tidy up
+rm(ornitela)
+rm(minDate)
+rm(maxDate)
+gc()
+```
+
+## Join INPA and Ornitela data
+
+*Inputs:*
+
+-   `data/dataPrep/inpa.feather`
+
+-   `data/dataPrep/ornitela.feather`
+
+*Outputs:*
+
+-   `data/dataPrep/joined.feather`
+
+```{r load-inpa-ornitela}
+inpa <- read_feather("data/dataPrep/inpa.feather")
+ornitela <- read_feather("data/dataPrep/ornitela.feather")
+```
+
+```{r join-inpa-ornitela}
+#| eval: false
+
+# Will there be a problem joining these?
+names(ornitela)[!(names(ornitela) %in% names(inpa))] # all names in "ornitela" are found in inpa
+names(inpa)[!(names(inpa) %in% names(ornitela))] # many are not found in "ornitela" that are found in inpa
+
+# Add the dataset names so we can keep track of where the data comes from
+inpa_tojoin <- inpa[,names(ornitela)] %>%
+  mutate(dataset = "inpa")
+ornitela <- ornitela %>%
+  mutate(dataset = "ornitela")
+
+# Join the two datasets
+joined0 <- bind_rows(inpa_tojoin, ornitela)
+dim(joined0)
+
+rm(inpa)
+rm(inpa_tojoin)
+rm(ornitela)
+
+## fix trackId
+joined0 <- joined0 %>%
+  mutate(trackId = as.character(trackId),
+         trackId = case_when(trackId == "E03" ~ "E03w",
+                             TRUE ~ trackId))
+
+# number of unique individuals
+length(unique(joined0$trackId))
+
+# Add the Nili_id
+ww <- read_excel("data/raw/whoswho_vultures_20230920_new.xlsx", sheet = "all gps tags")[,1:35] %>%
+  dplyr::select(Nili_id, Movebank_id) %>%
+  distinct()
+
+# Are there any other individuals who have two different associated trackId's?
+ww %>% filter(Movebank_id %in% joined0$trackId) %>% dplyr::select(Nili_id, Movebank_id) %>% distinct() %>% group_by(Nili_id) %>% summarize(n = length(unique(Movebank_id))) %>% arrange(desc(n)) # Note that there is one Nili_id in our dataset that has two associated trackId's--it's yomtov.
+ww %>% filter(Nili_id =="yomtov") # Y26 and Y26b. So we should expect to once again "lose" an individual once we change to Nili ID's
+
+all(joined0$trackId %in% ww$Movebank_id) # false.
+
+# Okay, let's investigate the ones that aren't included
+joined0 %>%
+  filter(!(trackId %in% ww$Movebank_id)) %>%
+  pull(trackId) %>% unique() # looks like this is going to be an issue of character matching. Let's transform everything to lowercase and remove all characters and spaces
+
+joined0$trackId <- str_replace_all(tolower(joined0$trackId), "\\.", "")
+ww$mb_id <- str_replace_all(tolower(ww$Movebank_id), "\\s|\\(|\\)|\\>", "") %>% str_replace_all(., "whiite", "white")
+
+sort(unique(ww$mb_id))
+unique(joined0$trackId)[!(unique(joined0$trackId) %in% ww$mb_id)]
+joined0$trackId[joined0$trackId == "y01t60w"] <- "t60white"
+joined0$trackId[joined0$trackId == "e86white"] <- "e86"
+unique(joined0$trackId)[!(unique(joined0$trackId) %in% ww$mb_id)]
+# Investigate the remaining ones:
+joined0 %>% filter(!(trackId %in% ww$mb_id)) %>% 
+  dplyr::select(dateOnly, trackId, local_identifier, ring_id, dataset) %>%
+  group_by(trackId, local_identifier, ring_id, dataset) %>% 
+  summarize(earlyDate = min(dateOnly)) # okay, looks like these three come from the INPA dataset and haven't been entered into the who's who yet.
+# I guess for now let's just make their trackId's into Nili_id's
+
+joined <- left_join(joined0, ww %>% dplyr::select(mb_id, Nili_id) %>% distinct(),
+                  by = c("trackId" = "mb_id"))
+nrow(joined) == nrow(joined0) # good, same number of rows. (check that the join worked)
+length(unique(joined$Nili_id))
+# For any that didn't get Nili_ids assigned, make it the trackId
+joined %>% filter(is.na(Nili_id)) %>% pull(trackId) %>% unique() # as expected.
+joined <- joined %>%
+  mutate(Nili_id = case_when(is.na(Nili_id) ~ trackId,
+                             TRUE ~ Nili_id))
+length(unique(joined$Nili_id))
+write_feather(joined, "data/dataPrep/joined.feather")
+
+# tidy up
+rm(joined0)
+rm(joined)
+gc()
+```
+
+## Remove invalid periods
+
+### Hospital/pre-determined invalid
+
+Removing known invalid periods, such as times when the vultures were in the hospital or the tags were known not to be attached to birds. These times are derived from a separate Excel sheet.
+
+*Inputs:*
+
+-   `data/raw/whoswho_vultures_20230920_new.xlsx`
+
+-   `data/dataPrep/joined.feather`
+
+*Outputs:*
+
+-   `data/dataPrep/removed_periods.feather`
+
+```{r load-hospital}
+joined <- read_feather("data/dataPrep/joined.feather")
+periods_to_remove <- read_excel("data/raw/whoswho_vultures_20230920_new.xlsx", sheet = "periods_to_remove")
+```
+
+```{r remove-periods}
+## annotate the data with periods to remove
+periods_to_remove <- periods_to_remove %>%
+  dplyr::select(Nili_id,
+                remove_start,
+                remove_end,
+                reason) %>%
+  mutate(across(c(remove_start, remove_end), .fns = function(x){
+    lubridate::ymd(x)})) %>%
+  dplyr::filter(!is.na(remove_end)) %>%
+  group_by(Nili_id, reason) %>%
+  # sequence of daily dates for each corresponding start, end elements
+  dplyr::mutate(dateOnly = map2(remove_start, remove_end, 
+                                seq, by = "1 day")) %>%
+  # unnest the list column
+  unnest(cols = c(dateOnly)) %>%
+  # remove any duplicate rows
+  distinct() %>%
+  dplyr::select(-c(remove_start, remove_end)) %>%
+  rename("status" = reason)
+
+# Join to the original data
+removal_annotated <- joined %>%
+  left_join(periods_to_remove, by = c("Nili_id", "dateOnly")) %>%
+  mutate(status = replace_na(status, "valid"))
+nrow(removal_annotated) == nrow(joined) #T: good, same number of rows.
+
+# Actually REMOVE the periods to remove...
+removed_periods <- removal_annotated %>%
+  filter(status == "valid")
+nrow(removed_periods)
+length(unique(removal_annotated$Nili_id))
+nrow(joined) == nrow(removal_annotated) # true
+nrow(removed_periods) != nrow(removal_annotated) # true
+
+write_feather(removed_periods, "data/dataPrep/removed_periods.feather")
+
+# tidy up
+rm(periods_to_remove)
+rm(joined)
+rm(removal_annotated)
+rm(removed_periods)
+gc()
+```
+
+### Capture cages
+
+This is Marta's code for identifying periods when the vultures were in the capture cages and removing days of data around those occasions.
+
+To identify the capture dates, first we need to classify the roosts (now using the `get_roosts()` function). Then, if the bird roosted within 500m of the capture site, it was considered to be captured and that day, and the following day, are excluded from the dataset. This has been validated. This, however, does not work for the Carmel, because the roosts are within 500m of the cage and very often the birds roost on top of the cage without actually being inside it. So for the Carmel captures, we will use another protocol: if the birds were sleeping within 50m of the cage and it was a capture day (or 3 days before the release day), we consider the birds were captured and we remove the data.
+
+Note: I'm calling the roosts data frame generated here `roosts0.Rda` because I want to distinguish it from the more final roost location *list* that we will generate further along in the cleaning process.
+
+*Inputs:*
+
+-   `data/dataPrep/removed_periods.feather`
+
+-   `data/raw/capture_sites.csv`
+
+-   `data/raw/all_captures_carmel_2010-2021.csv`
+
+*Outputs:*
+
+-   `data/dataPrep/roosts0.Rda`
+
+-   `data/dataPrep/removed_captures.feather`
+
+```{r}
+removed_periods <- read_feather("data/dataPrep/removed_periods.feather")
+```
+
+```{r remove-capture-cage-getroosts}
+#| eval: false
+# Identify and remove capture dates using Marta's code --------------------
+roosts0 <- get_roosts_df(df = removed_periods, id = "Nili_id", timestamp = "timestamp", x = "location_long", y = "location_lat", ground_speed = "ground_speed", speed_units = "m/s", quiet = F)
+save(roosts0, file = "data/dataPrep/roosts0.Rda")
+
+# tidy up
+rm(roosts0)
+```
+
+```{r}
+# Load information about the capture sites
+capture_sites <- read.csv("data/raw/capture_sites.csv")
+load("data/dataPrep/roosts0.Rda")
+AllCarmelDates <- read.csv("data/raw/all_captures_carmel_2010-2021.csv")
+```
+
+```{r remove-capture-cage}
+# Identify the period of time during which the capture sites are open (when we need to do this exclusion)
+start.day <- 01
+start.month <- 08
+end.day <-  30
+end.month <- 11
+distance <- 500 # distance, in meters, to calculate from the cage
+
+# Subset the roost dataset with the start and end dates for the capture period
+sub.roosts <- roosts0 %>%
+  mutate(start_date = as.Date(paste(start.day, start.month, lubridate::year(date), sep="-"),
+                              format="%d-%m-%Y"),
+         end_date = as.Date(paste(end.day, end.month, lubridate::year(date), sep="-"),
+                            format="%d-%m-%Y")) %>%
+  filter(date >= start_date & date <= end_date)
+
+unique(lubridate::month(sub.roosts$date)) # now only includes the fall months, which is the capture season.
+
+# then we need to calculate the roost distance to each of the capture cages. if it is less than 500m, keep that line
+crds <- matrix(c(sub.roosts$location_long, sub.roosts$location_lat),
+               nrow = nrow(sub.roosts), ncol = 2) # get roost locations as simple lat/long coordinates
+
+DistanceMat <- matrix(ncol = nrow(capture_sites), nrow = nrow(crds))
+colnames(DistanceMat) <- unique(capture_sites$name)
+
+for(i in 1:nrow(crds)){ # for each roost point...
+  DistanceMat[i,] <- round(geosphere::distm(crds[i,], capture_sites[,c(3,2)]), 2) # calculate distance using geosphere::distm
+  #print(i)
+}
+
+ClosestCaptureSite <- colnames(DistanceMat)[apply(DistanceMat,1,which.min)] # ID of closest capture site
+ClosestCaptureDist <- apply(DistanceMat,1,min) # Distance from closest capture site
+
+sub.roosts <- cbind(sub.roosts, ClosestCaptureSite, ClosestCaptureDist)
+sub.roosts$Captured <- ifelse(sub.roosts$ClosestCaptureDist <= distance, "Yes", "No")
+
+sub.captured <- subset(sub.roosts, Captured == "Yes") # get list of dates which the bird was inside the cage
+
+sub.captured.dates <- subset(sub.captured,
+                             select = c("Nili_id",
+                                        "date",
+                                        "ClosestCaptureSite",
+                                        "ClosestCaptureDist",
+                                        "Captured"))
+
+## For Carmel--different protocol.
+sub.captured.no.carmel <- subset(sub.captured.dates, ClosestCaptureSite != "Carmel")
+sub.captured.carmel <- subset(sub.captured.dates, ClosestCaptureSite == "Carmel")
+
+AllCarmelDates$Date <- as.Date(AllCarmelDates$Date, format = "%d/%m/%Y")
+
+AllCarmelDates.1 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-1)))
+AllCarmelDates.2 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-2)))
+AllCarmelDates.3 <- data.frame(Date = as.Date(paste(AllCarmelDates$Date-3)))
+
+AllCarmelDates.all <- rbind(AllCarmelDates, AllCarmelDates.1, AllCarmelDates.2, AllCarmelDates.3)
+
+sub.captured.carmel <- sub.captured.carmel %>%
+  mutate(known_capture = ifelse(date %in% AllCarmelDates.all$Date, 1, 0),
+         Captured = ifelse(known_capture == 1 & ClosestCaptureDist <= 50, "yes", "no")) %>%
+  filter(Captured == "yes") %>%
+  dplyr::select(-c(known_capture))
+
+names(sub.captured.no.carmel)
+names(sub.captured.carmel)
+
+sub.captured.dates <- rbind(sub.captured.no.carmel, sub.captured.carmel)
+
+# We also need to exclude the day after the bird was captured
+sub.captured.dates.1 <- sub.captured.dates
+sub.captured.dates.1$date <- sub.captured.dates.1$date+1
+
+sub.captured.dates <- rbind(sub.captured.dates, sub.captured.dates.1)
+sub.captured.dates <- sub.captured.dates %>%
+  dplyr::distinct(Nili_id, date, .keep_all = T)
+
+# It all looks ok, so we can subset the dataset to exclude the capture dates
+removed_captures <- removed_periods %>%
+  left_join(sub.captured.dates, by = c("Nili_id", "dateOnly" = "date"))
+nrow(removed_periods) == nrow(removed_captures) # should be TRUE. NOW we can filter.
+removed_captures <- removed_captures %>%
+  dplyr::filter(Captured != "Yes"|is.na(Captured)) # remove the individual*days when they were captured
+
+# How many rows and individuals did we remove?
+before <- nrow(removed_periods)
+after <- nrow(removed_captures)
+(propChange <- (before-after)/before) # approx. 1% of data removed.
+length(unique(removed_periods$Nili_id)) == length(unique(removed_captures$Nili_id)) # no change in number of individuals! As expected.
+
+removed_captures <- removed_captures %>%
+  dplyr::select(-c("ClosestCaptureSite", "ClosestCaptureDist", "Captured"))
+
+write_feather(removed_captures, "data/dataPrep/removed_captures.feather")
+
+# tidy up
+rm(AllCarmelDates)
+rm(AllCarmelDates.1)
+rm(AllCarmelDates.2)
+rm(AllCarmelDates.3)
+rm(AllCarmelDates.all)
+rm(capture_sites)
+rm(crds)
+rm(DistanceMat)
+rm(removed)
+rm(removed_captures)
+rm(roosts0)
+rm(sub.captured)
+rm(sub.captured.carmel)
+rm(sub.captured.dates)
+rm(sub.captured.dates.1)
+rm(sub.captured.no.carmel)
+rm(sub.roosts)
+rm(removed_periods)
+rm(after)
+rm(before)
+rm(ClosestCaptureDist)
+rm(ClosestCaptureSite)
+rm(distance)
+rm(start.day)
+rm(start.month)
+rm(end.day)
+rm(end.month)
+rm(propChange)
+
+gc()
+```
+
+## Attach birth year and sex information
+
+Note: the actual calculation of age happens later on, after cleaning the data, for some reason.
+
+*Inputs:*
+
+-   `data/raw/whoswho_vultures_20230920_new.xlsx`
+
+-   `data/dataPrep/removed_captures.feather`
+
+*Outputs:*
+
+-   `data/dataPrep/with_age_sex.feather`
+
+```{r attach-age-sex}
+#| message: false
+removed_captures <- read_feather("data/dataPrep/removed_captures.feather")
+age_sex <- read_excel("data/raw/whoswho_vultures_20230920_new.xlsx", sheet = "all gps tags")[,1:35] %>%
+  dplyr::select(Nili_id, birth_year, sex) %>%
+  distinct()
+```
+
+```{r}
+#| eval: false
+with_age_sex <- removed_captures %>%
+  dplyr::select(-c("sex")) %>%
+  left_join(age_sex, by = "Nili_id")
+nrow(with_age_sex) == nrow(removed_captures) # should be TRUE
+length(unique(with_age_sex$Nili_id)) #201
+
+write_feather(with_age_sex, "data/dataPrep/with_age_sex.feather")
+
+# tidy up
+rm(removed_captures)
+rm(with_age_sex)
+rm(age_sex)
+gc()
+```
+
+## Clean data
+
+Here, we set the `inMaskThreshold` to 30 days overall. If we wanted 30 days per season, we would have to do that differently (e.g. split the seasons before this step, not after). But I think that gets covered later in the data cleaning anyway.
+
+*Inputs:*
+
+-   `data/raw/CutOffRegion.kml`
+
+-   `data/dataPrep/with_age_sex.feather`
+
+*Outputs:*
+
+-   `data/dataPrep/cleaned.feather`
+
+```{r}
+mask <- sf::st_read("data/raw/CutOffRegion.kml")
+with_age_sex <- read_feather("data/dataPrep/with_age_sex.feather")
+```
+
+```{r clean-data}
+#| eval: false
+# Clean the data
+## Region masking, downsampling, removal of speed outliers, setting altitude outliers to NA, etc.
+cleaned <- vultureUtils::cleanData(dataset = with_age_sex, mask = mask, inMaskThreshold = 30, removeVars = F, idCol = "Nili_id", downsample = F, reMask = T) 
+length(unique(cleaned$Nili_id)) # 172 individuals
+# Fix time zone so dates make sense ---------------------------------------
+## Overwrite the dateOnly column from the new times
+cleaned <- cleaned %>%
+  mutate(timestampIsrael = lubridate::with_tz(timestamp, tzone = "Israel"),
+         dateOnly = lubridate::date(timestampIsrael),
+         month = lubridate::month(dateOnly),
+         year = lubridate::year(dateOnly)) # XXX consider removing the downsample argument. Also this function is insanely slow and needs to be fixed, good grief.
+
+# This produces a huge file because it's an SF file. We don't really need it to be sf at this stage. Let's remove that.
+cleaned <- sf::st_drop_geometry(cleaned)
+
+save(cleaned, file = "data/dataPrep/cleaned.Rda")
+
+# tidy up
+rm(mask)
+rm(with_age_sex)
+rm(cleaned)
+gc()
+```
+
+## Split into seasons
+
+Season definitions, and code to split the data into seasons, come from Marta.
+
+*Inputs:*
+
+-   `data/dataPrep/cleaned.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/seasons_list.Rda`
+
+-   `data/dataPrep/season_names.Rda`
+
+```{r}
+load(here::here("data", "dataPrep", "cleaned.Rda"))
+```
+
+```{r split-seasons}
+#| eval: false
+# Split into Marta's 3 seasons --------------------------------------------
+cleaned <- cleaned %>%
+  mutate(start_breeding = ifelse(month %in% c(1:5),
+                                 paste(as.character(year-1), "-", "12", "-", "15", sep = ""),
+                                 paste(as.character(year), "-", "12", "-", "15", sep = "")),
+         start_summer = ifelse(month == 12,
+                               paste(as.character(year + 1), "-", "05", "-", "15", sep = ""),
+                               paste(as.character(year), "-", "05", "-", "15", sep = "")),
+         start_fall = as.Date(paste(as.character(year), "-", "09", "-", "15", sep = "")),
+         start_breeding = as.Date(start_breeding),
+         start_summer = as.Date(start_summer),
+         season = case_when(
+           dateOnly >= start_breeding & dateOnly < start_summer ~ "breeding",
+           dateOnly >= start_summer & dateOnly <= start_fall ~ "summer",
+           dateOnly >= start_fall & dateOnly < start_breeding ~ "fall")) %>%
+  filter(dateOnly != "2023-09-15") # remove September 15 2023, because it turns out the season boundaries are supposed to be non-inclusive and this is the latest one.
+
+with_seasons <- cleaned %>%
+  mutate(age = year - birth_year, #XXX consider moving this up to the age/sex section. Why is it happening here?
+         sex = case_when(sex == "f/m" ~ "u",
+                         TRUE ~ sex)) %>%
+  mutate(age = ifelse(season == "breeding" & month %in% c(1, 12), age + 1, age)) %>%
+  group_by(Nili_id, year, month) %>%
+  mutate(age = ifelse(month == 2, min(age) + 1, age)) %>%
+  mutate(age_group = case_when(age == 0 ~ "juv",
+                               age >= 1 & age <= 4 ~ "sub",
+                               age >= 5 ~ "adult",
+                               TRUE ~ NA)) %>%
+  mutate(seasonUnique = case_when(season %in% c("fall", "summer") ~ paste(year, season, sep = "_"),
+                                  season == "breeding" & month == 12 ~ paste(year + 1, season, sep = "_"),
+                                  season == "breeding" & month != 12 ~ paste(year, season, sep = "_"))) %>%
+  # explicitly set the factor levels in temporal order
+  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding", "2023_summer")),
+         season = factor(season, levels = c("breeding", "summer", "fall")))
+
+# remove columns that were used in the season calculation
+with_seasons <- with_seasons %>%
+  dplyr::select(-c(month, start_breeding, start_summer, start_fall))
+
+# REMOVE SUMMER 2020--we don't need to use it
+with_seasons <- with_seasons %>%
+  filter(seasonUnique != "2020_summer")
+length(unique(with_seasons$seasonUnique)) # should be 9
+
+# Separate the seasons -----------------------------
+seasons_list <- with_seasons %>%
+  group_by(seasonUnique) %>%
+  group_split(.keep = T)
+length(seasons_list) # should be 9
+# extract the season names in case we need a separate vector at some point.
+season_names <- map_chr(seasons_list, ~as.character(.x$seasonUnique[1])) # ok good, these are in the right order
+length(season_names) # should also be 9
+save(seasons_list, file = "data/dataPrep/seasons_list.Rda")
+save(season_names, file = "data/dataPrep/season_names.Rda")
+
+# tidy up
+rm(cleaned)
+rm(seasons_list)
+rm(with_seasons)
+rm(season_names)
+gc()
+```
+
+## Identify individuals with low fix rate
+
+Some of the INPA vultures were tracked only once an hour, or some other low fix rate. However, determining which birds these are is tricky because even the vultures that should have a 10-minute fix rate do not always have points every 10 minutes, e.g. due to lack of reception or low tag battery.\
+\
+Therefore, we have to identify **low fix rate (lfr) individuals**, which are those that *never* have a 10-minute fix rate. To do this, we will find the mode (most common) fix frequency for each individual on each day. Then, we will identify individuals who never have observations at 10-minute intervals. We will keep any that theoretically have a 10-minute fix rate (i.e. their observation frequency was 10 minutes at some point), even if in practice they often have much less frequent observations.
+
+Because tags can be put on and off and the fix rate can change, I'm calculating the fix rate on a per-season basis (which is why I didn't put this step earlier in the pipeline–it had to come after the season splitting).
+
+*Inputs:*
+
+-   `data/dataPrep/seasons_list.Rda`
+-   `data/dataPrep/season_names.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/low_fix_rate_indivs.Rda`
+
+```{r}
+load("data/dataPrep/seasons_list.Rda")
+load("data/dataPrep/season_names.Rda")
+```
+
+```{r}
+#| eval: false
+# function to calculate mode (most common) fix rate
+Mode <- function(x) { 
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Calculate daily modes and add them to the dataset (using the function defined above)
+with_modes <- map(seasons_list, ~.x %>%
+                 group_by(dateOnly, Nili_id) %>%
+                 mutate(diff = as.numeric(difftime(lead(timestamp), timestamp, units = "mins"))) %>%
+                 group_by(dateOnly, Nili_id) %>%
+                 mutate(mode = Mode(round(diff))) %>%
+                 ungroup())
+
+# Identify individuals that never have a daily mode of 10 minutes
+low_fix_rate_indivs <- map(with_modes, ~.x %>%
+                        sf::st_drop_geometry() %>%
+                        group_by(Nili_id) %>%
+                        summarize(minmode = min(mode, na.rm = T)) %>%
+                        filter(minmode > 10) %>%
+                        pull(Nili_id) %>%
+                        unique())
+names(low_fix_rate_indivs) <- season_names
+
+save(low_fix_rate_indivs, 
+     file = "data/dataPrep/low_fix_rate_indivs.Rda")
+# Don't need to save with_modes because we've already used this step to identify low fix rate individuals.
+
+# Tidy up
+rm(seasons_list)
+rm(season_names)
+rm(low_fix_rate_indivs)
+rm(with_modes)
+gc()
+```
+
+## Remove low fix rate individuals
+
+*Inputs:*
+
+-   `data/dataPrep/seasons_list.Rda`
+
+-   `data/dataPrep/low_fix_rate_indivs.Rda`
+
+```{r}
+load("data/dataPrep/seasons_list.Rda") 
+load("data/dataPrep/low_fix_rate_indivs.Rda")
+```
+
+```{r}
+removed_lfr <- map2(seasons_list, low_fix_rate_indivs,                     ~.x %>% filter(!(Nili_id %in% .y))) 
+save(removed_lfr, file = "data/dataPrep/removed_lfr.Rda")  
+# tidy up 
+rm(seasons_list) 
+rm(low_fix_rate_indivs) 
+rm(removed_lfr) 
+gc()
+```
+
+### Data for social analysis
+
+The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `seasons_list` and not anything further along.
+
+## Get roosts before removing night points
+
+We are going to need to get nightly roost locations for all of the vultures. We have to do this now because getting roost locations requires using points that occur at night, which we will eventually want to remove in order to do the movement analysis.
+
+*Inputs:*
+
+-   `data/dataPrep/removed_lfr.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/roosts.Rda`
+
+```{r}
+load("data/dataPrep/removed_lfr.Rda")
+```
+
+```{r}
+#| eval: false
+# Get roosts for each season ----------------------------------------------
+roosts <- purrr::map(removed_lfr, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
+roosts <- roosts %>%
+  map(., ~st_as_sf(.x, crs = "WGS84", 
+                   coords = c("location_long", "location_lat"), 
+                   remove = F))
+save(roosts, file = "data/dataPrep/roosts.Rda")
+
+# Tidy up
+rm(removed_lfr)
+rm(roosts)
+gc()
+```
+
+# Further processing for movement analysis
+
+## Remove nighttime points
+
+*Inputs:*
+
+-   `data/dataPrep/removed_lfr.Rda`
+-   `data/dataPrep/season_names.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/removed_nightime.Rda`
+
+```{r}
+load("data/dataPrep/removed_lfr.Rda")
+load("data/dataPrep/season_names.Rda")
+```
+
+```{r}
+#| eval: false
+# Remove nighttime points -------------------------------------------------
+removed_nighttime <- map(removed_lfr, ~{
+  times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
+                                     lat = 31.434306, lon = 34.991889, # XXX revisit this!
+                                     keep = c("sunrise", "sunset")) %>%
+    dplyr::select("dateOnly" = date, sunrise, sunset)
+
+  .x <- .x %>%
+    dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
+    dplyr::left_join(times, by = "dateOnly") %>%
+    dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
+    dplyr::filter(daylight == "day")
+})
+
+save(removed_nighttime, file = "data/dataPrep/removed_nighttime.Rda")
+
+# tidy up
+rm(removed_nighttime)
+rm(removed_lfr)
+rm(season_names)
+gc()
+```
+
+## Restrict to southern population
+
+Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (UTM 36N, <https://epsg.io/32636)>
+
+*Inputs:*
+
+-   `data/dataPrep/removed_nighttime.Rda`
+-   `data/dataPrep/season_names.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/removed_northern.Rda`
+
+```{r}
+load("data/dataPrep/removed_nighttime.Rda")
+load("data/dataPrep/season_names.Rda")
+```
+
+```{r}
+#| eval: false
+# Transform to SF object, so we can get centroids
+seasons_sf <- map(removed_nighttime, ~.x %>%
+                   sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
+                   sf::st_set_crs("WGS84") %>%
+                   sf::st_transform(32636))
+
+## Get centroids, so we can see who's "southern" for that season.
+centroids <- map(seasons_sf, ~.x %>%
+                   group_by(Nili_id) %>%
+                   summarize(geometry = st_union(geometry)) %>%
+                   st_centroid())
+
+## Examine a histogram of centroid latitudes 
+walk(centroids, ~hist(st_coordinates(.x)[,2])) # looks like 3550000 is generally a good cutoff point here.
+
+## Get southern individuals for each season, so we can filter the data
+southern_indivs <- map(centroids, ~.x %>%
+                        filter(st_coordinates(.)[,2] < 3550000) %>%
+                        pull(Nili_id))
+
+## Remove individuals not in the south
+before <- removed_nighttime
+removed_northern <- map2(.x = removed_nighttime, 
+                         .y = southern_indivs, ~.x 
+                         %>% filter(Nili_id %in% .y))
+after <- removed_northern
+
+beforeRows <- map_dbl(before, nrow)
+afterRows <- map_dbl(after, nrow)
+beforeIndivs <- map_dbl(before, ~length(unique(.x$Nili_id)))
+afterIndivs <- map_dbl(after, ~length(unique(.x$Nili_id)))
+df <- data.frame(season = season_names, nBefore = beforeRows, nAfter = afterRows, indivsBefore = beforeIndivs, indivsAfter = afterIndivs)
+df$propRowsRemoved <- round((df$nBefore - df$nAfter)/df$nBefore, 2)
+df
+
+save(removed_northern, file = "data/dataPrep/removed_northern.Rda")
+
+# tidy up
+rm(removed_nighttime)
+rm(season_names)
+rm(seasons_sf)
+rm(centroids)
+rm(southern_indivs)
+rm(before)
+rm(after)
+rm(removed_northern)
+rm(df)
+rm(afterIndivs)
+rm(afterRows)
+rm(beforeIndivs)
+rm(beforeRows)
+gc()
+```
+
+## Remove vulture-days with too few points per day
+
+*Inputs:*
+
+-   `data/dataPrep/removed_northern.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/removed_lowppd.Rda`
+
+```{r}
+load("data/dataPrep/removed_northern.Rda")
+```
+
+```{r}
+#| eval: false
+# Calculate number of points per day for each individual
+ppd <- map_dfr(removed_northern, ~.x %>%
+                 st_drop_geometry() %>%
+                 group_by(seasonUnique, season, Nili_id, dateOnly) %>%
+                 summarize(n = n(),
+                           minBatt = min(battery_charge_percent, na.rm = T)))
+
+# Sometimes, fewer points per day is due to low battery charge percent. Let's examine the relationship between battery charge and number of points per day.
+ppd %>%
+  filter(n < 100) %>% # only interested in lower numbers of points per day
+  ggplot(aes(x = minBatt, y = n))+
+  geom_point()+
+  facet_wrap(~seasonUnique)+
+  theme_classic()
+
+# What if we decide to exclude based on the combination of battery charge and points per day, with the minimum battery threshold at 50% and the points threshold at 10?
+
+# That is, if the minimum battery threshold was <= 50, a bird must have > 10 points on a given day for that day to be included. But if the minimum battery threshold was never less than 50%, it's okay to keep the ones with fewer points per day, since we know it was due to some reason other than battery charge.
+
+excl_batt <- 50
+excl_pts <- 10
+## min battery charge
+ppd %>%
+  filter(n < 100) %>% # only interested in the lower numbers
+  mutate(remove = case_when(minBatt <= excl_batt & n <= excl_pts ~ T,
+                            TRUE ~ F)) %>%
+  ggplot(aes(x = minBatt, y = n))+
+  geom_point(aes(col = remove))+
+  facet_wrap(~seasonUnique) +
+  scale_color_manual(values = c("black", "red")) +
+  theme_classic()
+
+## Keep days with more than 10 points, or with fewer than 10 if the minimum battery charge that day is >50%
+removed_lowppd <- map(removed_northern, ~.x %>%
+                 group_by(Nili_id, dateOnly) %>%
+                 filter(n() >= 10 | (n() < 10 & 
+                                       min(battery_charge_percent, 
+                                           na.rm = T) > 50)) %>%
+                 ungroup())
+
+save(removed_lowppd, file = "data/dataPrep/removed_lowppd.Rda")
+
+# tidying up
+rm(removed_northern)
+rm(ppd)
+rm(excl_batt)
+rm(excl_pts)
+rm(removed_lowppd)
+gc()
+```
+
+## Remove individuals with too few high-ppd days tracked
+
+Now that we've removed days with too few points per day, we are left with only "valid" movement days for each individual. Now we want to exclude *individuals* (rather than individual-days) if the individual has too few valid days of movement data to accurately calculate movement metrics.
+
+Somewhat arbitrarily, we are removing individuals that are tracked for **fewer than 30 days in a given season.**
+
+*Inputs:*
+
+-   `data/dataPrep/removed_lowppd.Rda`
+-   `data/dataPrep/season_names.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/removed_too_few_days.Rda`
+-   `data/dataPrep/season_durations.Rda`
+
+```{r}
+load("data/dataPrep/removed_lowppd.Rda")
+load("data/dataPrep/season_names.Rda")
+```
+
+```{r}
+#| eval: false
+
+# How long are the seasons?
+season_durations <- map_dbl(removed_lowppd, ~max(.x$dateOnly)-min(.x$dateOnly))
+names(season_durations) <- season_names
+season_durations
+
+# Include only individuals with enough days tracked -----------------------
+indivsToKeep <- map(removed_lowppd, ~.x %>%
+                       st_drop_geometry() %>%
+                       group_by(Nili_id) %>%
+                       summarize(nDaysTracked = 
+                                   length(unique(dateOnly))) %>%
+                       filter(nDaysTracked >= 30) %>%
+                       pull(Nili_id))
+
+## remove those individuals not tracked for enough days
+removed_too_few_days <- map2(.x = removed_lowppd, 
+                             .y = indivsToKeep, ~.x %>% 
+                filter(Nili_id %in% .y))
+
+beforeIndivs <- map_dbl(removed_lowppd, ~length(unique(.x$Nili_id)))
+afterIndivs <- map_dbl(removed_too_few_days, ~length(unique(.x$Nili_id)))
+
+save(removed_too_few_days, file = "data/dataPrep/removed_too_few_days.Rda")
+save(season_durations, file = "data/dataPrep/season_durations.Rda")
+
+# tidy up
+rm(removed_lowppd)
+rm(season_names)
+rm(season_durations)
+rm(indivsToKeep)
+rm(removed_too_few_days)
+rm(beforeIndivs)
+rm(afterIndivs)
+gc()
+```
+
+## Calculate flight altitude
+
+*Inputs:*
+
+-   `data/dataPrep/removed_too_few_days`
+
+*Outputs:*
+
+-   `data/dataPrep/elevs_z10.Rda`
+
+-   `data/dataPrep/with_altitudes.Rda`
+
+```{r}
+load("data/dataPrep/removed_too_few_days.Rda")
+```
+
+```{r}
+#| eval: false
+# Get elevation rasters ---------------------------------------------------
+sf <- map(removed_too_few_days, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
+elevs_z10 <- map(sf, ~elevatr::get_elev_raster(.x , z = 10))
+save(elevs_z10, file = "data/dataPrep/elevs_z10.Rda")
+save(sf, file = "data/dataPrep/sf.Rda")
+```
+
+```{r}
+load("data/dataPrep/elevs_z10.Rda")
+load("data/dataPrep/sf.Rda")
+```
+
+```{r}
+#| eval: false
+groundElev_z10 <- map2(elevs_z10, sf, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
+
+## use elevation rasters to calculate height above ground level
+with_altitudes <- map2(.x = removed_too_few_days, .y = groundElev_z10, 
+                ~.x %>% mutate(groundElev = .y) %>%
+                  mutate(height_above_ground = height_above_msl-groundElev,
+                         height_above_ground = case_when(height_above_ground < 0 ~ 0,
+                                                         TRUE ~ height_above_ground)))
+
+# There should be no change in the number of rows
+all(map2_lgl(removed_too_few_days, with_altitudes, ~nrow(.x) == nrow(.y)))
+
+save(with_altitudes, file = "data/dataPrep/with_altitudes.Rda")
+
+# tidy up
+rm(removed_too_few_days)
+rm(sf)
+rm(elevs_z10)
+rm(groundElev_z10)
+rm(with_altitudes)
+gc()
+```
+
+## Remove high-frequency fixes
+
+We already removed individuals that had too low a fix rate. We are left with individuals that had a fix rate of 10 minutes or more frequent. But occasionally, there were periods of high-frequency sampling. This might mess up our movement calculations, so let's downsample the data so that any points that were sampled at a frequency much higher than 1 fix/10 minutes will be reduced to the same frequency as the others.
+
+*Inputs:*
+
+-   `data/dataPrep/with_altitudes.Rda`
+
+-   `data/dataPrep/season_names.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/downsampled_10min.Rda`
+
+```{r}
+load("data/dataPrep/with_altitudes.Rda")
+load("data/dataPrep/season_names.Rda")
+```
+
+```{r}
+#| eval: false
+
+# Function to downsample the data
+subsample <- function(df, idCol = "Nili_id", 
+                      timestampCol = "timestamp", mins = 10){
+  sub <- df %>%
+    arrange(idCol, timestampCol) %>%
+    group_by(.data[[idCol]]) %>%
+    mutate(tc = cut(.data[[timestampCol]], 
+                    breaks = paste(as.character(mins), "min", sep = " "))) %>%
+    group_by(.data[[idCol]], 
+             "d" = lubridate::date(.data[[timestampCol]]), tc) %>%
+    slice(1) %>%
+    ungroup() %>%
+    dplyr::select(-c("d", "tc"))
+  return(sub)
+}
+
+# create and save downsampled datasets for later use
+downsampled_10min <- map(with_altitudes, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # basically just trying to remove any data from the occasional bursts of more concentrated and frequent sampling.
+
+# Add information on # of days tracked for each individual
+downsampled_10min <- map(downsampled_10min, ~.x %>% group_by(Nili_id) %>% 
+                       mutate(daysTracked = length(unique(dateOnly))))
+
+save(downsampled_10min, file = "data/dataPrep/downsampled_10min.Rda")
+
+map_dbl(with_altitudes, nrow) %>% setNames(season_names)
+map_dbl(downsampled_10min, nrow) %>% setNames(season_names)
+
+# tidying
+rm(with_altitudes)
+rm(downsampled_10min)
+gc()
+```

@@ -31,64 +31,65 @@ distviz <- function(data, varname, seasoncol){
 }
 
 ## Load data ---------------------------------------------------------------
-base::load("data/derived/seasons_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
-base::load("data/orphan/datasetAssignments.Rda")
-base::load("data/derived/roosts_seasons.Rda") # don't need a separate roost dataset for the rarefied data, because roosts are only once per day, and it makes sense to use the most detailed dataset possible.
-roosts_seasons <- map(roosts_seasons, ~.x %>% group_by(Nili_id) %>% 
+base::load("data/dataPrep/downsampled_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
+base::load("data/dataPrep/season_names.Rda")
+base::load("data/dataPrep/roosts.Rda")
+roosts <- map(roosts, ~.x %>% group_by(Nili_id) %>% 
                         mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
 
-roosts_seasons <- roosts_seasons[-1] # remove summer 2020
-datasetAssignments <- datasetAssignments[-1] # remove summer 2020
-test <- map2(roosts_seasons, datasetAssignments, ~left_join(.x, .y, by = "Nili_id"))
-seasonNames <- map_chr(seasons_10min, ~as.character(.x$seasonUnique[1]))
+test <- map2(roosts, datasetAssignments, ~left_join(.x, .y, by = "Nili_id"))
 roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
 
-durs <- map_dbl(seasons_10min, ~{
+durs <- map_dbl(downsampled_10min, ~{
   dates <- lubridate::ymd(.x$dateOnly)
   dur <- difftime(max(dates), min(dates), units = "days")
 })
 
-
 # Get number of days tracked for each individual --------------------------
-daysTracked_seasons <- map2(seasons_10min, durs, ~.x %>%
+daysTracked_seasons <- map2(downsampled_10min, durs, ~.x %>%
                               st_drop_geometry() %>%
                               group_by(Nili_id) %>%
                               summarize(daysTracked = length(unique(dateOnly)),
                                         propDaysTracked = daysTracked/.y))
-names(daysTracked_seasons) <- seasonNames
-save(daysTracked_seasons, file = "data/derived/daysTracked_seasons.Rda")
-load("data/derived/daysTracked_seasons.Rda")
+names(daysTracked_seasons) <- season_names
+save(daysTracked_seasons, file = "data/calcMovement/daysTracked_seasons.Rda")
+load("data/calcMovement/daysTracked_seasons.Rda")
 dts <- purrr::list_rbind(daysTracked_seasons, names_to = "season")
 
 # VVV Visualize days tracked
 distviz(dts, "propDaysTracked", "season")
 
+# Convert to sf -----------------------------------------------------------
+downsampled_10min_sf <- map(downsampled_10min, ~.x %>% sf::st_as_sf(coords = c("location_long", "location_lat"), crs = "WGS84"))
+save(downsampled_10min_sf, file = "data/calcMovement/downsampled_10min_sf.Rda")
+load("data/calcMovement/downsampled_10min_sf.Rda")
+
 # Movement Behavior --------------------------------------------------------
 ## HOME RANGE ---------------------------------------------------------------
 ## Individual home ranges
-hrList_indivs <- purrr::map(seasons_10min, ~.x %>%
+hrList_indivs <- purrr::map(downsampled_10min_sf, ~.x %>%
+                              ungroup() %>%
                        dplyr::select(Nili_id) %>%
                        st_transform(32636) %>%
-                       ungroup() %>%
                        mutate(x = sf::st_coordinates(.)[,1],
                               y = sf::st_coordinates(.)[,2]) %>%
                        st_drop_geometry() %>%
                        group_by(Nili_id) %>%
                        group_split(.keep = T))
-save(hrList_indivs, file = "data/derived/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
-load("data/derived/hrList_indivs.Rda")
+save(hrList_indivs, file = "data/calcMovement/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
+load("data/calcMovement/hrList_indivs.Rda")
 
 indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
 hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~sp::SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
-save(hrList_indivs_SP, file = "data/derived/hrList_indivs_SP.Rda")
-load("data/derived/hrList_indivs_SP.Rda")
+save(hrList_indivs_SP, file = "data/calcMovement/hrList_indivs_SP.Rda")
+load("data/calcMovement/hrList_indivs_SP.Rda")
 
 kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
   if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
   else{k <- NULL} # changed back to the href value here--important to have different h for individuals with different numbers of points, and the fact that we'll take percentages of the resulting errors should mean that it comes out in the wash anyway.
   return(k)}, .progress = T))
-save(kuds_indivs, file = "data/derived/kuds_indivs.Rda")
-load("data/derived/kuds_indivs.Rda")
+save(kuds_indivs, file = "data/calcMovement/kuds_indivs.Rda")
+load("data/calcMovement/kuds_indivs.Rda")
 
 ### Core Area (50%) ---------------------------------------------------------
 coreAreas_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
@@ -114,7 +115,7 @@ indsKUDAreas <- map2(indivs, areas, ~bind_cols("Nili_id" = .x, .y))
 ### Core Area Fidelity (50%/95%) --------------------------------------------
 indsKUDAreas <- map(indsKUDAreas, ~.x %>% 
                       mutate(coreAreaFidelity = coreArea/homeRange))
-names(indsKUDAreas) <- seasonNames
+names(indsKUDAreas) <- season_names
 ikuda_df <- purrr::list_rbind(indsKUDAreas, names_to = "season")
 
 # VVV Visualize core areas, home ranges, and ratios
@@ -124,18 +125,18 @@ distviz(ikuda_df, "coreAreaFidelity", "season")
 
 ## ROOST SITE USE ----------------------------------------------------------
 # Make sure that each roost point intersects only one (or 0) roost (multi)polygon(s)
-table(unlist(map(roosts_seasons, ~as.numeric(lengths(st_intersects(.x, roostPolygons)))))) # should be only 0 or 1. Good!
+table(unlist(map(roosts, ~as.numeric(lengths(st_intersects(.x, roostPolygons)))))) # should be only 0 or 1. Good!
 
 # Get ID's of which polygon each roost location falls into
-roostIDs <- map(roosts_seasons, ~as.numeric(st_intersects(x = .x, y = roostPolygons)))
+roostIDs <- map(roosts, ~as.numeric(st_intersects(x = .x, y = roostPolygons)))
 
-roosts_seasons <- map2(roosts_seasons, roostIDs, ~.x %>% 
+roosts <- map2(roosts, roostIDs, ~.x %>% 
                          mutate(roostID = as.character(.y)) %>%
                          mutate(roostID = case_when(is.na(roostID) ~ paste(Nili_id, roost_date, sep = "_"), 
                                                     TRUE ~ roostID)))
 ### Roost Switches ----------------------------------------------------------
 ## Calculate sequences of roost locations
-roostSequences <- map(roosts_seasons, ~.x %>%
+roostSequences <- map(roosts, ~.x %>%
                         st_drop_geometry() %>%
                         dplyr::select(Nili_id, roost_date, roostID) %>%
                         arrange(Nili_id, roost_date) %>%
@@ -154,7 +155,7 @@ roostSwitches <- map(roostSequences, ~.x %>%
 
 ### Roost Diversity -------------------------------------------------------
 ## (Shannon index)
-shannon <- map(roosts_seasons, ~.x %>%
+shannon <- map(roosts, ~.x %>%
                  st_drop_geometry() %>%
                  mutate(roostID = as.character(roostID),
                         roostID = case_when(is.na(roostID) ~ 
@@ -176,7 +177,7 @@ shannon <- map(roosts_seasons, ~.x %>%
 
 ## MOVEMENT ----------------------------------------------------------------
 ### Daily Flight Duration ---------------------------------------------------
-dfd <- map(seasons_10min, ~.x %>%  # using the 10-minute rarefied data, for consistency. Shouldn't really affect the estimates much.
+dfd <- map(downsampled_10min_sf, ~.x %>%
              st_drop_geometry() %>%
              group_by(Nili_id, dateOnly) %>%
              arrange(timestamp, .by_group = T) %>%
@@ -197,7 +198,7 @@ dfdSumm <- map(dfd, ~.x %>%
                            maxDFD = max(totalFlightDuration, na.rm = T),
                            medDFD = median(totalFlightDuration, na.rm = T)))
 
-names(dfdSumm) <- seasonNames
+names(dfdSumm) <- season_names
 dfddf <- purrr::list_rbind(dfdSumm, names_to = "season") %>%
   mutate(meanDFD = meanDFD/60/60,
          minDFD = minDFD/60/60,
@@ -215,21 +216,21 @@ dfddf <- dfddf %>%
 # Do the seasons differ in mean daily flight duration?
 dfddf %>%
   ggplot(aes(x = meanDFD, col = szn, group = factor(season)))+
-  geom_density(size = 1.5, alpha = 0.7)+
+  geom_density(linewidth = 1.5, alpha = 0.7)+
   theme_classic()+
   scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor))
 
 # what about min?
 dfddf %>%
   ggplot(aes(x = minDFD, col = szn, group = factor(season)))+
-  geom_density(size = 1.5, alpha = 0.7)+
+  geom_density(linewidth = 1.5, alpha = 0.7)+
   theme_classic()+
   scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor)) # fewer zero days in summer! Makes sense.
 
 # what about max?
 dfddf %>%
   ggplot(aes(x = maxDFD, col = szn, group = factor(season)))+
-  geom_density(size = 1.5, alpha = 0.7)+
+  geom_density(linewidth = 1.5, alpha = 0.7)+
   theme_classic()+
   scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor)) #less differentiation, but still the order we expect.
 
@@ -276,9 +277,9 @@ calc_metrics <- function(data){
 }
 
 # apply the calc_metrics() function to each season in the list using purrr::map()
-dailyMovementList_seasons <- purrr::map(seasons_10min, calc_metrics, .progress = T)
-save(dailyMovementList_seasons, file = "data/derived/dailyMovementList_seasons.Rda")
-load("data/derived/dailyMovementList_seasons.Rda") 
+dailyMovementList_seasons <- purrr::map(downsampled_10min_sf, calc_metrics, .progress = T)
+save(dailyMovementList_seasons, file = "data/calcMovement/dailyMovementList_seasons.Rda")
+load("data/calcMovement/dailyMovementList_seasons.Rda") 
 
 mnMvmt <- map(dailyMovementList_seasons, ~.x %>%
                 group_by(Nili_id) %>%
@@ -288,7 +289,7 @@ mnMvmt <- map(dailyMovementList_seasons, ~.x %>%
 
 mnMvmt[[1]] %>% is.na() %>% colSums() # yessssssssssssssss
 
-names(mnMvmt) <- seasonNames
+names(mnMvmt) <- season_names
 mm <- purrr::list_rbind(mnMvmt, names_to = "season")
 distviz(mm, "meanDMD", "season")
 distviz(mm, "meanDDT", "season") # huh, those distributions do seem to differ more...
@@ -300,7 +301,7 @@ distviz(mm, "mnTort", "season")
 # daily altitude stats
 # Note that I've already cleaned outlier altitudes in 00_dataPrep.R. 
 # Now just need to restrict to ground_speed > 5m/s
-dailyAltitudes <- map(seasons_10min, ~.x %>%
+dailyAltitudes <- map(downsampled_10min_sf, ~.x %>%
                         st_drop_geometry() %>%
                         filter(ground_speed >= 5) %>% # we only care about the altitude of in-flight points.
                         group_by(Nili_id, dateOnly) %>%
@@ -313,7 +314,7 @@ dailyAltitudes <- map(seasons_10min, ~.x %>%
                                                        TRUE ~ maxAltitude),
                                medAltitude = case_when(medAltitude < 0 ~ NA,
                                                        TRUE ~ medAltitude)))
-names(dailyAltitudes) <- seasonNames
+names(dailyAltitudes) <- season_names
 
 dailyAltitudes %>%
   purrr::list_rbind(names_to = "season") %>%
@@ -337,11 +338,10 @@ movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by
   map2(., dfdSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
   map2(., mnMvmt, ~left_join(.x, .y, by = "Nili_id")) %>%
   map2(., daysTracked_seasons, ~left_join(.x, .y, by = "Nili_id")) %>%
-  map2(., .y = seasonNames, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id")) %>%
-  map2(., datasetAssignments, ~.x %>% left_join(.y))
+  map2(., .y = season_names, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id"))
 
 ## Add age and sex
-ageSex <- map(seasons_10min, ~.x %>% st_drop_geometry() %>% 
+ageSex <- map(downsampled_10min_sf, ~.x %>% st_drop_geometry() %>% 
                 dplyr::select(Nili_id, birth_year, sex) %>% 
                 distinct())
 
@@ -368,53 +368,40 @@ distviz(mbdf, varname = "meanDDT", seasoncol = "seasonUnique")
 distviz(mbdf, varname = "mnTort", seasoncol = "seasonUnique")
 # I think these all look reasonable
 
-# Remove individuals not included for mode10 ------------------------------
-load("data/derived/toKeep_fixrate.Rda")
-toKeep_fixrate <- toKeep_fixrate[-1]
-movementBehavior_mode10 <- map2(movementBehavior, toKeep_fixrate, ~.x %>%
-                                  filter(Nili_id %in% .y))
-
-## Scale vars
-movementBehaviorScaled <- map(movementBehavior, ~.x %>%
-                                mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, dataset), function(x){
-                                  as.numeric(as.vector(scale(x)))
-                                })))
-
-movementBehaviorScaled_mode10 <- map(movementBehavior_mode10, ~.x %>%
-                                mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, dataset), function(x){
-                                  as.numeric(as.vector(scale(x)))
-                                })))
-
 ## Save raw movement data ------------------------------------------------------
-save(movementBehavior, file = "data/derived/movementBehavior.Rda")
-save(movementBehaviorScaled, file = "data/derived/movementBehaviorScaled.Rda")
+save(movementBehavior, file = "data/calcMovement/movementBehavior.Rda")
 
-save(movementBehavior_mode10, file = "data/derived/movementBehavior_mode10.Rda")
-save(movementBehaviorScaled_mode10, file = "data/derived/movementBehaviorScaled_mode10.Rda") # not going to use this mode10 data--Noa and I have agreed that the PCA should be run on the main movementBehaviorScaled data, because we need to include all of the individuals that will eventually make it into *any* regression (e.g. roost situation). But I'm leaving this here just in case.
-
-# Investigate the movement variables across datasets ----------------------
-load("data/derived/toKeep_fixrate.Rda")
-toKeep_fixrate <- toKeep_fixrate[-1]
-
-mb <- map2(movementBehavior, toKeep_fixrate, ~.x %>%
-             mutate(mode10 = case_when(Nili_id %in% .y ~ T,
-                                       TRUE ~ F))) %>%
-  purrr::list_rbind()
-
-# variables we think could be related: ddt, tort, dfd
-mb %>%
-  ggplot(aes(x = mode10, y = meanDDT))+
-  geom_boxplot()+
-  facet_wrap(~seasonUnique) # some small differences but not much
-
-mb %>%
-  ggplot(aes(x = mode10, y = mnTort))+
-  geom_boxplot()+
-  facet_wrap(~seasonUnique) # pretty much no diff, or at least no consistent diff
-
-mb %>%
-  ggplot(aes(x = mode10, y = meanDFD))+
-  geom_boxplot()+
-  facet_wrap(~seasonUnique) # no difference here either
-
-# No evident/consistent differences in these measures between mode10 individuals and other individuals
+# tidy up
+rm(ageSex)
+rm(areas)
+rm(cc)
+rm(coreAreas_indivs)
+rm(dailyAltitudes)
+rm(dailyAltitudesSumm)
+rm(dailyMovementList_seasons)
+rm(datasetAssignments)
+rm(daysTracked_seasons)
+rm(dfd)
+rm(dfddf)
+rm(dfdSumm)
+rm(downsampled_10min)
+rm(downsampled_10min_sf)
+rm(dts)
+rm(homeRanges_indivs)
+rm(hrList_indivs)
+rm(hrList_indivs_SP)
+rm(ikuda_df)
+rm(indivs)
+rm(indsKUDAreas)
+rm(kuds_indivs)
+rm(mbdf)
+rm(mm)
+rm(mnMvmt)
+rm(movementBehavior)
+rm(roostIDs)
+rm(roostPolygons)
+rm(roosts)
+rm(roostSequences)
+rm(roostSwitches)
+rm(shannon)
+rm(test)
