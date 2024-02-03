@@ -519,7 +519,7 @@ Season definitions, and code to split the data into seasons, come from Marta.
 -   `data/dataPrep/season_names.Rda`
 
 ```{r}
-load("data/dataPrep/cleaned.Rda")
+load(here::here("data", "dataPrep", "cleaned.Rda"))
 ```
 
 ```{r split-seasons}
