@@ -1102,3 +1102,30 @@ df %>% ggplot(aes(x = stage, y = rows, col = seasonUnique, group = seasonUnique)
 ```
 
 This looks crazy, but it's actually correct. Note that the stages aren't actually linear– the `removed_lfr` –\> `downsampled_10min_forSocial` pathway is a separate offshoot. `downsampled_10min_forSocial` doesn't then get passed into the further cleaning for movement data; rather, it goes straight to the social analysis while `removed_lfr` passes along to the further cleaning. In 2023 summer, there were a lot of high-resolution fixes, so this matters a whole lot. I didn't notice the effects of the downsampling much before because the other seasons just weren't too big, but this new season is an order of magnitude larger, which makes the downsampling essential.
+
+```{r}
+#| eval: false
+
+# Let's make sure the downsampling actually worked
+testseason <- downsampled_10min[[1]]
+with_ints <- testseason %>%
+  group_by(Nili_id, dateOnly) %>%
+  arrange(timestamp, .by_group = T) %>%
+  mutate(int = difftime(lead(timestamp), timestamp, units = "mins"))
+with_ints %>% 
+  select(Nili_id, dateOnly, timestamp, int) %>%
+  ggplot(aes(x = as.numeric(int), col = Nili_id))+
+  geom_density()+
+  theme_minimal()+
+  theme(legend.position = "none") # Good, none of them are less than 0.
+
+# Do we have any less than 10 minutes?
+with_ints %>% filter(as.numeric(int) < 10) # yes, there are a lot that are less than 10 minutes
+
+# What about less than 9 minutes?
+with_ints %>% filter(as.numeric(int) < 9) # okay, so something in my code is not working to filter out the really short intervals. What's happening here?
+
+# Oh... the way I did it actually guarantees this to happen. I cut the times into groups and then took the first one for each group. So if the first one for the previous group happened to be at the end of that group and then the first one of the next group happened to be at the beginning of that group, we can end up with arbitrarily small time intervals.
+
+# Now, I kind of don't care, since the main point here was just to get rid of the points. But I wonder if there's a different way to do this.
+```
