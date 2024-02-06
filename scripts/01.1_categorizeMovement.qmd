@@ -45,20 +45,14 @@ demo <- movementBehaviorScaled %>%
 space_use <- movementBehaviorScaled %>%
   dplyr::select(Nili_id, seasonUnique, coreArea, homeRange, coreAreaFidelity)
 movement <- movementBehaviorScaled %>%
-  dplyr::select(Nili_id, seasonUnique, mnDailyMaxAlt, mnDailyMedAlt, meanDFD, maxDFD, meanDMD, meanDDT, mnTort)
+  dplyr::select(Nili_id, seasonUnique, mnDailyMnAlt, meanDFD, meanDMD, meanDDT, mnTort)
 roost_behavior <- movementBehaviorScaled %>%
   dplyr::select(Nili_id, seasonUnique, propSwitch, shannon, uniqueRoosts)
 ```
 
-I first thought to do separate PCA's of each of these categories. But that doesn't make sense, especially for something like space use, where there are really only two metrics (and then one that's the combination of each of them)
-
-Instead, I want to make these more biologically motivated. Let's do the following:
-
-1\) home range only (but make it using AKDE method so it's actually defensible)
-
-2\) PCA of movement behaviors only
-
-3\) PCA of roost behaviors
+The PCA movement variables are a little hard to interpret, and I want the predictor variables to directly describe aspects of individual behavior/movement/space use.\
+\
+New proposal is to make a PCA of the strictly movement-related variables, a PC of the strictly roosting-related variables, and then use AKDE home ranges as the third variable measuring space use. Here is what this would look like:
 
 ## Movement PCA
 
@@ -84,17 +78,13 @@ movement <- movement %>%
 #| message: false
 
 movement %>%
-  pivot_longer(cols = c("mnDailyMaxAlt", "mnDailyMedAlt", "meanDFD", "maxDFD", "meanDMD", "meanDDT", "mnTort"),
+  pivot_longer(cols = c("mnDailyMnAlt", "meanDFD", "meanDMD", "meanDDT", "mnTort"),
                names_to = "measure", values_to = "value") %>%
   mutate(measure = fct_recode(measure,
-                              "Daily max. altitude (seasonal avg)" =
-                                "mnDailyMaxAlt",
-                              "Daily median altitude (seasonal avg)" = 
-                                "mnDailyMedAlt",
+                              "Daily mean altitude (seasonal avg)" = 
+                                "mnDailyMnAlt",
                               "Daily flight time (seasonal avg)" = 
                                 "meanDFD",
-                              "Daily flight time (seasonal max)" = 
-                                "maxDFD",
                               "Daily max displacement (seasonal avg)" = 
                                 "meanDMD",
                               "Daily distance traveled (seasonal avg)" = 
@@ -218,13 +208,13 @@ red_long %>%
 
 Okay that's still not perfect, but it's a lot better.
 
-*Note also that this outcome may change after we calculate the home ranges by better means (AKDE).*
+*Note also that this outcome may change quantitatively after we calculate the home ranges by better means (AKDE), but I don't expect it to be qualitatively different. AKDE calculations are currently in progress.*
 
 ## Correlations
 
 These are still three measures of movement, so I expect that they will be at least somewhat correlated. Let's take a look!
 
-**Movement** and **roost diversification** are definitely correlated, but the correlation isn't super high: `r round(cor(red$movement, red$roost_div), 2)`.
+**Movement** and **roost diversification** have a correlation of `r round(cor(red$movement, red$roost_div), 2)`.
 
 ```{r}
 #| message: false
@@ -254,7 +244,7 @@ red %>%
   geom_point(color = "orange2")+ geom_smooth(method = "lm", col = "orange2")+ theme_minimal()
 ```
 
-There is enough correlation here that we're going to have to be careful, but I don't think there's enough that we have to not proceed. These predictors seem more biologically defensible because they are created a priori instead of derived from a single PCA.
+There is enough correlation here that we're going to have to be careful, but I don't think there's enough that we have to not proceed. These predictors seem more biologically defensible because they are created *a priori* instead of derived from a single PCA.
 
 ## Examine effects of age and sex
 
@@ -313,19 +303,19 @@ red %>%
   facet_wrap(~var, scales = "free")+
   scale_color_manual(values = colors)+
   theme(legend.position = "none")+ylab("")
-
-red %>%
-  filter(!is.na(sex), sex != "NA") %>%
-  pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
-               names_to = "var", values_to = "value") %>%
-  ggplot(aes(x = sex, y = value, col = var))+
-  geom_jitter(height = 0, width = 0.2, alpha = 0.7)+
-  geom_violin(fill = NA)+
-  theme_minimal()+
-  xlab("Age")+
-  facet_grid(rows = vars(var), cols = vars(season), scales = "free")+
-  scale_color_manual(values = colors)+
-  theme(legend.position = "none")+ylab("")
+# 
+# red %>%
+#   filter(!is.na(sex), sex != "NA") %>%
+#   pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
+#                names_to = "var", values_to = "value") %>%
+#   ggplot(aes(x = sex, y = value, col = var))+
+#   geom_jitter(height = 0, width = 0.2, alpha = 0.7)+
+#   geom_violin(fill = NA)+
+#   theme_minimal()+
+#   xlab("Age")+
+#   facet_grid(rows = vars(var), cols = vars(season), scales = "free")+
+#   scale_color_manual(values = colors)+
+#   theme(legend.position = "none")+ylab("")
 ```
 
 Interestingly, if anything, the breeding season is when they show the *least* difference by sex! Weird.
