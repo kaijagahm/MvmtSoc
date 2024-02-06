@@ -4,6 +4,7 @@ format:
   html:
     embed-resources: true
 editor: visual
+bibliography: references.bib
 ---
 
 # Goals and introduction
@@ -1129,3 +1130,23 @@ with_ints %>% filter(as.numeric(int) < 9) # okay, so something in my code is not
 
 # Now, I kind of don't care, since the main point here was just to get rid of the points. But I wonder if there's a different way to do this.
 ```
+
+I just read up on subsampling vs. thinning in [@gupte2022]. It seems like I've reinvented the wheel here. What I'm doing is subsampling (choosing one point from each time interval), as opposed to aggregation (summarizing all the points within a given time interval, e.g. taking the mean). They both have their faults; for example, aggregation adds gps error (which can be measured, but still) while subsampling risks selecting outlier points just by chance but does preserve the location error structure without further effort. They note that you need to do the rest of the cleaning first before doing the subsampling, which is exactly what I've done, so yay!
+
+There is a function in `atlastools` for thinning the data, either by aggregation or subsampling. I'm going to test it and see if it's faster.
+
+I tried out the atlastools function and it was quite buggy and not necessarily faster, so I'm going to stick with my own function. Can still cite this paper for a general guideline of how to do it though.
+
+```{r}
+# library(atlastools)
+# library(tictoc)
+# testseason <- removed_lfr[[1]] %>% mutate(x = "location_long", y = "location_lat") %>% select(x, y, timestamp, Nili_id, dateOnly) %>% filter(!is.na(timestamp), !is.na(x), !is.na(y), !is.na(Nili_id), !is.na(Nili_id)) %>% mutate(time = as.numeric(timestamp))
+# tic()
+# atl_thinned <- atl_thin_data(data = testseason,
+#               interval = 600,
+#               id_columns = c("Nili_id", "dateOnly"),
+#               method = "subsample")
+# toc()
+```
+
+Okay, so in sum, I am *not* worried about there being a few really brief time intervals remaining in my data. For the AKDE's, I'll want to use a 10-minute `dt` value to avoid applying the shortest interval over the entire dataset. But for proceeding, it's okay to have these results of the downsampling stand.
