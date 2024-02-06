@@ -8,11 +8,18 @@ library(sf)
 ## Data ---------------------------------------------------------------
 load("data/dataPrep/downsampled_10min_forSocial.Rda") # this is the last dataset we produced in the dataPrep script before moving on to the further cleaning for movement, so this is the one we're going to use for the social interactions.
 sfdata <- map(downsampled_10min_forSocial, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
-roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
+datasetAssignments <- map(downsampled_10min_forSocial, ~.x %>% select(Nili_id, dataset, seasonUnique) %>% distinct() %>% group_by(Nili_id, seasonUnique) %>%
+                            mutate(dataset = case_when(n() > 1 ~ "both",
+                                                       TRUE ~ dataset)) %>%
+                            ungroup() %>%
+                            distinct())
 rm(downsampled_10min_forSocial)
 gc()
+roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
 load("data/dataPrep/season_names.Rda")
 load("data/dataPrep/roosts.Rda") # XXX load
+load("data/derived/cc.Rda")
+
 
 # Investigate the data ----------------------------------------------------
 # How many individuals do we have with vs. without excluding those with a lower sampling rate?
@@ -76,53 +83,53 @@ roostingSRI <- map(roosts, ~{
 save(roostingSRI, file = "data/calcSocial/roostingSRI.Rda")
 rm(roostingSRI)
 
+load("data/calcSocial/flightSRI.Rda")
+load("data/calcSocial/feedingSRI.Rda")
+load("data/calcSocial/roostingSRI.Rda")
 
-# XXX START HERE
-
-flightSeasons_mode10_g <- map(flightSeasons_mode10, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
-feedingSeasons_mode10_g <- map(feedingSeasons_mode10,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
-roostSeasons_g <- map(roostSeasons,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+flightGraphs <- map(flightSRI, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+feedingGraphs <- map(feedingSRI,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+roostingGraphs <- map(roostingSRI,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 
 # Describing the networks -------------------------------------------------
 # Network-level measures
-fldens <- map(flightSeasons_mode10_g, igraph::edge_density) %>% unlist()
-fedens <- map(feedingSeasons_mode10_g, igraph::edge_density) %>% unlist()
-rodens <- map(roostSeasons_g, igraph::edge_density) %>% unlist()
-dens <- data.frame(season = factor(seasonNames, levels = seasonNames), flight = fldens, feeding = fedens, roosting = rodens) %>%
-  pivot_longer(cols = c("flight", "feeding", "roosting"), names_to = "type", values_to = "density")
+fldens <- map(flightGraphs, igraph::edge_density) %>% unlist()
+fedens <- map(feedingGraphs, igraph::edge_density) %>% unlist()
+rodens <- map(roostingGraphs, igraph::edge_density) %>% unlist()
+dens <- data.frame(season = factor(season_names, levels = season_names), 
+                   flight = fldens, feeding = fedens, roosting = rodens) %>%
+  pivot_longer(cols = c("flight", "feeding", "roosting"), 
+               names_to = "type", values_to = "density")
 
 dens %>%
   ggplot(aes(x = season, y = density, col = type, group = type))+
-  geom_point()+
-  geom_line()
+  geom_point(size = 2)+
+  geom_line(linewidth = 1) + theme_minimal()+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme(panel.grid.major.x = element_blank())
 
 # Extracting individual-level network measures ----------------------------
-networkMetrics <- map2_dfr(flightSeasons_mode10_g, seasonNames, ~{
+networkMetrics <- map2_dfr(flightGraphs, season_names, ~{
   df <- data.frame(degree = igraph::degree(.x),
                    strength = igraph::strength(.x),
-                   pageRank = igraph::page_rank(.x)$vector,
                    Nili_id = names(degree(.x))) %>%
     bind_cols(season = .y,
               type = "flight")
   
   return(df)
 }) %>%
-  bind_rows(map2_dfr(feedingSeasons_mode10_g, seasonNames, ~{
+  bind_rows(map2_dfr(feedingGraphs, season_names, ~{
     df <- data.frame(degree = igraph::degree(.x),
                      strength = igraph::strength(.x),
-                     pageRank = igraph::page_rank(.x)$vector,
-                     evenness = evenness(.x),
                      Nili_id = names(degree(.x))) %>%
       bind_cols(season = .y,
                 type = "feeding")
     
     return(df)
   })) %>%
-  bind_rows(map2_dfr(roostSeasons_g, seasonNames, ~{
+  bind_rows(map2_dfr(roostingGraphs, season_names, ~{
     df <- data.frame(degree = igraph::degree(.x),
                      strength = igraph::strength(.x),
-                     pageRank = igraph::page_rank(.x)$vector,
-                     evenness = evenness(.x),
                      Nili_id = names(degree(.x))) %>%
       bind_cols(season = .y,
                 type = "roosting")
@@ -136,17 +143,14 @@ networkMetrics <- networkMetrics %>%
   mutate(n = length(unique(Nili_id))) %>% # CAREFUL HERE! Was getting the wrong degree bc conflating number of rows with number of individuals.
   ungroup() %>%
   mutate(degreeRelative = degree/n,
-         strengthRelative = strength/n,
-         pageRankRelative = pageRank/n,
-         sbd = strength/degree,
-         evenness = evenness) %>%
-  dplyr::select(season, type, n, Nili_id, degree, degreeRelative, strength, strengthRelative, sbd, pageRank, pageRankRelative, evenness)
+         strengthRelative = strength/n) %>%
+  dplyr::select(season, type, n, Nili_id, degree, degreeRelative, strength, strengthRelative)
 
 # Save network metrics ----------------------------------------------------
 # Assign datasets
-datasetAssignments <- map2(datasetAssignments, seasonNames, ~.x %>% mutate(seasonUnique = .y)) %>% purrr::list_rbind()
+datasetAssignments <- map2(datasetAssignments, season_names, ~.x %>% mutate(seasonUnique = .y)) %>% purrr::list_rbind()
 networkMetrics <- left_join(networkMetrics, datasetAssignments, by = c("Nili_id", "season" = "seasonUnique"))
-save(networkMetrics, file = "data/derived/networkMetrics.Rda")
+save(networkMetrics, file = "data/calcSocial/networkMetrics.Rda")
 
 # Investigate zeroes ------------------------------------------------------
 # Are zeroes for degree more likely to come from one dataset vs the other?
@@ -160,4 +164,4 @@ table(zer$season, zer$dataset) # there are more consistently some zeroes in the 
 
 zer %>% group_split(season) %>% map(., ~.x %>% pull(Nili_id) %>% unique() %>% sort()) # okay we definitely have some repeats, but they aren't blatantly all the same.
 
-# So I guess I conclude from this that the zeroes are real and should be treated as real... which probably means we need
+# So I guess I conclude from this that the zeroes are real and should be treated as real... 
