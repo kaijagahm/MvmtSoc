@@ -4,63 +4,80 @@ library(vultureUtils)
 library(igraph)
 library(tidyverse)
 library(sf)
-source("scripts/evenness.R")
 
 ## Data ---------------------------------------------------------------
-load("data/derived/seasons_forSoc.Rda")
-load("data/derived/seasons_forSoc_mode10.Rda")
-seasons_forSoc <- map(seasons_forSoc, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
-seasons_forSoc_mode10 <- map(seasons_forSoc_mode10, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
+load("data/dataPrep/downsampled_10min_forSocial.Rda") # this is the last dataset we produced in the dataPrep script before moving on to the further cleaning for movement, so this is the one we're going to use for the social interactions.
+sfdata <- map(downsampled_10min_forSocial, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
 roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
-load("data/derived/roosts_seasons.Rda")
-load("data/derived/roosts_seasons_mode10.Rda")
-load("data/orphan/datasetAssignments.Rda")
-
-seasonNames <- map_chr(seasons_forSoc, ~as.character(.x$seasonUnique[1]))
-seasons_forSoc <- seasons_forSoc[-which(seasonNames == "2020_summer")]
-seasons_forSoc_mode10 <- seasons_forSoc_mode10[-which(seasonNames == "2020_summer")]
-datasetAssignments <- datasetAssignments[-which(seasonNames == "2020_summer")]
-roosts_seasons <- roosts_seasons[-which(seasonNames == "2020_summer")]
-roosts_seasons_mode10 <- roosts_seasons_mode10[-which(seasonNames == "2020_summer")]
-seasonNames <- seasonNames[-which(seasonNames == "2020_summer")]
+rm(downsampled_10min_forSocial)
+gc()
+load("data/dataPrep/season_names.Rda")
+load("data/dataPrep/roosts.Rda") # XXX load
 
 # Investigate the data ----------------------------------------------------
 # How many individuals do we have with vs. without excluding those with a lower sampling rate?
-all <- map_dbl(seasons_forSoc, ~length(unique(.x$Nili_id)))
-highFixRate <- map_dbl(seasons_forSoc_mode10, ~length(unique(.x$Nili_id)))
-diff <- all - highFixRate # we should not have both positive and negative values here. That's bad. 
-diff # number of individuals lost when we restrict it to only those with a high fix rate. 
-
-round((map_dbl(seasons_forSoc, nrow) - map_dbl(seasons_forSoc_mode10, nrow))/map_dbl(seasons_forSoc, nrow), 3)*100
-
-# How many did we add by including the INPA data?
-indivs_all <- map2(datasetAssignments, seasons_forSoc, ~.x %>% filter(Nili_id %in% .y$Nili_id)) %>%
-  map_dfr(., ~.x %>% pull(dataset) %>% table())
-
-indivs_mode10 <- map2(datasetAssignments, seasons_forSoc_mode10, ~.x %>% filter(Nili_id %in% .y$Nili_id)) %>%
-  map_dfr(., ~.x %>% pull(dataset) %>% table())
+all <- map_dbl(sfdata, ~length(unique(.x$Nili_id)))
+nindivs <- map(sfdata, ~.x %>% sf::st_drop_geometry() %>% select(Nili_id, dataset) %>% distinct() %>% group_by(dataset) %>% summarize(n = length(unique(Nili_id)))) %>% map2(.x = ., .y = season_names, ~.x %>% mutate(seasonUnique = .y)) %>% purrr::list_rbind() 
+nindivs # so generally more ornitela than inpa individuals, but by the later seasons we do have double digits of inpa individuals.
 
 # Social Networks ---------------------------------------------------------
-flightSeasons_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons, distThreshold = 1000, idCol = "Nili_id", return = "both", getLocs = T))
-flightSeasons_mode10_edges <- map(flightSeasons_mode10, ~.x$edges)
-flightSeasons_mode10 <- map(flightSeasons_mode10, ~.x$sri)
+flight <- vector(mode = "list", length = length(sfdata))
+for(i in 1:length(sfdata)){
+  cat("Working on iteration", i, "\n")
+  dat <- sfdata[[i]]
+  fl <- vultureUtils::getFlightEdges(dat, roostPolygons = roostPolygons,
+                                     distThreshold = 1000, idCol = "Nili_id",
+                                     return = "both", getLocs = T)
+  flight[[i]] <- fl
+  rm(fl)
+}
 
-feedingSeasons_mode10 <- map(seasons_forSoc_mode10, ~vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons, distThreshold = 50, return = "both", getLocs = T))
-feedingSeasons_mode10_edges <- map(feedingSeasons_mode10, ~.x$edges)
-feedingSeasons_mode10 <- map(feedingSeasons_mode10, ~.x$sri)
+flightEdges <- map(flight, "edges")
+flightSRI <- map(flight, "sri")
+save(flight, file = "data/calcSocial/flight.Rda")
+save(flightEdges, file = "data/calcSocial/flightEdges.Rda")
+save(flightSRI, file = "data/calcSocial/flightSRI.Rda")
+rm(flight)
+rm(flightEdges)
+rm(flightSRI)
+gc()
 
-roostSeasons <- map(roosts_seasons, ~vultureUtils::getRoostEdges(.x, mode = "polygon", roostPolygons = roostPolygons, return = "sri", latCol = "location_lat", longCol = "location_long", idCol = "Nili_id", dateCol = "roost_date"))
-# NOTE: using roosts_seasons, not roosts_seasons_mode10, for the roost network. So we end up including a lot more individuals in that network. 
-# #
-save(flightSeasons_mode10, file = "data/derived/flightSeasons_mode10.Rda")
-save(flightSeasons_mode10_edges, file = "data/derived/flightSeasons_mode10_edges.Rda")
-save(feedingSeasons_mode10, file = "data/derived/feedingSeasons_mode10.Rda")
-save(feedingSeasons_mode10_edges, file = "data/derived/feedingSeasons_mode10_edges.Rda")
-save(roostSeasons, file = "data/derived/roostSeasons.Rda")
+feeding <- vector(mode = "list", length = length(sfdata))
+for(i in 1:length(sfdata)){
+  cat("Working on iteration", i, "\n")
+  dat <- sfdata[[i]]
+  fe <- vultureUtils::getFeedingEdges(dat, roostPolygons = roostPolygons,
+                                     distThreshold = 50, idCol = "Nili_id",
+                                     return = "both", getLocs = T)
+  feeding[[i]] <- fe
+  rm(fe)
+}
 
-load("data/derived/flightSeasons_mode10.Rda")
-load("data/derived/feedingSeasons_mode10.Rda")
-load("data/derived/roostSeasons.Rda")
+feedingEdges <- map(feeding, "edges")
+feedingSRI <- map(feeding, "sri")
+save(feeding, file = "data/calcSocial/feeding.Rda")
+save(feedingEdges, file = "data/calcSocial/feedingEdges.Rda")
+save(feedingSRI, file = "data/calcSocial/feedingSRI.Rda")
+rm(feeding)
+rm(feedingEdges)
+rm(feedingSRI)
+gc()
+
+roosting <- map(roosts, ~{
+  vultureUtils::getRoostEdges(.x, mode = "polygon", 
+                              roostPolygons = roostPolygons, 
+                              return = "sri", 
+                              latCol = "location_lat", 
+                              longCol = "location_long", 
+                              idCol = "Nili_id", 
+                              dateCol = "roost_date")
+  }, .progress = T)
+
+save(roosting, file = "data/calcSocial/roosting.Rda")
+rm(roosting)
+
+
+# XXX START HERE
 
 flightSeasons_mode10_g <- map(flightSeasons_mode10, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 feedingSeasons_mode10_g <- map(feedingSeasons_mode10,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
@@ -84,7 +101,6 @@ networkMetrics <- map2_dfr(flightSeasons_mode10_g, seasonNames, ~{
   df <- data.frame(degree = igraph::degree(.x),
                    strength = igraph::strength(.x),
                    pageRank = igraph::page_rank(.x)$vector,
-                   evenness = evenness(.x),
                    Nili_id = names(degree(.x))) %>%
     bind_cols(season = .y,
               type = "flight")
