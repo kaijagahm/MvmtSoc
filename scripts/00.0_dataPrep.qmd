@@ -1087,3 +1087,18 @@ rm(with_altitudes)
 rm(downsampled_10min)
 gc()
 ```
+
+```{r}
+#| eval: false
+# Examine the number of rows that get removed by the downsampling at different stages
+load(here::here("data", "dataPrep", "removed_lfr.Rda"))
+load(here::here("data", "dataPrep", "downsampled_10min_forSocial.Rda"))
+load(here::here("data", "dataPrep", "with_altitudes.Rda"))
+load(here::here("data", "dataPrep", "downsampled_10min_forSocial.Rda"))
+
+df <- data.frame(seasonUnique = factor(season_names, levels =season_names), removed_lfr = map_dbl(removed_lfr, nrow), downsampled_10min_forSocial = map_dbl(downsampled_10min_forSocial, nrow), with_altitudes = map_dbl(with_altitudes, nrow), downsampled_10min = map_dbl(downsampled_10min, nrow)) %>% pivot_longer(-seasonUnique, names_to = "stage", values_to = "rows") %>% mutate(stage = factor(stage, levels = unique(stage)))
+
+df %>% ggplot(aes(x = stage, y = rows, col = seasonUnique, group = seasonUnique))+geom_line()+theme_minimal()
+```
+
+This looks crazy, but it's actually correct. Note that the stages aren't actually linear– the `removed_lfr` –\> `downsampled_10min_forSocial` pathway is a separate offshoot. `downsampled_10min_forSocial` doesn't then get passed into the further cleaning for movement data; rather, it goes straight to the social analysis while `removed_lfr` passes along to the further cleaning. In 2023 summer, there were a lot of high-resolution fixes, so this matters a whole lot. I didn't notice the effects of the downsampling much before because the other seasons just weren't too big, but this new season is an order of magnitude larger, which makes the downsampling essential.
