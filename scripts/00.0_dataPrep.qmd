@@ -29,7 +29,7 @@ library(elevatr)
 ### Authenticate to Movebank
 
 ```{r}
-base::load("movebankCredentials/pw.Rda")
+base::load("movebankCredentials", "pw.Rda")
 MB.LoginObject <- move::movebankLogin(username = "kaijagahm", password = pw)
 rm(pw)
 ```
@@ -670,6 +670,47 @@ rm(removed_lfr)
 gc()
 ```
 
+```{r}
+load(here::here("data", "dataPrep", "removed_lfr.Rda"))
+```
+
+```{r}
+#| eval: false
+
+# Function to downsample the data
+subsample <- function(df, idCol = "Nili_id", 
+                      timestampCol = "timestamp", mins = 10){
+  sub <- df %>%
+    mutate(d = lubridate::date(.data[[timestampCol]])) %>% 
+    group_by(.data[[idCol]]) %>%
+    arrange(timestampCol, .by_group = T) %>%
+    mutate(tc = cut(.data[[timestampCol]], 
+                    breaks = paste(as.character(mins), 
+                                   "min", sep = " "))) %>%
+    ungroup() %>%
+    group_by(.data[[idCol]], d, tc) %>%
+    slice(1) %>%
+    ungroup() %>%
+    dplyr::select(-c("d", "tc"))
+  return(sub)
+}
+
+downsampled_10min_forSocial <- map(removed_lfr, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T)
+
+# Add information on # of days tracked for each individual
+downsampled_10min_forSocial <- map(downsampled_10min_forSocial, ~.x %>% group_by(Nili_id) %>% 
+                       mutate(daysTracked = length(unique(dateOnly))))
+save(downsampled_10min_forSocial, file = here::here("data", "dataPrep", "downsampled_10min_forSocial.Rda"))
+
+map_dbl(removed_lfr, nrow) %>% setNames(season_names)
+map_dbl(downsampled_10min_forSocial, nrow) %>% setNames(season_names)
+
+# tidying
+rm(removed_lfr)
+rm(downsampled_10min_forSocial)
+gc()
+```
+
 ### Data for social analysis
 
 The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `seasons_list` and not anything further along.
@@ -1020,28 +1061,14 @@ We already removed individuals that had too low a fix rate. We are left with ind
 -   `data/dataPrep/downsampled_10min.Rda`
 
 ```{r}
-load("data/dataPrep/with_altitudes.Rda")
-load("data/dataPrep/season_names.Rda")
+load(here::here("data", "dataPrep", "with_altitudes.Rda"))
+load(here::here("data", "dataPrep", "season_names.Rda"))
 ```
 
 ```{r}
 #| eval: false
 
-# Function to downsample the data
-subsample <- function(df, idCol = "Nili_id", 
-                      timestampCol = "timestamp", mins = 10){
-  sub <- df %>%
-    arrange(idCol, timestampCol) %>%
-    group_by(.data[[idCol]]) %>%
-    mutate(tc = cut(.data[[timestampCol]], 
-                    breaks = paste(as.character(mins), "min", sep = " "))) %>%
-    group_by(.data[[idCol]], 
-             "d" = lubridate::date(.data[[timestampCol]]), tc) %>%
-    slice(1) %>%
-    ungroup() %>%
-    dplyr::select(-c("d", "tc"))
-  return(sub)
-}
+# defined the "subsample" function previously above
 
 # create and save downsampled datasets for later use
 downsampled_10min <- map(with_altitudes, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # basically just trying to remove any data from the occasional bursts of more concentrated and frequent sampling.
@@ -1050,7 +1077,7 @@ downsampled_10min <- map(with_altitudes, ~subsample(df = .x, idCol = "Nili_id", 
 downsampled_10min <- map(downsampled_10min, ~.x %>% group_by(Nili_id) %>% 
                        mutate(daysTracked = length(unique(dateOnly))))
 
-save(downsampled_10min, file = "data/dataPrep/downsampled_10min.Rda")
+save(downsampled_10min, file = here::here("data", "dataPrep", "downsampled_10min.Rda"))
 
 map_dbl(with_altitudes, nrow) %>% setNames(season_names)
 map_dbl(downsampled_10min, nrow) %>% setNames(season_names)
