@@ -14,25 +14,6 @@ load("data/derived/mods.Rda")
 load("data/derived/cc.Rda")
 load("data/derived/scaled_d.Rda") # for un-scaling the degree model
 
-# Response variable distributions -----------------------------------------
-forModeling %>%
-  pivot_longer(cols = c("degree", "strength", "evenness"), names_to = "measure", values_to = "value") %>%
-  ggplot(aes(x = value, col = season, group = interaction(season, year)))+
-  geom_density()+
-  facet_wrap(~measure, scales = "free")+
-  theme_classic()+
-  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
-  ylab("")+xlab("")+theme(text = element_text(size = 16))
-
-forModeling %>%
-  pivot_longer(cols = c("degree_scl", "strength_scl", "evenness_scl"), names_to = "measure", values_to = "value") %>%
-  ggplot(aes(x = value, col = season, group = interaction(season, year)))+
-  geom_density()+
-  facet_grid(~measure, scales = "free")+
-  theme_classic()+
-  scale_color_manual(name = "Season", values = c(cc[["breedingColor"]], cc[["fallColor"]], cc[["summerColor"]]))+
-  ylab("")+xlab("")+theme(text = element_text(size = 16))
-
 # Degree ------------------------------------------------------------------
 d <- mods[["d"]]
 scale_d <- attributes(scaled_d)$`scaled:scale`
