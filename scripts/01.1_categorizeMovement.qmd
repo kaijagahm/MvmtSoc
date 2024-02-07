@@ -31,8 +31,7 @@ rm(downsampled_10min) # XXX need to do this in a faster way--attach age at an ea
 # Create a dataset with all seasons combined
 allMovementBehavior <- purrr::list_rbind(movementBehavior)
 movementBehaviorScaled <- allMovementBehavior %>%
-  mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, dataset, 
-                   homeRange, coreArea, coreAreaFidelity), # not scaling the space use params, because I'm not putting those into a PCA.
+  mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, homeRange, coreArea, coreAreaFidelity), # not scaling the space use params, because I'm not putting those into a PCA.
                 function(x){as.numeric(as.vector(scale(x)))}))
 ```
 
@@ -41,7 +40,7 @@ movementBehaviorScaled <- allMovementBehavior %>%
 ```{r}
 #| include: false
 demo <- movementBehaviorScaled %>%
-  dplyr::select(Nili_id, seasonUnique, daysTracked, propDaysTracked, dataset, birth_year, sex)
+  dplyr::select(Nili_id, seasonUnique, daysTracked, propDaysTracked, birth_year, sex)
 space_use <- movementBehaviorScaled %>%
   dplyr::select(Nili_id, seasonUnique, coreArea, homeRange, coreAreaFidelity)
 movement <- movementBehaviorScaled %>%
@@ -358,3 +357,9 @@ red %>%
 ```
 
 There's not a huge amount of differentiation by season, but there's a little bit. As expected, we do see the most movement in the summer and the least during the breeding season.
+
+```{r}
+head(red)
+new_movement_vars <- red
+save(new_movement_vars, file = here::here("data", "new_movement_vars.Rda"))
+```
