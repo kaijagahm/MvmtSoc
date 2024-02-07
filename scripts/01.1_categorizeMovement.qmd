@@ -94,7 +94,9 @@ movement %>%
   geom_point()+geom_smooth(method = "lm")+theme_minimal()+
   facet_wrap(~measure, labeller = labeller(measure = label_wrap_gen(30)))+
   ylab("Value (scaled)")+
-  theme(legend.position = "none")
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
 ```
 
 Individuals with higher movement PC1 values fly higher and farther, spend more time flying, and have straighter paths than individuals with lower movement PC1 values. Let's call this measure just "movement".
@@ -130,7 +132,9 @@ roost_behavior %>%
   geom_point()+geom_smooth(method = "lm")+theme_minimal()+
   facet_wrap(~measure)+
   ylab("Value (scaled)")+
-  theme(legend.position = "none")
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
 ```
 
 Individuals that are higher on the roost PC1 have more unique roosts, a higher roost diversity, and switch roosts more often. Let's call this a measure of "**roost site diversification**" or something like that.
@@ -218,9 +222,13 @@ These are still three measures of movement, so I expect that they will be at lea
 ```{r}
 #| message: false
 #| warning: false
+cor <- round(cor(red$movement, red$roost_div), 2)
 red %>%
   ggplot(aes(x = movement, y = roost_div))+
-  geom_point(color = "purple")+ geom_smooth(method = "lm", col = "purple")+ theme_minimal()
+  geom_point(color = "purple")+ geom_smooth(method = "lm", col = "purple")+ theme_minimal()+
+  ylab("Roost diversification")+
+  xlab("Movement")+
+  ggplot2::annotate(geom = "text", x = 4.5, y = -2, label = paste0("Correlation = ", cor))
 ```
 
 **Roost diversification** and **log-transformed home range** have a stronger correlation of `r round(cor(red$roost_div, red$space_use_log), 2)`.
@@ -228,9 +236,12 @@ red %>%
 ```{r}
 #| message: false
 #| warning: false
+cor <- round(cor(red$roost_div, red$space_use_log), 2)
 red %>%
   ggplot(aes(x = roost_div, y = space_use_log))+
-  geom_point(color = "chartreuse3")+ geom_smooth(method = "lm", col = "chartreuse3")+ theme_minimal()
+  geom_point(color = "chartreuse3")+ geom_smooth(method = "lm", col = "chartreuse3")+ theme_minimal()+
+  xlab("Roost diversification")+ ylab("Space use (log)")+
+  ggplot2::annotate(geom = "text", x = 4, y = 11, label = paste0("Correlation = ", cor))
 ```
 
 Finally, **log-transformed home range** and **movement** have a correlation of `r round(cor(red$space_use_log, red$movement), 2)`.
@@ -238,9 +249,12 @@ Finally, **log-transformed home range** and **movement** have a correlation of `
 ```{r}
 #| message: false
 #| warning: false
+cor <- round(cor(red$space_use_log, red$movement), 2)
 red %>%
   ggplot(aes(x = space_use_log, y = movement))+
-  geom_point(color = "orange2")+ geom_smooth(method = "lm", col = "orange2")+ theme_minimal()
+  geom_point(color = "orange2")+ geom_smooth(method = "lm", col = "orange2")+ theme_minimal()+
+  xlab("Space use (log)") + ylab("Movement")+
+  ggplot2::annotate(geom = "text", x = 14, y = -4.5, label = paste0("Correlation = ", cor))
 ```
 
 There is enough correlation here that we're going to have to be careful, but I don't think there's enough that we have to not proceed. These predictors seem more biologically defensible because they are created *a priori* instead of derived from a single PCA.
@@ -267,6 +281,24 @@ red <- red %>%
 ```
 
 Let's see if the relationships between these variables and age are consistent with what Marta found (they should be!)
+
+```{r}
+#| warning: false
+#| message: false
+## TEMPORARY: FOR PRESENTATION
+load(here::here("data", "derived", "cc.Rda"))
+red %>%
+  mutate(season = stringr::str_extract(seasonUnique, "[a-z]+")) %>%
+  pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
+               names_to = "var", values_to = "value") %>%
+  ggplot(aes(x = age, y = value, group = seasonUnique, col = season))+
+  geom_point(alpha = 0.5) + geom_smooth(se = F)+
+  theme_minimal()+
+  xlab("Age")+
+  facet_wrap(~var, scales = "free")+
+  scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor))+
+  theme()
+```
 
 ```{r}
 #| warning: false
