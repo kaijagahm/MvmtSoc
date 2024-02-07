@@ -53,17 +53,44 @@ table(linked$situ)
 
 
 # Examine response variable distributions ---------------------------------
-linked %>%
+normDegree_years_seasons_flight <- linked %>%
+  filter(type == "flight") %>%
+  mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
   ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
-  geom_density()+
-  scale_color_manual(name = "Season", values = c(cc$breedingColor, cc$summerColor, cc$fallColor))+
-  theme_minimal() # what is up with the summers??? Why do they have so much higher degree in summer? This much difference seems unexpected.
+  geom_density(linewidth = 1.5)+
+  theme_classic()+
+  scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
+  ylab("Frequency")+
+  xlab("Degree (normalized)")+
+  facet_wrap(~season)+
+  theme(legend.position = "none", text = element_text(size = 20))
+ggsave(normDegree_years_seasons_flight, filename = "fig/normDegree_years_seasons_flight.png", width = 9, height = 7)
 
-linked %>%
-  ggplot(aes(x = normStrength, col = season, group = seasonUnique))+
-  geom_density()+
-  scale_color_manual(name = "Season", values = c(cc$breedingColor, cc$summerColor, cc$fallColor))+
-  theme_minimal() # XXX what is up with the summers??? Why do they have so much higher degree in summer? This much difference seems unexpected.
+normDegree_years_seasons_feeding <- linked %>%
+  filter(type == "feeding") %>%
+  mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
+  ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
+  geom_density(linewidth = 1.5)+
+  theme_classic()+
+  scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
+  ylab("Frequency")+
+  xlab("Degree (normalized)")+
+  facet_wrap(~season)+
+  theme(legend.position = "none", text = element_text(size = 20))
+ggsave(normDegree_years_seasons_feeding, filename = "fig/normDegree_years_seasons_feeding.png", width = 9, height = 7)
+
+normDegree_years_seasons_roosting <- linked %>%
+  filter(type == "roosting") %>%
+  mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
+  ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
+  geom_density(linewidth = 1.5)+
+  theme_classic()+
+  scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
+  ylab("Frequency")+
+  xlab("Degree (normalized)")+
+  facet_wrap(~season)+
+  theme(legend.position = "none", text = element_text(size = 20))
+ggsave(normDegree_years_seasons_roosting, filename = "fig/normDegree_years_seasons_roosting.png", width = 9, height = 7)
 
 # Let's examine zeroes for the social network measures. I know that when we calculate the social networks, we had a lot of zeroes for both degree and strength. But most of the individuals that didn't have network connections probably aren't our focal individuals for the movement measures.
 networkMetrics %>% filter(degree == 0 | strength == 0) # lots of rows
@@ -75,17 +102,128 @@ linked <- linked %>%
   filter(normDegree > 0, normStrength > 0)
 
 # Modeling ----------------------------------------------------------------
-degree_base <- lmer(normDegree ~ situ + movement + roost_div + space_use_log + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked)
+degree_base <- glmmTMB(normDegree ~ situ + movement + roost_div + space_use_log + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
 check_model(degree_base) # the good news is that the variance inflation factor is quite low, so these predictors aren't prohibitively highly correlated (yay!!!!). The bad news is that the posterior predictive check and the residuals vs. fitted values plots look... bad. 
-plot(DHARMa::simulateResiduals(degree_base), pch=".")
+check_predictions(degree_base) # yeah this model is not a good fit for the data. No wonder, given the really squinched up values in the summers. I would have thought that including season and situation as predictors would fix this, but apparently not.
+simulationOutput <- DHARMa::simulateResiduals(degree_base)
+plot(simulationOutput, pch=".")
+plotQQunif(simulationOutput)
+plotResiduals(simulationOutput)
 
+# What if there are different relationships between movement and degree in different seasons and situations?
+degree_full <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + situ*space_use_log + season*movement + season*roost_div + season*space_use_log + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) # this will almost certainly have very high VIFs
+check_model(degree_full) # now we have some high VIFs
+check_collinearity(degree_full) # the highest collinearity interaction is situ:space_use_log
 
+degree_1 <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + season*movement + season*roost_div + season*space_use_log + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
+check_collinearity(degree_1) # looks like we should move the interaction of season with each of the three predictors
 
+degree_2 <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + space_use_log + season + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
+check_collinearity(degree_2) # this seems a lot better
+check_model(degree_2) # ok yeah this looks a lot better
 
+# what about adding back the interaction with space use and situation?
+degree_3 <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + situ*space_use_log + season + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
+check_collinearity(degree_3) # nope nope that's bad too
 
+# Okay, it looks like we're going with degree_2! Let's take a look at the summary and remove any other non-significant interactions
+summary(degree_2) # all remaining interactions are significant, so I want to keep them. We actually notice that season is NOT significant here, which is very odd, I think. But I don't want to remove the main effect, so we'll keep it.
 
+degree_mod <- degree_2
+# What is the relationship between movement and degree
+d_eff_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement")))
+ggplot(d_eff_movement, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_line(linewidth = 1)+
+  geom_point(data = linked, aes(x = movement, y = normDegree), alpha = 0.5, size=  0.7)+
+  ylab("Degree (normalized)")+
+  xlab("Movement")+
+  ggtitle("") + theme_classic()
 
+# What is the relationship between movement and degree, by situation? (We do have a significant interaction term between movement and situation)
+d_eff_movement_situ <- as.data.frame(ggeffect(degree_mod, terms = c("movement", "situ")))
+movement_situ_eff <- ggplot(d_eff_movement_situ, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = movement, y = normDegree, col = situ), alpha = 0.5)+
+  geom_line(aes(col = group), linewidth = 1)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Degree (normalized)")+
+  xlab("Movement")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+ggsave(movement_situ_eff, file = "fig/movement_situ_eff.png", width = 9, height = 6)
 
+d_eff_roost_div_situ <- as.data.frame(ggeffect(degree_mod, terms = c("roost_div", "situ")))
+roost_div_situ_eff <- ggplot(d_eff_roost_div_situ, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = roost_div, y = normDegree, col = situ), alpha = 0.5)+
+  geom_line(aes(col = group), linewidth = 1)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Degree (normalized)")+
+  xlab("Roost diversification")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+ggsave(roost_div_situ_eff, file = "fig/roost_div_situ_eff.png", width = 9, height = 6)
+
+d_eff_space_use <- as.data.frame(ggeffect(degree_mod, "space_use_log"))
+space_use_situ <- ggplot(d_eff_space_use, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = space_use_log, y = normDegree, col = situ), alpha = 0.5)+
+  geom_line(linewidth = 1)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Degree (normalized)")+
+  xlab("Space use (log-transformed)")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+ggsave(space_use_situ, file = "fig/space_use_situ.png", width = 9, height = 6)
+
+movement_situ_emt <- emmeans::emtrends(degree_mod, "situ", var = "movement") %>%
+  as.data.frame() %>%
+  mutate(situ = case_when(situ == "Ro" ~ "Roosting",
+                          situ == "Fl" ~ "Flight",
+                          situ == "Fe" ~ "Feeding"))
+movement_situ_emt # All three situation-specific relationships are significant
+# Let's use this to get the forest plot
+movement_situ_forest <- movement_situ_emt %>%
+  as.data.frame() %>%
+  ggplot(aes(x = situ, y = movement.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2)+
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme(text = element_text(size = 20), legend.position = "none")+
+  ylab("Movement effect")+
+  xlab("Situation")+
+  coord_flip()
+ggsave(movement_situ_forest, file = "fig/movement_situ_forest.png", width = 10, height = 6)
+
+roost_div_situ_emt <- emmeans::emtrends(degree_mod, "situ", var = "roost_div") %>%
+  as.data.frame() %>%
+  mutate(situ = case_when(situ == "Ro" ~ "Roosting",
+                          situ == "Fl" ~ "Flight",
+                          situ == "Fe" ~ "Feeding"))
+roost_div_situ_emt 
+roost_div_situ_forest <- roost_div_situ_emt %>%
+  as.data.frame() %>%
+  ggplot(aes(x = situ, y = roost_div.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2)+
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme(text = element_text(size = 20), legend.position = "none")+
+  ylab("Roost diversification effect")+
+  xlab("Situation")+
+  coord_flip()
+ggsave(roost_div_situ_forest, file = "fig/roost_div_situ_forest.png", width = 10, height = 6)
+  
 ## Degree ------------------------------------------------------------------
 # 2023-06-05 going back to gaussian for now
 degree_noint <- lmer(degree_scl ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = forModeling)
@@ -159,44 +297,7 @@ summary(strength_3) # I'm going to keep PC1*situ*season even though only one of 
 strength_mod <- strength_3
 
 check_model(strength_mod) # no major outliers
-
-## Evenness ----------------------------------------------------------------
-# Turns out, if we invert the evenness distribution (and call it unevenness!) and then log-transform it, we get what looks like an almost perfect gaussian!
-hist(forModeling$evenness) # original
-hist(-1*(forModeling$evenness-1)) # inverted--right-skewed distribution is easier to model
-hist(log(-1*(forModeling$evenness-1))) # beautiful! Now, this may not be true of each of the groups, but it's a start.
-
-eData <- forModeling %>%
-  mutate(evenness_inverted_log = log(-1*(evenness-1)),
-         evenness_inverted_log_scaled = datawizard::standardize(evenness_inverted_log))
-
-evenness_noint <- lmer(evenness_scl ~ situ + PC1 + PC2 + age_group + season + (1|seasonUnique) + (1|Nili_id), data = eData)
-check_model(evenness_noint)
-plot(DHARMa::simulateResiduals(evenness_noint), pch=".") # this does not look good, still. The homogeneity of variance assumption is really violated.
-# 
-# 
-# evenness_max <- lmer(evenness_scl ~ PC1*season*situ + PC1*season*age_group + PC1*situ*age_group + PC2*season*situ + PC2*season*age_group + PC2*situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-# #check_model(evenness_max)
-# summary(evenness_max) # can remove situ*age*PC2, season*situ*PC2, PC1*situ*age_group, PC1*season*age_group, PC1*season*situ
-# 
-# evenness_2 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*season*age_group + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-# summary(evenness_2) # want to remove more 2-way interactions but have to get rid of the three-ways first. Let's do season*age_group*PC2 first I guess
-# 
-# evenness_3 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + season*situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-# summary(evenness_3) # now the two-ways become significant. Just for kicks, let's get rid of the last 3-way interaction.
-# 
-# evenness_4 <- lmer(evenness_scl ~ PC1*season + PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*situ + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-# summary(evenness_4) # can remove situ*PC2, PC1*season
-# 
-# evenness_5 <- lmer(evenness_scl ~ PC1*situ + season*situ + PC1*age_group + season*age_group + situ*age_group + PC2*season + PC2*age_group + situ*age_group + (1|seasonUnique) + (1|Nili_id), data = forModeling)
-# summary(evenness_5) # time to stop!
-# 
-# compare_performance(evenness_noint, evenness_max, evenness_2, evenness_3, evenness_4, evenness_5, rank = T)
-# 
-# evenness_mod <- evenness_2
-evenness_mod <- NULL # for now
-
-# Get model effects ----------------------------------------------------------
+-------------------------------------------------
 # We now have 3 models. Let's compile and tidy their outputs.
 mods <- list("d" = degree_mod, "s" = strength_mod, "e" = evenness_mod)
 save(mods, file = "data/derived/mods.Rda")
