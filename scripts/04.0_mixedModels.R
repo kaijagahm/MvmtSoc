@@ -1,5 +1,4 @@
 library(car) # for p-values in mixed models?
-# In lieu of tidyverse
 library(tidyverse)
 library(sf)
 library(factoextra)
@@ -19,68 +18,58 @@ library(broom.mixed)
 library(jtools) # similar to sjplot, for forest plots
 library(emmeans) # estimated marginal means/trends
 
-load("data/derived/linked.Rda")
-
 # Set ggplot theme to classic
 theme_set(theme_classic())
 
+# Load network metrics and movement variables
+load("data/calcSocial/networkMetrics.Rda")
+networkMetrics <- networkMetrics %>% rename("seasonUnique" = "season")
+load("data/new_movement_vars.Rda")
+load("data/dataPrep/season_names.Rda")
 load("data/derived/cc.Rda")
 
-# Here's an interesting reference article for some modeling stuff: https://biol607.github.io/lab/12_gzlm.html
+# Join the two datasets (there will be 3 rows per individual per season, for the 3 different situations)
+linked <- new_movement_vars %>%
+  left_join(networkMetrics, by = c("Nili_id", "seasonUnique"))
+nrow(linked) == 3*nrow(new_movement_vars)
+
+# Housekeeping
 linked <- linked %>%
-  mutate(season = factor(season, levels = c("breeding", "summer", "fall")))
+  mutate(season = stringr::str_extract(seasonUnique, "[a-z]+"),
+         year = as.numeric(stringr::str_extract(seasonUnique, "[0-9]+")),
+         seasonUnique = factor(seasonUnique, levels = season_names),
+         sex = factor(sex),
+         season = factor(season, levels = c("breeding", "summer", "fall")))
 
-# Remove individuals that don't have movement information
-colSums(is.na(linked)) # lots of NA's
-linked <- linked %>%
-  filter(!is.na(PC1)) # note that because I joined the sex/age information along with the movement information (instead of along with the social information), if I ever want to *not* filter out those individuals, I'll have to go back and add sex/age info for the additional birds. Don't need this for now, so I'm skipping it. 
-colSums(is.na(linked)) # okay now we have no more NA's except in sex. Yay!
+# Check for NA's (we shouldn't have any because of the direction of the join)
+colSums(is.na(linked)) # awesome
 
-# Mixed models -------------------------------------------------------------------
-# Response variables:
-# Relative degree
-# Relative strength
-# Evenness
-
-# Predictors:
-# PC1 (continuous)
-# PC2 (continuous)
-# age (cat: adult/juv_sub)
-# sex (cat: m/f)
-# season (cat: b/nb)
-# year (cat)
-# mean points per day (continuous)
-# Nili_id (random effect) (1|Nili_id)
-
-# Question from vulture meeting--should I care about high VIF values for interaction terms?
-# No, they're fine: https://stats.stackexchange.com/questions/52856/vif-values-and-interactions-in-multiple-regression, https://stats.stackexchange.com/questions/274320/how-to-deal-with-interaction-terms-vif-score.
-# So, I think I need to rethink the model selection here. Maybe do it just based on significance?
-
-# Make situation as a factor so we can include it in the model -------------
+# Create a shorter version of "type" for easier interpretability
 linked <- linked %>%
   mutate(situ = case_when(type == "flight" ~ "Fl", 
                           type == "feeding" ~ "Fe",
-                          type == "roosting" ~ "Ro")) %>%
-  mutate(seasonUnique = paste(year, season, sep = "_"))
-table(linked$situ) # as expected, we have more data for the roost network than for feeding and flight.
+                          type == "roosting" ~ "Ro"))
+table(linked$situ)
 
-# Scale the response variables: degree, strength, evenness
-scaled_d <- scale(linked$degree)
-scaled_s <- scale(linked$strength)
-scaled_e <- scale(linked$evenness)
-save(scaled_d, file = "data/derived/scaled_d.Rda")
-save(scaled_s, file = "data/derived/scaled_s.Rda")
-save(scaled_e, file = "data/derived/scaled_e.Rda")
 
-linked$degree_scl <- as.vector(scaled_d)
-linked$strength_scl <- as.vector(scaled_s)
-linked$evenness_scl <- as.vector(scaled_e)
+# Examine response variable distributions ---------------------------------
+linked %>%
+  ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
+  geom_density()+
+  scale_color_manual(name = "Season", values = c(cc$breedingColor, cc$summerColor, cc$fallColor))+
+  theme_minimal() # what is up with the summers??? Why do they have so much higher degree in summer? This much difference seems unexpected.
 
-getOption("rstudio.help.showDataPreview")# create and save a new dataset for modeling, so we can load it later
-minstrength <- linked %>% filter(strength != 0) %>% pull(strength) %>% min()
-forModeling <- linked %>%
-  mutate(strength = strength + (minstrength/2))
-save(forModeling, file = "data/derived/forModeling.Rda")
+linked %>%
+  ggplot(aes(x = normStrength, col = season, group = seasonUnique))+
+  geom_density()+
+  scale_color_manual(name = "Season", values = c(cc$breedingColor, cc$summerColor, cc$fallColor))+
+  theme_minimal() # XXX what is up with the summers??? Why do they have so much higher degree in summer? This much difference seems unexpected.
+
+# Let's examine zeroes for the social network measures. I know that when we calculate the social networks, we had a lot of zeroes for both degree and strength. But most of the individuals that didn't have network connections probably aren't our focal individuals for the movement measures.
+networkMetrics %>% filter(degree == 0 | strength == 0) # lots of rows
+linked %>% filter(degree == 0 | strength == 0) # just one individual in one season!
+
+# It is possible this will pose a problem for modeling. I wonder if it's better to remove the zero or do some kind of other transformation?
 
 ## Degree ------------------------------------------------------------------
 # 2023-06-05 going back to gaussian for now
