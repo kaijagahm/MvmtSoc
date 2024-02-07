@@ -69,7 +69,22 @@ linked %>%
 networkMetrics %>% filter(degree == 0 | strength == 0) # lots of rows
 linked %>% filter(degree == 0 | strength == 0) # just one individual in one season!
 
-# It is possible this will pose a problem for modeling. I wonder if it's better to remove the zero or do some kind of other transformation?
+# # XXX It is possible this will pose a problem for modeling. I wonder if it's better to remove the zero or do some kind of other transformation?
+# I think I can just remove it for now
+linked <- linked %>%
+  filter(normDegree > 0, normStrength > 0)
+
+# Modeling ----------------------------------------------------------------
+degree_base <- lmer(normDegree ~ situ + movement + roost_div + space_use_log + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked)
+check_model(degree_base) # the good news is that the variance inflation factor is quite low, so these predictors aren't prohibitively highly correlated (yay!!!!). The bad news is that the posterior predictive check and the residuals vs. fitted values plots look... bad. 
+plot(DHARMa::simulateResiduals(degree_base), pch=".")
+
+
+
+
+
+
+
 
 ## Degree ------------------------------------------------------------------
 # 2023-06-05 going back to gaussian for now
