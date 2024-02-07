@@ -13,6 +13,8 @@ datasetAssignments <- map(downsampled_10min_forSocial, ~.x %>% select(Nili_id, d
                                                        TRUE ~ dataset)) %>%
                             ungroup() %>%
                             distinct())
+save(datasetAssignments, file = "data/calcSocial/datasetAssignments.Rda")
+load("data/calcSocial/datasetAssignments.Rda")
 rm(downsampled_10min_forSocial)
 gc()
 roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
@@ -140,11 +142,12 @@ networkMetrics <- map2_dfr(flightGraphs, season_names, ~{
 # Add info about number of indivs and relative measures
 networkMetrics <- networkMetrics %>%
   group_by(season, type) %>%
-  mutate(n = length(unique(Nili_id))) %>% # CAREFUL HERE! Was getting the wrong degree bc conflating number of rows with number of individuals.
+  mutate(n = length(unique(Nili_id)), # CAREFUL HERE! Was getting the wrong degree bc conflating number of rows with number of individuals.
+         totalStrength = sum(strength)) %>% 
   ungroup() %>%
-  mutate(degreeRelative = degree/n,
-         strengthRelative = strength/n) %>%
-  dplyr::select(season, type, n, Nili_id, degree, degreeRelative, strength, strengthRelative)
+  mutate(normDegree = degree/(n-1),
+         normStrength = strength/totalStrength) %>%
+  dplyr::select(season, type, n, Nili_id, degree, normDegree, strength, normStrength)
 
 # Save network metrics ----------------------------------------------------
 # Assign datasets
@@ -165,3 +168,7 @@ table(zer$season, zer$dataset) # there are more consistently some zeroes in the 
 zer %>% group_split(season) %>% map(., ~.x %>% pull(Nili_id) %>% unique() %>% sort()) # okay we definitely have some repeats, but they aren't blatantly all the same.
 
 # So I guess I conclude from this that the zeroes are real and should be treated as real... 
+
+# Briefly check out the distributions of the normalized degree and strength values
+hist(networkMetrics$normDegree)
+hist(networkMetrics$normStrength)
