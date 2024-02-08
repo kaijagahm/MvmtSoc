@@ -92,6 +92,9 @@ load("data/calcSocial/roostingSRI.Rda")
 flightGraphs <- map(flightSRI, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 feedingGraphs <- map(feedingSRI,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
 roostingGraphs <- map(roostingSRI,  ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+save(flightGraphs, file = "data/calcSocial/flightGraphs.Rda")
+save(feedingGraphs, file = "data/calcSocial/feedingGraphs.Rda")
+save(roostingGraphs, file = "data/calcSocial/roostingGraphs.Rda")
 
 # Describing the networks -------------------------------------------------
 # Network-level measures
@@ -173,30 +176,4 @@ zer %>% group_split(season) %>% map(., ~.x %>% pull(Nili_id) %>% unique() %>% so
 hist(networkMetrics$normDegree)
 hist(networkMetrics$normStrength)
 
-# Plotting ----------------------------------------------------------------
-library(ggraph)
-library(tidygraph)
-grph_deg <- function(graph, season_name, type){
-  g <- graph %>%
-    as_tbl_graph() %>%
-    mutate(normDegree = centrality_degree()/n()) %>%
-    ggraph(layout = "fr")+
-    geom_edge_link(alpha = 0.2)+
-    geom_node_point(aes(size = normDegree, col = normDegree))+
-    scale_color_viridis()+
-    theme(legend.position = "none")+
-    ggtitle(season_name)
-  return(g)
-  cat("Done with ", title, "\n")
-}
 
-flightPlots <- map2(.x = flightGraphs, .y = season_names, ~grph_deg(.x, .y, type = "flight"))
-feedingPlots <- map2(.x = feedingGraphs, .y = season_names, ~grph_deg(.x, .y, type = "feeding"))
-roostingPlots <- map2(.x = roostingGraphs, .y = season_names, ~grph_deg(.x, .y, type = "roosting"))
-
-fl <- patchwork::wrap_plots(flightPlots, nrow = 3, ncol = 3)
-fe <- patchwork::wrap_plots(feedingPlots, nrow = 3, ncol = 3)
-ro <- patchwork::wrap_plots(roostingPlots, nrow = 3, ncol = 3)
-ggsave(fl, filename = "fig/networkGraphs/degree/flight.png", width = 9, height = 7)
-ggsave(fe, filename = "fig/networkGraphs/degree/feeding.png", width = 9, height = 7)
-ggsave(ro, filename = "fig/networkGraphs/degree/roosting.png", width = 9, height = 7)

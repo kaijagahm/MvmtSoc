@@ -1,0 +1,114 @@
+---
+title: "Network visualizations"
+format: html
+editor: visual
+---
+
+## Visualizing social networks
+
+```{r}
+#| include: false
+library(tidyverse)
+library(ggraph)
+library(tidygraph)
+library(igraph)
+library(here)
+```
+
+```{r}
+#| include: false
+load(here("data", "calcSocial", "feedingGraphs.Rda"))
+load(here("data", "calcSocial", "flightGraphs.Rda"))
+load(here("data", "calcSocial", "roostingGraphs.Rda"))
+load(here("data", "calcSocial", "networkMetrics.Rda"))
+load(here("data", "mixedModels", "linked.Rda"))
+
+# Have to join `linked` back to `networkMetrics` so we maintain the network values for those that don't ultimately get included in movement
+info <- networkMetrics %>%
+  left_join(linked %>%
+              select(Nili_id, "season" = seasonUnique, daysTracked, propDaysTracked, birth_year, sex, space_use, movement, roost_div, space_use_log, age, age_group, type)) %>%
+  mutate(focal = case_when(is.na(movement) & is.na(space_use) & is.na(roost_div) ~ FALSE,
+                           TRUE ~ TRUE))
+nrow(info) == nrow(networkMetrics) # TRUE
+nrow(linked) < nrow(info) # TRUE
+
+infos_flight <- info %>%
+  filter(type == "flight") %>%
+  group_by(season) %>%
+  group_split()
+infos_feeding <- info %>%
+  filter(type == "feeding") %>%
+  group_by(season) %>%
+  group_split()
+infos_roosting <- info %>%
+  filter(type == "roosting") %>%
+  group_by(season) %>%
+  group_split()
+
+flightGraphs <- map2(flightGraphs, infos_flight, ~{
+  .x %>% 
+    as_tbl_graph() %>%
+    activate(nodes) %>%
+    left_join(.y, by = c("name" = "Nili_id"))
+})
+feedingGraphs <- map2(feedingGraphs, infos_feeding, ~{
+  .x %>% 
+    as_tbl_graph() %>%
+    activate(nodes) %>%
+    left_join(.y, by = c("name" = "Nili_id"))
+})
+roostingGraphs <- map2(roostingGraphs, infos_roosting, ~{
+  .x %>% 
+    as_tbl_graph() %>%
+    activate(nodes) %>%
+    left_join(.y, by = c("name" = "Nili_id"))
+})
+```
+
+```{r}
+# Network visualizations ----------------------------------------------------------------
+grph_deg <- function(graph, season_name, type){
+  g <- graph %>%
+    ggraph(layout = "fr")+
+    geom_edge_link(alpha = 0.2)+
+    geom_node_point(aes(size = normDegree, col = normDegree))+
+    scale_color_viridis()+
+    theme(legend.position = "none")+
+    ggtitle(season_name)
+  return(g)
+}
+
+grph_str <- function(graph, season_name, type){
+  g <- graph %>%
+    ggraph(layout = "fr")+
+    geom_edge_link(alpha = 0.2)+
+    geom_node_point(aes(size = normStrength, col = normStrength))+
+    scale_color_viridis()+
+    theme(legend.position = "none")+
+    ggtitle(season_name)
+  return(g)
+}
+
+
+flightPlots_degree <- map2(.x = flightGraphs, .y = season_names, ~grph_deg(.x, .y, type = "flight"))
+feedingPlots_degree <- map2(.x = feedingGraphs, .y = season_names, ~grph_deg(.x, .y, type = "feeding"))
+roostingPlots_degree <- map2(.x = roostingGraphs, .y = season_names, ~grph_deg(.x, .y, type = "roosting"))
+
+flightPlots_strength <- map2(.x = flightGraphs, .y = season_names, ~grph_str(.x, .y, type = "flight"))
+feedingPlots_strength <- map2(.x = feedingGraphs, .y = season_names, ~grph_str(.x, .y, type = "feeding"))
+roostingPlots_strength <- map2(.x = roostingGraphs, .y = season_names, ~grph_str(.x, .y, type = "roosting"))
+
+fl_d <- patchwork::wrap_plots(flightPlots_degree, nrow = 3, ncol = 3)
+fe_d <- patchwork::wrap_plots(feedingPlots_degree, nrow = 3, ncol = 3)
+ro_d <- patchwork::wrap_plots(roostingPlots_degree, nrow = 3, ncol = 3)
+ggsave(fl_d, filename = here("fig", "networkGraphs", "degree", "flight.png"), width = 9, height = 7)
+ggsave(fe_d, filename = here("fig", "networkGraphs", "degree", "feeding.png"), width = 9, height = 7)
+ggsave(ro_d, filename = here("fig", "networkGraphs", "degree", "roosting.png"), width = 9, height = 7)
+
+fl_s <- patchwork::wrap_plots(flightPlots_strength, nrow = 3, ncol = 3)
+fe_s <- patchwork::wrap_plots(feedingPlots_strength, nrow = 3, ncol = 3)
+ro_s <- patchwork::wrap_plots(roostingPlots_strength, nrow = 3, ncol = 3)
+ggsave(fl_s, filename = here("fig", "networkGraphs", "strength", "flight.png"), width = 9, height = 7)
+ggsave(fe_s, filename = here("fig", "networkGraphs", "strength", "feeding.png"), width = 9, height = 7)
+ggsave(ro_s, filename = here("fig", "networkGraphs", "strength", "roosting.png"), width = 9, height = 7)
+```
