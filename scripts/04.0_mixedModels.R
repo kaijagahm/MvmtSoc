@@ -17,6 +17,7 @@ library(sjPlot)
 library(broom.mixed)
 library(jtools) # similar to sjplot, for forest plots
 library(emmeans) # estimated marginal means/trends
+library(ggeffects)
 
 # Set ggplot theme to classic
 theme_set(theme_classic())
@@ -102,6 +103,8 @@ linked <- linked %>%
   filter(normDegree > 0, normStrength > 0)
 
 # Modeling ----------------------------------------------------------------
+
+# Degree ------------------------------------------------------------------
 degree_base <- glmmTMB(normDegree ~ situ + movement + roost_div + space_use_log + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
 check_model(degree_base) # the good news is that the variance inflation factor is quite low, so these predictors aren't prohibitively highly correlated (yay!!!!). The bad news is that the posterior predictive check and the residuals vs. fitted values plots look... bad. 
 check_predictions(degree_base) # yeah this model is not a good fit for the data. No wonder, given the really squinched up values in the summers. I would have thought that including season and situation as predictors would fix this, but apparently not.
@@ -223,6 +226,74 @@ roost_div_situ_forest <- roost_div_situ_emt %>%
   xlab("Situation")+
   coord_flip()
 ggsave(roost_div_situ_forest, file = "fig/roost_div_situ_forest.png", width = 10, height = 6)
+
+# Strength ----------------------------------------------------------------
+strength_base <- glmmTMB(normStrength ~ situ + movement + roost_div + space_use_log + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+check_model(strength_base) # this actually looks pretty good, shockingly! And I only had to exclude one individual for having a 0 for strength.
+simulationOutput <- DHARMa::simulateResiduals(strength_base)
+plot(simulationOutput, pch=".") # this is kinda bad but still better than the degree model!
+
+# Let's see if we want any interactions
+strength_full <- glmmTMB(normStrength ~ situ*movement + situ*roost_div + situ*space_use_log + season*movement + season*roost_div + season*space_use_log + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+check_model(strength_full) # now we have some high VIFs
+check_collinearity(strength_full) # once again, the interaction term with the highest VIF is situ:space_use_log
+
+strength_1 <- glmmTMB(normStrength ~ situ*movement + situ*roost_div + season*movement + season*roost_div + season*space_use_log + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+check_collinearity(strength_1) # looks like we should get rid of roost_div:season and season:space_use_log
+
+strength_2 <- glmmTMB(normStrength ~ situ*movement + situ*roost_div + season*movement + space_use_log + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+check_collinearity(strength_2) # now we don't need to remove another; this looks ok
+check_model(strength_2) # yep, looks okay
+summary(strength_2) # oh hmm, looks like we can get rid of movement:season and movement:situ because they're non-significant
+
+strength_3 <- glmmTMB(normStrength ~ situ*roost_div + space_use_log + movement + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+check_model(strength_3) # still looking fine and dandy
+summary(strength_3) #okay, no more non-significant interaction terms left.
+strength_mod <- strength_3
+
+# XXX START HERE--do the strength ones, and then go back and name both them and the degree ones more logically.
+
+# What is the relationship between roost_div and strength, by situation? (We do have a significant interaction term between roost_div and situation)
+s_eff_roost_div_situ <- as.data.frame(ggeffect(strength_mod, terms = c("roost_div", "situ")))
+roost_div_situ_eff <- ggplot(s_eff_roost_div_situ, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = roost_div, y = normStrength, col = situ), alpha = 0.5)+
+  geom_line(aes(col = group), linewidth = 1)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Strength (normalized)")+
+  xlab("Roost diversification")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+ggsave(roost_div_situ_eff, file = "fig/roost_div_situ_eff.png", width = 9, height = 6)
+
+s_eff_movement <- as.data.frame(ggeffect(strength_mod, terms = c("movement")))
+movement_eff <- ggplot(s_eff_movement, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = movement, y = normStrength, col = situ), alpha = 0.5)+
+  geom_line(linewidth = 1)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Strength (normalized)")+
+  xlab("Movement")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+ggsave(movement_eff, file = "fig/movement_eff.png", width = 9, height = 6)
+
+s_eff_space_use <- as.data.frame(ggeffect(strength_mod, "space_use_log"))
+space_use <- ggplot(s_eff_space_use, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = space_use_log, y = normStrength, col = situ), alpha = 0.5)+
+  geom_line(linewidth = 1)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Strength (normalized)")+
+  xlab("Space use (log-transformed)")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+ggsave(space_use, file = "fig/space_use.png", width = 9, height = 6)
   
 ## Degree ------------------------------------------------------------------
 # 2023-06-05 going back to gaussian for now
