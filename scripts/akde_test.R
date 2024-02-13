@@ -4,6 +4,7 @@ library(ctmm)
 library(tidyverse)
 library(furrr)
 library(purrr)
+library(future)
 
 ## Load data ---------------------------------------------------------------
 base::load("data/dataPrep/downsampled_10min.Rda") # data rarefied to 10 minute intervals. Going to use that for everything.
@@ -14,7 +15,6 @@ base::load("data/dataPrep/downsampled_10min.Rda") # data rarefied to 10 minute i
 #   group_by(ID) %>%
 #   group_split()
 # save(ctmm_season_test_animals, file = "data/ctmm_season_test_animals.Rda")
-load("data/ctmm_season_test_animals.Rda")
 base::load("data/dataPrep/season_names.Rda")
 
 # Testing out AKDE --------------------------------------------------------
@@ -27,13 +27,16 @@ seasons_split <- map(downsampled_10min, ~.x %>%
                        group_by(ID) %>%
                        group_split())
 telems_list <- map(seasons_split, ~map(.x, as.telemetry))
+save(telems_list, file = "data/telems_list.Rda")
 # check out a few examples
 dt.plot(telems_list[[1]][[3]])
 dt.plot(telems_list[[1]][[4]])
-dt.plot(telems_list[[1]][[2]])# the minimum time interval shouldn't be this small; I'm not sure what's going on. Need to go back and figure out why this didn't get downsampled properly. # XXX WHY ARE THERE SHORT SAMPLING INTERVALS?
+dt.plot(telems_list[[1]][[2]])# Because I subsampled instead of aggregating, we end up with some short time intervals (e.g. if the point kept for time interval A was at the end of the interval and the point kept for time interval B was at the beginning of the interval, you can have a <10min difference between them.)
 
 # Check the range-residency assumption
 variograms_list <- map(telems_list, ~map(.x, variogram, .progress = T))
+save(variograms_list, file = "data/akde/variograms_list.Rda")
+load("data/akde/variograms_list.Rda")
 walk(variograms_list[[1]], plot) # just get a brief glimpse of the different individuals. They generally look okay; there's a fair bit of periodicity that I will have to look into (i.e. does it affect the ability of the package to handle the data?) # XXX DOES PERIODICITY MATTER?
 # AAA: from looking at the ctmm google group, I don't think that periodicity matters too much--people seem to see this frequently with animals returning to a roost site.
 
@@ -42,71 +45,110 @@ walk(variograms_list[[1]], plot) # just get a brief glimpse of the different ind
 
 # Selecting the best-fit movement model through model selection
 guesses_list <- map(telems_list, ~map(.x, ~ctmm.guess(.x, interactive = FALSE), .progress = T))
+save(guesses_list, file = "data/akde/guesses_list.Rda")
+load("data/akde/guesses_list.Rda")
 
 # Now we do the fits, which I suspect will take a long time. I'm going to do these in a for loop so they will save along the way.
-fits_list <- vector(mode = "list", length = length(telems_list))
+# for(i in 1:length(telems_list)){
+#   cat("processing season", i, "\n")
+#   fits <- map2(.x = telems_list[[i]], .y = guesses_list[[i]], ~ctmm.select(.x, .y, method = "pHREML"), .progress = TRUE)
+#   filename <- paste0("data/akde/pHREML_fits_", season_names[i], ".Rda")
+#   save(fits, file = filename)
+# }
+# Load each of the fits objects in. Because I stupidly saved them all as "fits", need to rename them after loading them in.
+load("data/akde/pHREML_fits_2020_fall.Rda")
+fits_2020_fall <- fits
+load("data/akde/pHREML_fits_2021_breeding.Rda")
+fits_2021_breeding <- fits
+load("data/akde/pHREML_fits_2021_summer.Rda")
+fits_2021_summer <- fits
+load("data/akde/pHREML_fits_2021_fall.Rda")
+fits_2021_fall <- fits
+load("data/akde/pHREML_fits_2022_breeding.Rda")
+fits_2022_breeding <- fits
+load("data/akde/pHREML_fits_2022_summer.Rda")
+fits_2022_summer <- fits
+load("data/akde/pHREML_fits_2022_fall.Rda")
+fits_2022_fall <- fits
+load("data/akde/pHREML_fits_2023_breeding.Rda")
+fits_2023_breeding <- fits
+load("data/akde/pHREML_fits_2023_summer.Rda")
+fits_2023_summer <- fits
+
+fits_list <- list(fits_2020_fall, fits_2021_breeding, fits_2021_summer, fits_2021_fall, fits_2022_breeding, fits_2022_summer, fits_2022_fall, fits_2023_breeding, fits_2023_summer)
+names(fits_list) <- season_names
+
+# Now get the uds for each of these, which will also take a long time
+example_animals <- animals[[9]][1:10]
+dt <- 10 %#% "min" # set the time difference for the uds
+example_telems <- telems_list[[9]][1:10]
+example_fits <- fits_list[[9]][1:10]
+future::plan(future::multisession, workers = 10)
+tictoc::tic()
+uds_u <- vector(mode = "list", length = length(fits_list))
 for(i in 1:length(fits_list)){
-  cat("processing season", i, "\n")
-  fits <- map2(.x = telems_list[[i]], .y = guesses_list[[i]], ~ctmm.select(.x, .y, method = "pHREML"), .progress = TRUE)
-  fits_list[[i]] <- fits
+  uds_u[[i]] <- furrr::future_map2(telems_list[[i]], fits_list[[i]],
+                                   ~akde(.x, .y, dt = dt),
+                                   .progress = T)
 }
-save(fits_list, file = "data/fits_list.Rda")
+tictoc::toc()
 
-# XXX start here
-# Feed the fitted movement models into the home range estimator
-dt <- 10 %#% 'min'
-uds_uw <- map2(telems, fits, ~akde(.x, .y, dt = dt), .progress = T)
-uds_w <- map2(telems, fits, ~akde(.x, .y, dt = dt, weights = TRUE), .progress = T)
+future::plan(future::multisession, workers = 10)
+tictoc::tic()
+ud_weighted_2021_summer_test <- furrr::future_map2(telems_list[[3]], fits_list[[3]],
+                                   ~akde(.x, .y, dt = dt, weights = T),
+                                   .progress = T)
+tictoc::toc()
 
-uw_stats <- map(uds_uw, ~summary(.x)$CI %>% as.data.frame()) %>% purrr::list_rbind() %>%
-  bind_cols(map(uds_uw, ~summary(.x)$DOF %>% t() %>% as.data.frame()) %>% purrr::list_rbind()) %>%
-  mutate(ID = animals) %>% relocate(ID) %>% rename("n_eff_area" = "area",
-                                                   "dof_bandwidth" = "bandwidth") %>%
-  mutate(Weighted = F)
-row.names(uw_stats) <- NULL
+stats_weighted_test <- map(ud_weighted_2021_summer_test,
+                           ~summary(.x)$CI %>% as.data.frame()) %>%
+  purrr::list_rbind() %>%
+  bind_cols(map(ud_weighted_2021_summer_test,
+                ~summary(.x)$DOF %>% t() %>% as.data.frame()) %>%
+              purrr::list_rbind()) %>%
+  mutate(ID = animals[[3]],
+         weighted = T) %>%
+  rename("n_eff_area" = "area",
+         "dof_bandwidth" = "bandwidth") %>%
+  mutate(n_abs_area = map_dbl(telems_list[[3]], nrow),
+         eff_ss_prop = round(n_eff_area/n_abs_area, 2),
+         season = season_names[3])
 
-w_stats <- map(uds_w, ~summary(.x)$CI %>% as.data.frame()) %>% purrr::list_rbind() %>%
-  bind_cols(map(uds_w, ~summary(.x)$DOF %>% t() %>% as.data.frame()) %>% purrr::list_rbind()) %>%
-  mutate(ID = animals) %>% relocate(ID) %>% rename("n_eff_area" = "area",
-                                                   "dof_bandwidth" = "bandwidth") %>%
-  mutate(Weighted = T)
-row.names(w_stats) <- NULL
+stats_u <- vector(mode = "list", length = length(uds_u))
+for(i in 1:length(stats_u)){
+  stats_unweighted <- map(uds_u[[i]],
+                          ~summary(.x)$CI %>% as.data.frame()) %>%
+    purrr::list_rbind() %>%
+    bind_cols(map(uds_u[[i]],
+                  ~summary(.x)$DOF %>% t() %>% as.data.frame()) %>%
+                purrr::list_rbind()) %>%
+    mutate(ID = animals[[i]],
+           weighted = F) %>%
+    rename("n_eff_area" = "area",
+           "dof_bandwidth" = "bandwidth") %>%
+    mutate(n_abs_area = map_dbl(telems_list[[i]], nrow),
+           eff_ss_prop = round(n_eff_area/n_abs_area, 2),
+           season = season_names[i])
+  stats_u[[i]] <- stats_unweighted
+}
+stats_u_df <- purrr::list_rbind(stats_u)
+row.names(stats_u_df) <- NULL
 
-stats <- bind_rows(uw_stats, w_stats) %>%
-  mutate(n_abs_area = rep(map_dbl(telems, nrow), 2)) %>%
-  mutate(eff_ss_prop = round(n_eff_area/n_abs_area, 2))
-  
-stats %>%
-  mutate(ID = factor(ID),
-         ID = forcats::fct_reorder(ID, eff_ss_prop)) %>%
-  ggplot(aes(x = ID, y = est, col = Weighted))+
-  geom_point(position = position_dodge(width = 0.4))+
-  theme_minimal()+
-  geom_errorbar(aes(x = ID, ymin = low, ymax = high),
-                position = position_dodge(width = 0.4),
-                width = 0)+
-  theme(panel.grid.major.x = element_blank(),
-        panel.grid.minor.x = element_blank())+
-  ylab("Home range (km^2)")+
-  xlab("Individual")
+combined_test <- bind_rows(stats_weighted_test, stats_u[[3]])
 
+plothr <- function(season, animal){
+  plot(telems_list[[season]][[animal]], UD = uds_u[[season]][[animal]])
+  season_name <- season_names[season]
+  title(paste(stringr::str_to_title(animals[[season]][animal]), season_name))
+}
 
+combined_test %>%
+  ggplot(aes(x = ID, col = weighted))+
+  geom_point(aes(y = est), position = position_dodge(width = 0.3))+
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, position = position_dodge(width = 0.3))+
+  theme_classic() # we can see from this that the ones with huge error just have huge error no matter weighted or unweighted.
+# Looking at page, the one that has a ridiculously high estimate with really big error, we see that her effective number of points was quite low (i.e. lots of autocorrelation in the movement) both in absolute terms and relative to her absolute number of points. 
+# Is this because she's not range resident? Let's look at a few of the vultures' variograms for this season.
+load("data/akde/variograms_list.Rda")
+plot(variograms_list[[which(season_names == "2021_summer")]][[which(animals[[which(season_names == "2021_summer")]]=="page")]]) # this doesn't look particularly bad, actually. She does seem to be range-resident. So that's not really what's causing the issue. Maybe she just has a high home range! Even with the confidence interval, it's still much higher than the others, significantly so.
 
-
-# XXX start here
-# Evaluating additional biases, applying mitigation measures
-summary(ud0_ml)$DOF["area"] # effective sample size of animal
-nrow(telem) # absolute sample size
-# if the fix rate is not constant, then the animal is well suited to weighted akde
-ud0w_ml <- akde(telem, fit0_ml, weights = TRUE)
-summary(ud0w_ml)$CI # home range area estimation (weighted)
-
-# Plot home range estimates (weighted and unweighted)
-ext <- extent(list(ud0_ml, ud0w_ml), level = 0.95)
-
-# plotting ml with and without weights side by side
-par(mfrow = c(1, 2))
-plot(telem, ud = ud0_ml, ext = ext)
-title(expression("ML AKDE"["C"]))
-plot(telem, ud = ud0w_ml, ext = ext)
-title(expression("ML wAKDE"["C"]))
