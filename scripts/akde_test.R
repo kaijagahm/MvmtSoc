@@ -78,77 +78,42 @@ fits_2023_summer <- fits
 fits_list <- list(fits_2020_fall, fits_2021_breeding, fits_2021_summer, fits_2021_fall, fits_2022_breeding, fits_2022_summer, fits_2022_fall, fits_2023_breeding, fits_2023_summer)
 names(fits_list) <- season_names
 
-# Now get the uds for each of these, which will also take a long time
-example_animals <- animals[[9]][1:10]
+# Now get the uds for each of these, which will also take a long time. We're going to use weighted akdes, even though they take longer to run, because we have variable sampling rates.
 dt <- 10 %#% "min" # set the time difference for the uds
-example_telems <- telems_list[[9]][1:10]
-example_fits <- fits_list[[9]][1:10]
-future::plan(future::multisession, workers = 10)
+future::plan(future::multisession, workers = 15)
 tictoc::tic()
-uds_u <- vector(mode = "list", length = length(fits_list))
+uds_w <- vector(mode = "list", length = length(fits_list))
 for(i in 1:length(fits_list)){
-  uds_u[[i]] <- furrr::future_map2(telems_list[[i]], fits_list[[i]],
-                                   ~akde(.x, .y, dt = dt),
+  uds_w[[i]] <- furrr::future_map2(telems_list[[i]], fits_list[[i]],
+                                   ~akde(.x, .y, dt = dt, weights = T),
                                    .progress = T)
 }
 tictoc::toc()
+save(uds_w, file = "data/akde/uds_w.Rda")
 
-future::plan(future::multisession, workers = 10)
-tictoc::tic()
-ud_weighted_2021_summer_test <- furrr::future_map2(telems_list[[3]], fits_list[[3]],
-                                   ~akde(.x, .y, dt = dt, weights = T),
-                                   .progress = T)
-tictoc::toc()
-
-stats_weighted_test <- map(ud_weighted_2021_summer_test,
-                           ~summary(.x)$CI %>% as.data.frame()) %>%
-  purrr::list_rbind() %>%
-  bind_cols(map(ud_weighted_2021_summer_test,
-                ~summary(.x)$DOF %>% t() %>% as.data.frame()) %>%
-              purrr::list_rbind()) %>%
-  mutate(ID = animals[[3]],
-         weighted = T) %>%
-  rename("n_eff_area" = "area",
-         "dof_bandwidth" = "bandwidth") %>%
-  mutate(n_abs_area = map_dbl(telems_list[[3]], nrow),
-         eff_ss_prop = round(n_eff_area/n_abs_area, 2),
-         season = season_names[3])
-
-stats_u <- vector(mode = "list", length = length(uds_u))
-for(i in 1:length(stats_u)){
-  stats_unweighted <- map(uds_u[[i]],
+stats_w <- vector(mode = "list", length = length(uds_w))
+for(i in 1:length(stats_w)){
+  stats_weighted <- map(uds_w[[i]],
                           ~summary(.x)$CI %>% as.data.frame()) %>%
     purrr::list_rbind() %>%
-    bind_cols(map(uds_u[[i]],
+    bind_cols(map(uds_w[[i]],
                   ~summary(.x)$DOF %>% t() %>% as.data.frame()) %>%
                 purrr::list_rbind()) %>%
     mutate(ID = animals[[i]],
-           weighted = F) %>%
+           weighted = T) %>%
     rename("n_eff_area" = "area",
            "dof_bandwidth" = "bandwidth") %>%
     mutate(n_abs_area = map_dbl(telems_list[[i]], nrow),
            eff_ss_prop = round(n_eff_area/n_abs_area, 2),
            season = season_names[i])
-  stats_u[[i]] <- stats_unweighted
+  stats_w[[i]] <- stats_weighted
 }
-stats_u_df <- purrr::list_rbind(stats_u)
-row.names(stats_u_df) <- NULL
-
-combined_test <- bind_rows(stats_weighted_test, stats_u[[3]])
+stats_w_df <- purrr::list_rbind(stats_w)
+save(stats_w_df, file = "data/akde/stats_w_df.Rda")
+row.names(stats_w_df) <- NULL
 
 plothr <- function(season, animal){
-  plot(telems_list[[season]][[animal]], UD = uds_u[[season]][[animal]])
+  plot(telems_list[[season]][[animal]], UD = uds_w[[season]][[animal]])
   season_name <- season_names[season]
   title(paste(stringr::str_to_title(animals[[season]][animal]), season_name))
 }
-
-combined_test %>%
-  ggplot(aes(x = ID, col = weighted))+
-  geom_point(aes(y = est), position = position_dodge(width = 0.3))+
-  geom_errorbar(aes(ymin = low, ymax = high), width = 0, position = position_dodge(width = 0.3))+
-  theme_classic() # we can see from this that the ones with huge error just have huge error no matter weighted or unweighted.
-# Looking at page, the one that has a ridiculously high estimate with really big error, we see that her effective number of points was quite low (i.e. lots of autocorrelation in the movement) both in absolute terms and relative to her absolute number of points. 
-# Is this because she's not range resident? Let's look at a few of the vultures' variograms for this season.
-load("data/akde/variograms_list.Rda")
-plot(variograms_list[[which(season_names == "2021_summer")]][[which(animals[[which(season_names == "2021_summer")]]=="page")]]) # this doesn't look particularly bad, actually. She does seem to be range-resident. So that's not really what's causing the issue. Maybe she just has a high home range! Even with the confidence interval, it's still much higher than the others, significantly so.
-
