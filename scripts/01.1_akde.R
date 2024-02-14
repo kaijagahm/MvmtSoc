@@ -1,5 +1,4 @@
-# Testing out ctmm
-
+# Making AKDE home ranges using the ctmm package
 library(ctmm)
 library(tidyverse)
 library(furrr)
@@ -91,13 +90,13 @@ for(i in 1:length(fits_list)){
 tictoc::toc()
 save(uds_w, file = "data/akde/uds_w.Rda")
 
-stats_w <- vector(mode = "list", length = length(uds_w))
-for(i in 1:length(stats_w)){
+stats_w_95 <- vector(mode = "list", length = length(uds_w))
+for(i in 1:length(stats_w_95)){
   stats_weighted <- map(uds_w[[i]],
-                          ~summary(.x)$CI %>% as.data.frame()) %>%
+                          ~summary(.x, level = 0.95, level.UD = 0.95)$CI %>% as.data.frame()) %>%
     purrr::list_rbind() %>%
     bind_cols(map(uds_w[[i]],
-                  ~summary(.x)$DOF %>% t() %>% as.data.frame()) %>%
+                  ~summary(.x, level = 0.95, level.UD = 0.95)$DOF %>% t() %>% as.data.frame()) %>%
                 purrr::list_rbind()) %>%
     mutate(ID = animals[[i]],
            weighted = T) %>%
@@ -106,14 +105,35 @@ for(i in 1:length(stats_w)){
     mutate(n_abs_area = map_dbl(telems_list[[i]], nrow),
            eff_ss_prop = round(n_eff_area/n_abs_area, 2),
            season = season_names[i])
-  stats_w[[i]] <- stats_weighted
+  stats_w_95[[i]] <- stats_weighted
 }
-stats_w_df <- purrr::list_rbind(stats_w)
-save(stats_w_df, file = "data/akde/stats_w_df.Rda")
-row.names(stats_w_df) <- NULL
+stats_w_95_df <- purrr::list_rbind(stats_w_95) %>% mutate(level = 0.95)
+save(stats_w_95_df, file = "data/akde/stats_w_95_df.Rda")
+row.names(stats_w_95_df) <- NULL
 
-plothr <- function(season, animal){
-  plot(telems_list[[season]][[animal]], UD = uds_w[[season]][[animal]])
+stats_w_50 <- vector(mode = "list", length = length(uds_w))
+for(i in 1:length(stats_w_50)){
+  stats_weighted <- map(uds_w[[i]],
+                        ~summary(.x, level = 0.95, level.UD = 0.50)$CI %>% as.data.frame()) %>%
+    purrr::list_rbind() %>%
+    bind_cols(map(uds_w[[i]],
+                  ~summary(.x, level = 0.95, level.UD = 0.50)$DOF %>% t() %>% as.data.frame()) %>%
+                purrr::list_rbind()) %>%
+    mutate(ID = animals[[i]],
+           weighted = T) %>%
+    rename("n_eff_area" = "area",
+           "dof_bandwidth" = "bandwidth") %>%
+    mutate(n_abs_area = map_dbl(telems_list[[i]], nrow),
+           eff_ss_prop = round(n_eff_area/n_abs_area, 2),
+           season = season_names[i])
+  stats_w_50[[i]] <- stats_weighted
+}
+stats_w_50_df <- purrr::list_rbind(stats_w_50) %>% mutate(level = 0.5)
+save(stats_w_50_df, file = "data/akde/stats_w_50_df.Rda")
+row.names(stats_w_50_df) <- NULL
+
+plothr <- function(season, animal, level = 0.95){
+  plot(telems_list[[season]][[animal]], UD = uds_w[[season]][[animal]], level.UD = level)
   season_name <- season_names[season]
   title(paste(stringr::str_to_title(animals[[season]][animal]), season_name))
 }
