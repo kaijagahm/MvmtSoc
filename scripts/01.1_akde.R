@@ -104,7 +104,7 @@ for(i in 1:length(stats_w_95)){
            "dof_bandwidth" = "bandwidth") %>%
     mutate(n_abs_area = map_dbl(telems_list[[i]], nrow),
            eff_ss_prop = round(n_eff_area/n_abs_area, 2),
-           season = season_names[i])
+           seasonUnique = season_names[i])
   stats_w_95[[i]] <- stats_weighted
 }
 stats_w_95_df <- purrr::list_rbind(stats_w_95) %>% mutate(level = 0.95)
@@ -125,7 +125,7 @@ for(i in 1:length(stats_w_50)){
            "dof_bandwidth" = "bandwidth") %>%
     mutate(n_abs_area = map_dbl(telems_list[[i]], nrow),
            eff_ss_prop = round(n_eff_area/n_abs_area, 2),
-           season = season_names[i])
+           seasonUnique = season_names[i])
   stats_w_50[[i]] <- stats_weighted
 }
 stats_w_50_df <- purrr::list_rbind(stats_w_50) %>% mutate(level = 0.5)
