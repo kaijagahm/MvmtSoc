@@ -31,7 +31,9 @@ rm(downsampled_10min) # XXX need to do this in a faster way--attach age at an ea
 # Create a dataset with all seasons combined
 allMovementBehavior <- purrr::list_rbind(movementBehavior)
 movementBehaviorScaled <- allMovementBehavior %>%
-  mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, homeRange, coreArea, coreAreaFidelity), # not scaling the space use params, because I'm not putting those into a PCA.
+  mutate(coreArea_log = log(coreArea),
+         homeRange_log = log(homeRange)) %>%
+  mutate(across(-c(Nili_id, seasonUnique, birth_year, sex), 
                 function(x){as.numeric(as.vector(scale(x)))}))
 ```
 
@@ -41,12 +43,17 @@ movementBehaviorScaled <- allMovementBehavior %>%
 #| include: false
 demo <- movementBehaviorScaled %>%
   dplyr::select(Nili_id, seasonUnique, daysTracked, propDaysTracked, birth_year, sex)
+
 space_use <- movementBehaviorScaled %>%
-  dplyr::select(Nili_id, seasonUnique, coreArea, homeRange, coreAreaFidelity)
+  dplyr::select(Nili_id, seasonUnique, coreArea_log, homeRange_log, coreAreaFidelity)
+
 movement <- movementBehaviorScaled %>%
-  dplyr::select(Nili_id, seasonUnique, mnDailyMnAlt, meanDFD, meanDMD, meanDDT, mnTort)
+  dplyr::select(Nili_id, seasonUnique, mnDailyMnAlt, meanDFD, meanDMD, meanDDT, mnTort) %>%
+  filter(!is.na(mnDailyMnAlt))
+
 roost_behavior <- movementBehaviorScaled %>%
-  dplyr::select(Nili_id, seasonUnique, propSwitch, shannon, uniqueRoosts)
+  dplyr::select(Nili_id, seasonUnique, propSwitch, shannon, uniqueRoosts) %>%
+  filter(!is.na(shannon))
 ```
 
 The PCA movement variables are a little hard to interpret, and I want the predictor variables to directly describe aspects of individual behavior/movement/space use.\
@@ -139,6 +146,23 @@ roost_behavior %>%
 
 Individuals that are higher on the roost PC1 have more unique roosts, a higher roost diversity, and switch roosts more often. Let's call this a measure of "**roost site diversification**" or something like that.
 
+## Space use PCA
+
+```{r}
+pca_space <- prcomp(space_use[,-c(1:3)]) # only including home range and coreAreaFidelity (because it would be redundant to include all three)
+fviz_pca_biplot(pca_space, axes = c(1,2), 
+                geom = c("point"), 
+                alpha.ind = 0.3,
+                repel = T)+
+  theme_classic()
+fviz_screeplot(pca_space, addLabels = T) # This is also strongly loaded on one principal component, so I feel quite comfortable taking it as a measure of roost diversification/routine
+contrib_space <- round(pca_roost$rotation[,1:3]*-100, 2) %>%
+  as.data.frame()
+contrib_space
+space_use <- space_use %>%
+  mutate(space_pc1 = pca_space$x[,1]*-1)
+```
+
 ## Variable distributions
 
 ```{r}
@@ -147,20 +171,21 @@ Individuals that are higher on the roost PC1 have more unique roosts, a higher r
 #| include: false
 # Create a reduced dataset that only includes our measures of interest
 red <- demo %>%
-  left_join(space_use %>% dplyr::select(Nili_id, seasonUnique, homeRange)) %>%
+  left_join(space_use %>% dplyr::select(Nili_id, seasonUnique, space_pc1)) %>%
   left_join(movement %>% dplyr::select(Nili_id, seasonUnique, movement_pc1)) %>%
   left_join(roost_behavior %>% dplyr::select(Nili_id, seasonUnique, roost_pc1)) %>%
-  rename("space_use" = "homeRange",
+  rename("space_use" = "space_pc1",
          "movement" = "movement_pc1",
-         "roost_div" = "roost_pc1")
-nrow(red) == nrow(demo) # checking that the number of rows hasn't changed
+         "roost_div" = "roost_pc1") %>%
+  filter(!is.na(movement))
+nrow(red) == nrow(movement) # checking that the number of rows hasn't changed
 red_long <- red %>%
   pivot_longer(cols = c("space_use", "movement", "roost_div"),
                names_to = "var",
                values_to = "value")
 ```
 
-Let's examine these predictor variables
+Let's examine these predictor variables.
 
 ```{r}
 #| message: false
@@ -176,42 +201,7 @@ red_long %>%
   ylab("Frequency")+xlab("")
 ```
 
-We can see here that we have another problem. Since `movement` and `roost_div` are composite variables derived from PCAs, they are pretty close to normally distributed. Meanwhile, our space use variable is very right-skewed, because it's a measure of area.
-
-Let's log-tranform the space use variable to make the distributions more comparable and therefore make the modeling easier.
-
-```{r}
-#| include: false
-red <- red %>%
-  mutate(space_use_log = log(space_use))
-red_long <- red %>%
-  pivot_longer(cols = c("space_use", 
-                        "space_use_log", 
-                        "movement", 
-                        "roost_div"),
-               names_to = "var",
-               values_to = "value")
-```
-
-Re-examine the distributions of the variables after log-transforming:
-
-```{r}
-#| message: false
-#| warning: false
-red_long %>%
-  filter(var != "space_use") %>%
-  ggplot(aes(x = value, col = var, fill = var))+
-  geom_histogram()+ theme_minimal()+
-  facet_wrap(~var, scales = "free")+
-  scale_fill_manual(values = colors)+
-  scale_color_manual(values = colors)+
-  theme(legend.position = "none")+
-  ylab("Frequency")+xlab("")
-```
-
-Okay that's still not perfect, but it's a lot better.
-
-*Note also that this outcome may change quantitatively after we calculate the home ranges by better means (AKDE), but I don't expect it to be qualitatively different. AKDE calculations are currently in progress.*
+All variables are fairly close to normally distributed, since they come from PCAs and are scaled.
 
 ## Correlations
 
@@ -231,17 +221,17 @@ red %>%
   ggplot2::annotate(geom = "text", x = 4.5, y = -2, label = paste0("Correlation = ", cor))
 ```
 
-**Roost diversification** and **log-transformed home range** have a stronger correlation of `r round(cor(red$roost_div, red$space_use_log), 2)`.
+**Roost diversification** and **log-transformed home range** have a stronger correlation of `r round(cor(red$roost_div, red$space_use), 2)`.
 
 ```{r}
 #| message: false
 #| warning: false
-cor <- round(cor(red$roost_div, red$space_use_log), 2)
+cor <- round(cor(red$roost_div, red$space_use), 2)
 red %>%
-  ggplot(aes(x = roost_div, y = space_use_log))+
+  ggplot(aes(x = roost_div, y = space_use))+
   geom_point(color = "chartreuse3")+ geom_smooth(method = "lm", col = "chartreuse3")+ theme_minimal()+
   xlab("Roost diversification")+ ylab("Space use (log)")+
-  ggplot2::annotate(geom = "text", x = 4, y = 11, label = paste0("Correlation = ", cor))
+  ggplot2::annotate(geom = "text", x = 3, y = -2, label = paste0("Correlation = ", cor))
 ```
 
 Finally, **log-transformed home range** and **movement** have a correlation of `r round(cor(red$space_use_log, red$movement), 2)`.
@@ -249,12 +239,12 @@ Finally, **log-transformed home range** and **movement** have a correlation of `
 ```{r}
 #| message: false
 #| warning: false
-cor <- round(cor(red$space_use_log, red$movement), 2)
+cor <- round(cor(red$space_use, red$movement), 2)
 red %>%
-  ggplot(aes(x = space_use_log, y = movement))+
+  ggplot(aes(x = space_use, y = movement))+
   geom_point(color = "orange2")+ geom_smooth(method = "lm", col = "orange2")+ theme_minimal()+
   xlab("Space use (log)") + ylab("Movement")+
-  ggplot2::annotate(geom = "text", x = 14, y = -4.5, label = paste0("Correlation = ", cor))
+  ggplot2::annotate(geom = "text", x = 2.5, y = -3, label = paste0("Correlation = ", cor))
 ```
 
 There is enough correlation here that we're going to have to be careful, but I don't think there's enough that we have to not proceed. These predictors seem more biologically defensible because they are created *a priori* instead of derived from a single PCA.
@@ -289,7 +279,7 @@ Let's see if the relationships between these variables and age are consistent wi
 load(here::here("data", "derived", "cc.Rda"))
 red %>%
   mutate(season = stringr::str_extract(seasonUnique, "[a-z]+")) %>%
-  pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
+  pivot_longer(cols = c("movement", "roost_div", "space_use"),
                names_to = "var", values_to = "value") %>%
   ggplot(aes(x = age, y = value, group = seasonUnique, col = season))+
   geom_point(alpha = 0.5) + geom_smooth(se = F)+
@@ -304,7 +294,7 @@ red %>%
 #| warning: false
 #| message: false
 red %>%
-  pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
+  pivot_longer(cols = c("movement", "roost_div", "space_use"),
                names_to = "var", values_to = "value") %>%
   ggplot(aes(x = age, y = value, group = seasonUnique, col = var))+
   geom_point(alpha = 0.5) + geom_smooth(se = F)+
@@ -324,7 +314,7 @@ Just in case we had any doubts about vultures' lack of sexual dimorphism...
 #| message: false
 red %>%
   filter(!is.na(sex), sex != "NA") %>%
-  pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
+  pivot_longer(cols = c("movement", "roost_div", "space_use"),
                names_to = "var", values_to = "value") %>%
   ggplot(aes(x = sex, y = value, col = var))+
   geom_jitter(height = 0, width = 0.2, alpha = 0.7)+
@@ -337,7 +327,7 @@ red %>%
 # 
 # red %>%
 #   filter(!is.na(sex), sex != "NA") %>%
-#   pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
+#   pivot_longer(cols = c("movement", "roost_div", "space_use"),
 #                names_to = "var", values_to = "value") %>%
 #   ggplot(aes(x = sex, y = value, col = var))+
 #   geom_jitter(height = 0, width = 0.2, alpha = 0.7)+
@@ -355,7 +345,7 @@ Okay, yeah, so about those seasons:
 
 ```{r}
 red %>%
-  pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
+  pivot_longer(cols = c("movement", "roost_div", "space_use"),
                names_to = "var", values_to = "value") %>%
   filter(var != "space_use") %>%
   ggplot(aes(x = value, group = seasonUnique, col = season))+
@@ -368,9 +358,8 @@ red %>%
   ylab("Frequency")+xlab("")
 
 red %>%
-  pivot_longer(cols = c("movement", "roost_div", "space_use_log"),
+  pivot_longer(cols = c("movement", "roost_div", "space_use"),
                names_to = "var", values_to = "value") %>%
-  filter(var != "space_use") %>%
   ggplot(aes(x = season, y = value))+
   geom_violin(aes(fill = season, col = season))+
   facet_wrap(~var, scales = "free")+
