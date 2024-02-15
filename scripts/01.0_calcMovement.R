@@ -64,63 +64,28 @@ save(downsampled_10min_sf, file = "data/calcMovement/downsampled_10min_sf.Rda")
 load("data/calcMovement/downsampled_10min_sf.Rda")
 
 # Movement Behavior --------------------------------------------------------
-## HOME RANGE ---------------------------------------------------------------
-## Individual home ranges
-hrList_indivs <- purrr::map(downsampled_10min_sf, ~.x %>%
-                              ungroup() %>%
-                       dplyr::select(Nili_id) %>%
-                       st_transform(32636) %>%
-                       mutate(x = sf::st_coordinates(.)[,1],
-                              y = sf::st_coordinates(.)[,2]) %>%
-                       st_drop_geometry() %>%
-                       group_by(Nili_id) %>%
-                       group_split(.keep = T))
-save(hrList_indivs, file = "data/calcMovement/hrList_indivs.Rda") # for use in 01.5_KDERarefaction.R
-load("data/calcMovement/hrList_indivs.Rda")
+## SPACE USE ---------------------------------------------------------------
+load("data/akde/stats_w_50_df.Rda")
+load("data/akde/stats_w_95_df.Rda")
+akde_stats <- bind_rows(stats_w_50_df, stats_w_95_df)
+row.names(akde_stats) <- NULL
 
-indivs <- map(hrList_indivs, ~map_chr(.x, ~.x$Nili_id[1]))
-hrList_indivs_SP <- map(hrList_indivs, ~map(.x, ~sp::SpatialPoints(.x[,c("x", "y")]))) # returns a list of lists, where each element is a spatial points data frame for one individual over the course of the whole season.
-save(hrList_indivs_SP, file = "data/calcMovement/hrList_indivs_SP.Rda")
-load("data/calcMovement/hrList_indivs_SP.Rda")
-
-kuds_indivs <- map(hrList_indivs_SP, ~map(.x, ~{
-  if(nrow(.x@coords) >= 5){k <- kernelUD(.x, h = "href", grid = 100, extent = 1)}
-  else{k <- NULL} # changed back to the href value here--important to have different h for individuals with different numbers of points, and the fact that we'll take percentages of the resulting errors should mean that it comes out in the wash anyway.
-  return(k)}, .progress = T))
-save(kuds_indivs, file = "data/calcMovement/kuds_indivs.Rda")
-load("data/calcMovement/kuds_indivs.Rda")
-
-### Core Area (50%) ---------------------------------------------------------
-coreAreas_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
-  if(!is.null(.x)){
-    area <- kernel.area(.x, percent = 50)}
-  else{area <- NA}
-  return(area)
-}))
-
-### Home Range (95%) ---------------------------------------------------------
-homeRanges_indivs <- map(kuds_indivs, ~map_dbl(.x, ~{
-  if(!is.null(.x)){
-    area <- kernel.area(.x, percent = 95)}
-  else{area <- NA}
-  return(area)
-}))
-
-### Assemble them
-areas <- map2(coreAreas_indivs, homeRanges_indivs, 
-              ~bind_cols("coreArea" = .x, "homeRange" = .y))
-indsKUDAreas <- map2(indivs, areas, ~bind_cols("Nili_id" = .x, .y))
-
-### Core Area Fidelity (50%/95%) --------------------------------------------
-indsKUDAreas <- map(indsKUDAreas, ~.x %>% 
-                      mutate(coreAreaFidelity = coreArea/homeRange))
-names(indsKUDAreas) <- season_names
-ikuda_df <- purrr::list_rbind(indsKUDAreas, names_to = "season")
+areas <- akde_stats %>%
+  dplyr::select("Nili_id" = ID,
+                est, level, seasonUnique) %>%
+  pivot_wider(id_cols = c(Nili_id, seasonUnique), names_from = level, names_prefix = "level_",
+              values_from = "est") %>%
+  rename("homeRange" = level_0.95,
+         "coreArea" = level_0.5) %>%
+  mutate(coreAreaFidelity = coreArea/homeRange)
+areas_list <- areas %>%
+  group_by(seasonUnique) %>%
+  group_split()
 
 # VVV Visualize core areas, home ranges, and ratios
-distviz(ikuda_df, "homeRange", "season")
-distviz(ikuda_df, "coreArea", "season")
-distviz(ikuda_df, "coreAreaFidelity", "season")
+distviz(areas, "homeRange", "seasonUnique")
+distviz(areas, "coreArea", "seasonUnique")
+distviz(areas, "coreAreaFidelity", "seasonUnique")
 
 ## ROOST SITE USE ----------------------------------------------------------
 # Make sure that each roost point intersects only one (or 0) roost (multi)polygon(s)
@@ -299,7 +264,7 @@ dailyAltitudesSumm <- map(dailyAltitudes, ~.x %>%
                             summarize(mnDailyMnAlt = mean(meanAltitude, na.rm = T)))
 
 ## ALL (compile movement metrics) --------------------------------------------
-movementBehavior <- map2(indsKUDAreas, dailyAltitudesSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
+movementBehavior <- map2(areas_list, dailyAltitudesSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
   map2(., roostSwitches, ~left_join(.x, .y, by = "Nili_id")) %>%
   map2(., shannon, ~left_join(.x, .y, by = "Nili_id")) %>%
   map2(., dfdSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
@@ -313,7 +278,6 @@ ageSex <- map(downsampled_10min_sf, ~.x %>% st_drop_geometry() %>%
                 distinct())
 
 movementBehavior <- map2(movementBehavior, ageSex, ~left_join(.x, .y, by = "Nili_id"))
-
 
 # Visualize ---------------------------------------------------------------
 mbdf <- purrr::list_rbind(movementBehavior)
