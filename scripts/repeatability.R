@@ -51,12 +51,12 @@ plotRepeat(linked, "normStrength", situation = "roosting", ylab = "Normalized st
 ############### Data ingest chunk taken from calcSocial.R
 load("data/dataPrep/downsampled_10min_forSocial.Rda") # this is the last dataset we produced in the dataPrep script before moving on to the further cleaning for movement, so this is the one we're going to use for the social interactions.
 sfdata <- map(downsampled_10min_forSocial, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
-datasetAssignments <- map(downsampled_10min_forSocial, ~.x %>% select(Nili_id, dataset, seasonUnique) %>% distinct() %>% group_by(Nili_id, seasonUnique) %>%
-                            mutate(dataset = case_when(n() > 1 ~ "both",
-                                                       TRUE ~ dataset)) %>%
-                            ungroup() %>%
-                            distinct())
-save(datasetAssignments, file = "data/calcSocial/datasetAssignments.Rda")
+# datasetAssignments <- map(downsampled_10min_forSocial, ~.x %>% select(Nili_id, dataset, seasonUnique) %>% distinct() %>% group_by(Nili_id, seasonUnique) %>%
+#                             mutate(dataset = case_when(n() > 1 ~ "both",
+#                                                        TRUE ~ dataset)) %>%
+#                             ungroup() %>%
+#                             distinct())
+# save(datasetAssignments, file = "data/calcSocial/datasetAssignments.Rda")
 load("data/calcSocial/datasetAssignments.Rda")
 rm(downsampled_10min_forSocial)
 gc()
@@ -67,67 +67,114 @@ load("data/derived/cc.Rda")
 ############### \Data ingest chunk taken from calcSocial.R
 # Lump the sf data back together and then split it into days
 sfdata_lumped <- purrr::list_rbind(sfdata)
-sfdata_days <- sfdata_lumped %>%
-  group_by(dateOnly) %>%
-  group_split() %>%
-  map(~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), remove = F, crs = "WGS84"))
-save(sfdata_days, file = "data/calcSocial/sfdata_days.Rda")
-days <- lubridate::ymd(map_chr(sfdata_days, ~as.character(.x$dateOnly[1])))
 
-future::plan(future::multisession, workers = 15)
-tictoc::tic()
-flightDays <- suppressWarnings(furrr::future_map(sfdata_days, ~{
-  library(sf)
-  vultureUtils::getFlightEdges(dataset = .x, roostPolygons = roostPolygons,
-                                                distThreshold = 1000, idCol = "Nili_id",
-                                                return = "both", getLocs = T)
-}, .progress = T, options = furrr_options(seed = NULL)))
-tictoc::toc()
+sfdata_lumped <- sfdata_lumped %>%
+  select(-c(tag_id, sensor_type_id, acceleration_raw_x, acceleration_raw_y, acceleration_raw_z, barometric_height, battery_charge_percent, battery_charging_current, external_temperature, gps_hdop, gps_satellite_count, gps_time_to_fix, import_marked_outlier, light_level, magnetic_field_raw_x, magnetic_field_raw_y, magnetic_field_raw_z, ornitela_transmission_protocol, tag_voltage, update_ts, visible, deployment_id, event_id, sensor_type, tag_local_identifier, location_long.1, location_lat.1, optional, sensor, earliest_date_born, exact_date_of_birth, group_id, individual_id, latest_date_born, local_identifier, marker_id, mates, mortality_date, mortality_latitude, mortality_type, nick_name, offspring, parents, ring_id, siblings, taxon_canonical_name, taxon_detail, number_of_events, number_of_deployments))
 
-future::plan(future::multisession, workers = 15)
-tictoc::tic()
-feedingDays <- suppressWarnings(furrr::future_map(sfdata_days, ~{
-  library(sf)
-  vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons,
-                                distThreshold = 50, idCol = "Nili_id",
-                                return = "both", getLocs = T)
-}, .progress = T))
-tictoc::toc()
+map_dbl(sfdata, ~length(unique(.x$dateOnly))) # lengths of the days. Shortest season is 90 days, so let's go up to 45 day windows.
+gc()
+# Prepare for cutting -----------------------------------------------------
 
-roostdata_days <- purrr::list_rbind(roosts) %>%
-  group_by(roost_date) %>%
-  group_split()
+# It has become evident that I can only use a single season here  --------
+# otherwise just way too much memory
+testseason <- sfdata[[9]]
+ndays <- c(1, 2, 5, 10, 20, 30, 40)
+min <- min(testseason$dateOnly)
+max <- max(testseason$dateOnly)
+breaks <- map(ndays, ~seq(from = as.POSIXct(min), to = as.POSIXct(max), by = paste(.x, "day", sep = " ")))
+annotated <- map(breaks, ~testseason %>%
+                   mutate(int = cut(dateOnly, breaks = as.Date(.x), include.lowest = T))) #4.8 GB
 
-future::plan(future::multisession, workers = 15)
-tictoc::tic()
-roostDays <- suppressWarnings(furrr::future_map(roostdata_days, ~{
-  library(sf)
-  vultureUtils::getRoostEdges(.x, mode = "polygon", 
-                              roostPolygons = roostPolygons, 
-                              return = "sri", 
-                              latCol = "location_lat", 
-                              longCol = "location_long", 
-                              idCol = "Nili_id", 
-                              dateCol = "roost_date")
-}, .progress = T))
-tictoc::toc()
-days_r <- lubridate::ymd(map_chr(roostdata_days, ~as.character(.x$roost_date[1])))
+# XXX I'll have to find a way to include the last few dates in these (i.e. add one more element to "breaks" that's [last one + 1 interval unit]), but for now it's fine to leave them as NA.
 
-flightDays_edges <- map(flightDays, "edges")
-feedingDays_edges <- map(feedingDays, "edges")
-flightDays_sri <- map(flightDays, "sri")
-feedingDays_sri <- map(feedingDays, "sri")
-roostDays_sri <- roostDays
+split_sfData <- purrr::map(annotated, ~{
+  cat("grouping\n")
+  lst <- .x %>%
+    group_by(int) %>%
+    group_split()
+  cat("converting to sf\n")
+  lst <- map(lst, ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), remove = F, crs = "WGS84"))
+  return(lst)
+  cat("cleaning up\n")
+  gc()
+}, .progress = T)
+rm(annotated) # we have to be very careful with space here.
+gc()
+# 
+length(split_sfData) == length(ndays) # should be TRUE
+map_dbl(split_sfData, length)
+save(split_sfData, file = "data/split_sfData.Rda")
+load("data/split_sfData.Rda")
+gc()
 
-save(flightDays, file = "data/calcSocial/flightDays.Rda")
-save(feedingDays, file = "data/calcSocial/feedingDays.Rda")
-save(flightDays_edges, file = "data/calcSocial/flightDays_edges.Rda")
-save(feedingDays_edges, file = "data/calcSocial/feedingDays_edges.Rda")
-save(flightDays_sri, file = "data/calcSocial/flightDays_sri.Rda")
-save(feedingDays_sri, file = "data/calcSocial/feedingDays_sri.Rda")
-save(roostDays_sri, file ="data/calcSocial/roostDays_sri.Rda")
+testseason_roosts <- roosts[[9]]
+#roostdata_lumped <- purrr::list_rbind(roosts)
+annotated_roosts <- map(breaks, ~testseason_roosts %>%
+                          mutate(int = cut(roost_date, breaks = as.Date(.x), include.lowest = T)))
+split_sfData_roosts <- purrr::map(annotated_roosts, ~{
+  lst <- .x %>%
+    group_by(int) %>%
+    group_split()
+  lst <- map(lst, ~sf::st_as_sf(.x, coords = c("location_long", "location_lat"), remove = F, crs = "WGS84"))
+  return(lst)
+}, .progress = T)
+rm(annotated_roosts)
+save(split_sfData_roosts, file = "data/split_sfData_roosts.Rda")
+load("data/split_sfData_roosts.Rda")
 
-# Let's fix up the ones that have length 0 (this wouldn't have happened for full seasons, which is why I didn't consider it until now)
+length(split_sfData_roosts) == length(ndays) # TRUE
+map_dbl(split_sfData_roosts, length) # should be very similar to the same for non-roost data, if not identical.
+
+# Okay, now for each of these let's get feeding, flight, and roosting edges
+# XXX start here
+outs_flight <- vector(mode = "list", length = length(ndays))
+outs_feeding <- vector(mode = "list", length = length(ndays))
+outs_roosting <- vector(mode = "list", length = length(ndays))
+for(split in 1:length(ndays)){
+  cat("Working on data split into", ndays[split], "day intervals\n") 
+  datalist <- split_sfData[[split]]
+  roostlist <- split_sfData_roosts[[split]]
+  cat("working on flight\n")
+  future::plan(future::multisession, workers = 16)
+  fl <- suppressWarnings(furrr::future_map(datalist, ~{
+    vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons,
+                                 distThreshold = 1000, idCol = "Nili_id",
+                                 return = "sri")
+  }, .progress = T))
+  
+  cat("working on feeding\n")
+  fe <- suppressWarnings(furrr::future_map(datalist, ~{
+    vultureUtils::getFeedingEdges(.x, roostPolygons = roostPolygons,
+                                  distThreshold = 50, idCol = "Nili_id",
+                                  return = "sri")
+  }, .progress = T))
+  
+  cat("working on roosting\n")
+  ro <- suppressWarnings(furrr::future_map(roostlist, ~{
+    vultureUtils::getRoostEdges(.x, mode = "polygon", 
+                                roostPolygons = roostPolygons, 
+                                return = "sri", 
+                                latCol = "location_lat", 
+                                longCol = "location_long", 
+                                idCol = "Nili_id", 
+                                dateCol = "roost_date")
+  }, .progress = T))
+  outs_flight[[split]] <- fl
+  outs_feeding[[split]] <- fe
+  outs_roosting[[split]] <- ro
+  rm(datalist)
+  rm(roostlist)
+  rm(fl)
+  rm(fe)
+  rm(ro)
+  gc()
+}
+
+save(outs_flight, file = "data/calcSocial/outs_flight.Rda")
+save(outs_feeding, file = "data/calcSocial/outs_feeding.Rda")
+save(outs_roosting, file = "data/calcSocial/outs_roosting.Rda")
+
+# Need to fix the ones that have length 0
 fix <- function(data){
   unique_indivs <- unique(data$Nili_id)
   sri <- as.data.frame(expand.grid(unique_indivs, unique_indivs)) %>%
@@ -136,32 +183,81 @@ fix <- function(data){
     filter(as.character(ID1) < as.character(ID2))
   return(sri)
 }
-flightDays_sri <- map2(flightDays_sri, sfdata_days, ~{
-  if(nrow(.x) > 0){
-    out <- .x
-  }else{
-    out <- fix(data = .y)
-  }
-  return(out)
-})
 
-feedingDays_sri <- map2(feedingDays_sri, sfdata_days, ~{
-  if(nrow(.x) > 0){
-    out <- .x
-  }else{
-    out <- fix(data = .y)
-  }
-  return(out)
-})
+flout <- vector(mode = "list", length = length(ndays))
+feout <- vector(mode = "list", length = length(ndays))
+roout <- vector(mode = "list", length = length(ndays))
 
-roostDays_sri <- map2(roostDays_sri, roostdata_days, ~{
-  if(nrow(.x) > 0){
-    out <- .x
-  }else{
-    out <- fix(data = .y)
-  }
-  return(out)
-})
+for(i in 1:length(ndays)){
+  sri_flight <- outs_flight[[i]]
+  sri_feeding <- outs_feeding[[i]]
+  sri_roosting <- outs_roosting[[i]]
+  data_flight <- split_sfData[[i]]
+  data_feeding <- split_sfData[[i]]
+  data_roosting <- split_sfData_roosts[[i]]
+  
+  data_flight_fixed <- map2(.x = sri_flight, 
+                            .y = data_flight, ~{
+                              if(nrow(.x) > 0){
+                                out <- .x
+                              }else{
+                                out <- fix(data = .y)
+                              }
+                              return(out)
+                            })
+  
+  data_feeding_fixed <- map2(.x = sri_feeding, 
+                            .y = data_feeding, ~{
+                              if(nrow(.x) > 0){
+                                out <- .x
+                              }else{
+                                out <- fix(data = .y)
+                              }
+                              return(out)
+                            })
+  data_roosting_fixed <- map2(.x = sri_roosting, 
+                            .y = data_roosting, ~{
+                              if(nrow(.x) > 0){
+                                out <- .x
+                              }else{
+                                out <- fix(data = .y)
+                              }
+                              return(out)
+                            })
+  flout[[i]] <- data_flight_fixed
+  feout[[i]] <- data_feeding_fixed
+  roout[[i]] <- data_roosting_fixed
+  rm(sri_flight)
+  rm(sri_feeding)
+  rm(sri_roosting)
+  rm(data_flight)
+  rm(data_feeding)
+  rm(data_roosting)
+}
+
+# Now we can make the graphs
+graphs_flight <- vector(mode = "list", length = length(ndays))
+graphs_feeding <- vector(mode = "list", length = length(ndays))
+graphs_roosting <- vector(mode = "list", length = length(ndays))
+for(i in 1:length(ndays)){
+  flight <- flout[[i]]
+  feeding <- feout[[i]]
+  roosting <- roout[[i]]
+  future::plan(future::multisession, workers = 16)
+  flightgraphs <- furrr::future_map(flight, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T),
+                                    .progress = T)
+  feedinggraphs <- furrr::future_map(feeding, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T),
+                                     .progress = T)
+  roostinggraphs <- furrr::future_map(roosting, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T), .progress = T)
+  graphs_flight[[i]] <- flightgraphs
+  graphs_feeding[[i]] <- feedinggraphs
+  graphs_roosting[[i]] <- roostinggraphs
+  rm(flightgraphs)
+  rm(feedinggraphs)
+  rm(roostinggraphs)
+}
+
+
 
 future::plan(future::multisession, workers = 10)
 flightDays_graphs <- furrr::future_map(flightDays_sri, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T), .progress = T)
@@ -228,14 +324,14 @@ days_metrics_df <- bind_rows(flightDays_metrics_df, feedingDays_metrics_df, roos
 
 # Daily graph plots -------------------------------------------------------
 tbl_graphs_flight <- map(flightDays_graphs, ~as_tbl_graph(.x) %>%
-                    activate(nodes) %>%
-                    mutate(degree = igraph::degree(.))) 
+                           activate(nodes) %>%
+                           mutate(degree = igraph::degree(.))) 
 tbl_graphs_feeding <- map(feedingDays_graphs, ~as_tbl_graph(.x) %>%
                             activate(nodes) %>%
                             mutate(degree = igraph::degree(.))) 
 tbl_graphs_roosting <- map(roostDays_graphs, ~as_tbl_graph(.x) %>%
-                            activate(nodes) %>%
-                            mutate(degree = igraph::degree(.))) 
+                             activate(nodes) %>%
+                             mutate(degree = igraph::degree(.))) 
 
 future::plan(future::multisession, workers = 10)
 furrr::future_map2(tbl_graphs_flight, days, ~{
