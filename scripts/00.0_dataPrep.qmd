@@ -22,6 +22,8 @@ library(feather)
 library(readxl)
 library(elevatr)
 library(here)
+library(furrr)
+future::plan(future::multisession, workers = 10) # this will last for the whole R session.
 ```
 
 # Processing for all data
@@ -713,92 +715,13 @@ rm(downsampled_10min_forSocial)
 gc()
 ```
 
-### Data for social analysis
-
-The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `seasons_list` and not anything further along.
-
-## Get roosts before removing night points
-
-We are going to need to get nightly roost locations for all of the vultures. We have to do this now because getting roost locations requires using points that occur at night, which we will eventually want to remove in order to do the movement analysis.
-
-*Inputs:*
-
--   `data/dataPrep/removed_lfr.Rda`
-
-*Outputs:*
-
--   `data/dataPrep/roosts.Rda`
-
-```{r}
-load(here::here("data", "dataPrep", "removed_lfr.Rda"))
-```
-
-```{r}
-#| eval: false
-# Get roosts for each season ----------------------------------------------
-roosts <- purrr::map(removed_lfr, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"))
-roosts <- roosts %>%
-  map(., ~st_as_sf(.x, crs = "WGS84", 
-                   coords = c("location_long", "location_lat"), 
-                   remove = F))
-save(roosts, file = here::here("data", "dataPrep", "roosts.Rda"))
-
-# Tidy up
-rm(removed_lfr)
-rm(roosts)
-gc()
-```
-
-# Further processing for movement analysis
-
-## Remove nighttime points
-
-*Inputs:*
-
--   `data/dataPrep/removed_lfr.Rda`
--   `data/dataPrep/season_names.Rda`
-
-*Outputs:*
-
--   `data/dataPrep/removed_nightime.Rda`
-
-```{r}
-load(here::here("data", "dataPrep", "removed_lfr.Rda"))
-load(here::here("data", "dataPrep", "season_names.Rda"))
-```
-
-```{r}
-#| eval: false
-# Remove nighttime points -------------------------------------------------
-removed_nighttime <- map(removed_lfr, ~{
-  times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
-                                     lat = 31.434306, lon = 34.991889, # XXX revisit this!
-                                     keep = c("sunrise", "sunset")) %>%
-    dplyr::select("dateOnly" = date, sunrise, sunset)
-
-  .x <- .x %>%
-    dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
-    dplyr::left_join(times, by = "dateOnly") %>%
-    dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
-    dplyr::filter(daylight == "day")
-})
-
-save(removed_nighttime, file = here::here("data", "dataPrep", "removed_nighttime.Rda"))
-
-# tidy up
-rm(removed_nighttime)
-rm(removed_lfr)
-rm(season_names)
-gc()
-```
-
 ## Restrict to southern population
 
 Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (UTM 36N, <https://epsg.io/32636)>
 
 *Inputs:*
 
--   `data/dataPrep/removed_nighttime.Rda`
+-   `data/dataPrep/removed_lfr.Rda`
 -   `data/dataPrep/season_names.Rda`
 
 *Outputs:*
@@ -806,14 +729,14 @@ Based on previous investigations for the 2022 breeding and non-breeding seasons,
 -   `data/dataPrep/removed_northern.Rda`
 
 ```{r}
-load(here::here("data", "dataPrep", "removed_nighttime.Rda"))
+load(here::here("data", "dataPrep", "removed_lfr.Rda"))
 load(here::here("data", "dataPrep", "season_names.Rda"))
 ```
 
 ```{r}
 #| eval: false
 # Transform to SF object, so we can get centroids
-seasons_sf <- map(removed_nighttime, ~.x %>%
+seasons_sf <- map(removed_lfr, ~.x %>%
                    sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
                    sf::st_set_crs("WGS84") %>%
                    sf::st_transform(32636))
@@ -833,36 +756,98 @@ southern_indivs <- map(centroids, ~.x %>%
                         pull(Nili_id))
 
 ## Remove individuals not in the south
-before <- removed_nighttime
-removed_northern <- map2(.x = removed_nighttime, 
+removed_northern <- map2(.x = removed_lfr, 
                          .y = southern_indivs, ~.x 
                          %>% filter(Nili_id %in% .y))
-after <- removed_northern
-
-beforeRows <- map_dbl(before, nrow)
-afterRows <- map_dbl(after, nrow)
-beforeIndivs <- map_dbl(before, ~length(unique(.x$Nili_id)))
-afterIndivs <- map_dbl(after, ~length(unique(.x$Nili_id)))
-df <- data.frame(season = season_names, nBefore = beforeRows, nAfter = afterRows, indivsBefore = beforeIndivs, indivsAfter = afterIndivs)
-df$propRowsRemoved <- round((df$nBefore - df$nAfter)/df$nBefore, 2)
-df
-
 save(removed_northern, file = here::here("data", "dataPrep", "removed_northern.Rda"))
 
 # tidy up
-rm(removed_nighttime)
+rm(removed_lfr)
 rm(season_names)
 rm(seasons_sf)
 rm(centroids)
 rm(southern_indivs)
-rm(before)
-rm(after)
 rm(removed_northern)
 rm(df)
-rm(afterIndivs)
-rm(afterRows)
-rm(beforeIndivs)
-rm(beforeRows)
+gc()
+```
+
+### Data for social analysis
+
+The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `seasons_list` and not anything further along.
+
+## Get roosts before removing night points
+
+We are going to need to get nightly roost locations for all of the vultures. We have to do this now because getting roost locations requires using points that occur at night, which we will eventually want to remove in order to do the movement analysis.
+
+*Inputs:*
+
+-   `data/dataPrep/removed_northern.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/roosts.Rda`
+
+```{r}
+load(here::here("data", "dataPrep", "removed_northern.Rda"))
+```
+
+```{r}
+#| eval: false
+# Get roosts for each season ----------------------------------------------
+roosts <- furrr::future_map(removed_northern, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"), .progress = T)
+roosts <- roosts %>%
+  furrr::future_map(., ~st_as_sf(.x, crs = "WGS84", 
+                   coords = c("location_long", "location_lat"), 
+                   remove = F), .progress = T)
+save(roosts, file = here::here("data", "dataPrep", "roosts.Rda"))
+
+# Tidy up
+rm(removed_northern)
+rm(roosts)
+gc()
+```
+
+# Further processing for movement analysis
+
+## Remove nighttime points
+
+*Inputs:*
+
+-   `data/dataPrep/removed_northern.Rda`
+-   `data/dataPrep/season_names.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/removed_nightime.Rda`
+
+```{r}
+load(here::here("data", "dataPrep", "removed_northern.Rda"))
+load(here::here("data", "dataPrep", "season_names.Rda"))
+```
+
+```{r}
+#| eval: false
+# Remove nighttime points -------------------------------------------------
+removed_nighttime <- map(removed_northern, ~{
+  times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
+                                     lat = 31.434306, lon = 34.991889, # XXX revisit this!
+                                     keep = c("sunrise", "sunset")) %>%
+    dplyr::select("dateOnly" = date, sunrise, sunset)
+
+  .x <- .x %>%
+    dplyr::mutate(dateOnly = lubridate::ymd(dateOnly)) %>%
+    dplyr::left_join(times, by = "dateOnly") %>%
+    dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
+    dplyr::filter(daylight == "day")
+})
+
+save(removed_nighttime, file = here::here("data", "dataPrep", "removed_nighttime.Rda"))
+
+# tidy up
+rm(removed_nighttime)
+rm(removed_northern)
+rm(season_names)
 gc()
 ```
 
