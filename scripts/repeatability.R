@@ -105,6 +105,7 @@ length(split_sfData) == length(ndays) # should be TRUE
 map_dbl(split_sfData, length)
 save(split_sfData, file = "data/split_sfData.Rda")
 load("data/split_sfData.Rda")
+brks <- map(split_sfData, ~map_chr(.x, ~{as.character(.x$int[1])})) # extract the date breaks
 gc()
 
 testseason_roosts <- roosts[[9]]
@@ -121,6 +122,8 @@ split_sfData_roosts <- purrr::map(annotated_roosts, ~{
 rm(annotated_roosts)
 save(split_sfData_roosts, file = "data/split_sfData_roosts.Rda")
 load("data/split_sfData_roosts.Rda")
+brks_roosts <- map(split_sfData_roosts, ~map_chr(.x, ~{as.character(.x$int[1])})) # extract the date breaks for roosting data
+identical(brks, brks_roosts) # TRUE yay!
 
 length(split_sfData_roosts) == length(ndays) # TRUE
 map_dbl(split_sfData_roosts, length) # should be very similar to the same for non-roost data, if not identical.
@@ -257,71 +260,75 @@ for(i in 1:length(ndays)){
   rm(roostinggraphs)
 }
 
+save(graphs_flight, file = "data/graphs_flight.Rda")
+save(graphs_feeding, file = "data/graphs_feeding.Rda")
+save(graphs_roosting, file = "data/graphs_roosting.Rda")
 
+# Get metrics for each graph
+metrics_flight <- vector(mode = "list", length = length(ndays))
+metrics_feeding <- vector(mode = "list", length = length(ndays))
+metrics_roosting <- vector(mode = "list", length = length(ndays))
 
-future::plan(future::multisession, workers = 10)
-flightDays_graphs <- furrr::future_map(flightDays_sri, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T), .progress = T)
-save(flightDays_graphs, file = "data/calcSocial/flightDays_graphs.Rda")
+for(i in 1:length(ndays)){
+  fl <- graphs_flight[[i]]
+  fe <- graphs_feeding[[i]]
+  ro <- graphs_roosting[[i]]
+  
+  metrics_flight[[i]] <- map2(fl, brks[[i]], ~{
+    if(length(.x) > 0){
+      out <- data.frame(degree = igraph::degree(.x),
+                        strength = igraph::strength(.x),
+                        Nili_id = names(igraph::degree(.x)),
+                        int = .y,
+                        n = length(V(.x)),
+                        type = "flight",
+                        ndays = ndays[i])
+    }else{
+      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
+                        n = 0, type = "flight", ndays = ndays[i])
+    }
+    return(out)
+  })
+  metrics_feeding[[i]] <- map2(fe, brks[[i]], ~{
+    if(length(.x) > 0){
+      out <- data.frame(degree = igraph::degree(.x),
+                        strength = igraph::strength(.x),
+                        Nili_id = names(igraph::degree(.x)),
+                        int = .y,
+                        n = length(V(.x)),
+                        type = "feeding",
+                        ndays = ndays[i])
+    }else{
+      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
+                        n = 0, type = "feeding", ndays = ndays[i])
+    }
+    return(out)
+  })
+  metrics_roosting[[i]] <- map2(ro, brks_roosts[[i]], ~{
+    if(length(.x) > 0){
+      out <- data.frame(degree = igraph::degree(.x),
+                        strength = igraph::strength(.x),
+                        Nili_id = names(igraph::degree(.x)),
+                        int = .y,
+                        n = length(V(.x)),
+                        type = "roosting",
+                        ndays = ndays[i])
+    }else{
+      out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
+                        n = 0, type = "roosting", ndays = ndays[i])
+    }
+    return(out)
+  })
+}
+metrics_flight <- map(metrics_flight, ~purrr::list_rbind(.x))
+metrics_feeding <- map(metrics_feeding, ~purrr::list_rbind(.x))
+metrics_roosting <- map(metrics_roosting, ~purrr::list_rbind(.x))
 
-future::plan(future::multisession, workers = 10)
-feedingDays_graphs <- furrr::future_map(feedingDays_sri, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T), .progress = T)
-save(feedingDays_graphs, file = "data/calcSocial/feedingDays_graphs.Rda")
+metrics <- bind_rows(purrr::list_rbind(metrics_flight), 
+                     purrr::list_rbind(metrics_feeding), 
+                     purrr::list_rbind(metrics_roosting))
 
-future::plan(future::multisession, workers = 10)
-roostDays_graphs <- furrr::future_map(roostDays_sri, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T), .progress = T)
-save(roostDays_graphs, file = "data/calcSocial/roostDays_graphs.Rda")
-
-flightDays_metrics <- map2(flightDays_graphs, days, ~{
-  if(length(.x) > 0){
-    metrics <- data.frame(degree = igraph::degree(.x),
-                          strength = igraph::strength(.x),
-                          Nili_id = names(igraph::degree(.x)),
-                          type = "flight",
-                          date = .y)
-  }else{
-    metrics <- data.frame(degree = NA,
-                          strength = NA,
-                          Nili_id = NA,
-                          type = "")
-  }
-})
-flightDays_metrics_df <- purrr::list_rbind(flightDays_metrics)
-
-feedingDays_metrics <- map2(feedingDays_graphs, days, ~{
-  if(length(.x) > 0){
-    metrics <- data.frame(degree = igraph::degree(.x),
-                          strength = igraph::strength(.x),
-                          Nili_id = names(igraph::degree(.x)),
-                          type = "feeding",
-                          date = .y)
-  }else{
-    metrics <- data.frame(degree = NA,
-                          strength = NA,
-                          Nili_id = NA,
-                          type = "")
-  }
-})
-feedingDays_metrics_df <- purrr::list_rbind(feedingDays_metrics)
-
-roostDays_metrics <- map2(roostDays_graphs, days_r, ~{
-  if(length(.x) > 0){
-    metrics <- data.frame(degree = igraph::degree(.x),
-                          strength = igraph::strength(.x),
-                          Nili_id = names(igraph::degree(.x)),
-                          type = "roosting",
-                          date = .y)
-  }else{
-    metrics <- data.frame(degree = NA,
-                          strength = NA,
-                          Nili_id = NA,
-                          type = "")
-  }
-})
-roostDays_metrics_df <- purrr::list_rbind(roostDays_metrics)
-
-days_metrics_df <- bind_rows(flightDays_metrics_df, feedingDays_metrics_df, roostDays_metrics_df)
-
-
+### XXX START HERE
 # Daily graph plots -------------------------------------------------------
 tbl_graphs_flight <- map(flightDays_graphs, ~as_tbl_graph(.x) %>%
                            activate(nodes) %>%
