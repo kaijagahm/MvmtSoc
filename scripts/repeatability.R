@@ -319,62 +319,135 @@ for(i in 1:length(ndays)){
     }
     return(out)
   })
+  rm(fl)
+  rm(fe)
+  rm(ro)
 }
-metrics_flight <- map(metrics_flight, ~purrr::list_rbind(.x))
-metrics_feeding <- map(metrics_feeding, ~purrr::list_rbind(.x))
-metrics_roosting <- map(metrics_roosting, ~purrr::list_rbind(.x))
+metrics_flight_df <- map(metrics_flight, ~purrr::list_rbind(.x))
+metrics_feeding_df <- map(metrics_feeding, ~purrr::list_rbind(.x))
+metrics_roosting_df <- map(metrics_roosting, ~purrr::list_rbind(.x))
 
-metrics <- bind_rows(purrr::list_rbind(metrics_flight), 
-                     purrr::list_rbind(metrics_feeding), 
-                     purrr::list_rbind(metrics_roosting))
+metrics <- bind_rows(purrr::list_rbind(metrics_flight_df), 
+                     purrr::list_rbind(metrics_feeding_df), 
+                     purrr::list_rbind(metrics_roosting_df))
 
-### XXX START HERE
-# Daily graph plots -------------------------------------------------------
-tbl_graphs_flight <- map(flightDays_graphs, ~as_tbl_graph(.x) %>%
-                           activate(nodes) %>%
-                           mutate(degree = igraph::degree(.))) 
-tbl_graphs_feeding <- map(feedingDays_graphs, ~as_tbl_graph(.x) %>%
-                            activate(nodes) %>%
-                            mutate(degree = igraph::degree(.))) 
-tbl_graphs_roosting <- map(roostDays_graphs, ~as_tbl_graph(.x) %>%
-                             activate(nodes) %>%
-                             mutate(degree = igraph::degree(.))) 
+# Create tbl graphs and join metrics
+graphs_flight_tbl <- vector(mode = "list", length = length(ndays))
+graphs_feeding_tbl <- vector(mode = "list", length = length(ndays))
+graphs_roosting_tbl <- vector(mode = "list", length = length(ndays))
+for(i in 1:length(ndays)){
+  fl <- graphs_flight[[i]]
+  fe <- graphs_feeding[[i]]
+  ro <- graphs_roosting[[i]]
+  
+  fl_tbl <- map(fl, ~as_tbl_graph(.x))
+  fe_tbl <- map(fe, ~as_tbl_graph(.x))
+  ro_tbl <- map(ro, ~as_tbl_graph(.x))
+  
+  graphs_flight_tbl[[i]] <- map2(fl_tbl, metrics_flight[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+  graphs_feeding_tbl[[i]] <- map2(fe_tbl, metrics_feeding[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+  graphs_roosting_tbl[[i]] <- map2(ro_tbl, metrics_roosting[[i]], ~{
+    .x %>% activate(nodes) %>%
+      left_join(.y, by = c("name" = "Nili_id"))
+  })
+    
+  rm(fl)
+  rm(fe)
+  rm(ro)
+}
+
+i <- 3
+int <- 10
+test <- graphs_feeding_tbl[[i]][[int]]
+start <- brks[[i]][int]
+end <- lubridate::ymd(start) + days
+title <- paste0(ndays[i], "-day interval: [", brks[[i]][int], ", ", lubridate::ymd(brks[[i]][int])+ndays[i], ")")
+ggraph(test, layout = "fr")+
+  geom_edge_link(alpha = 0.3)+
+  geom_node_point(aes(col = degree, size = degree))+
+  geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
+  scale_color_viridis()+
+  theme_void()+
+  ggtitle(title)
 
 future::plan(future::multisession, workers = 10)
-furrr::future_map2(tbl_graphs_flight, days, ~{
-  title <- paste(.y, "flight")
-  g <- ggraph(.x, layout = "fr")+
-    geom_edge_link(alpha = 0.3)+
-    geom_node_point(aes(col = degree, size = degree))+
-    geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
-    scale_color_viridis()+
-    theme_void()+
-    ggtitle(title)
-  ggsave(g, filename = paste0("fig/networkGraphs/daily/flight_", .y, ".png"), width = 6, height = 5)
-}, .progress = T)
+for(i in 1:length(ndays)){
+  days <- ndays[[i]]
+  fl <- graphs_flight_tbl[[i]]
+  fe <- graphs_feeding_tbl[[i]]
+  ro <- graphs_roosting_tbl[[i]]
+  cat("working on interval", days)
 
-future::plan(future::multisession, workers = 10)
-furrr::future_map2(tbl_graphs_feeding, days, ~{
-  title <- paste(.y, "feeding")
-  g <- ggraph(.x, layout = "fr")+
-    geom_edge_link(alpha = 0.3)+
-    geom_node_point(aes(col = degree, size = degree))+
-    geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
-    scale_color_viridis()+
-    theme_void()+
-    ggtitle(title)
-  ggsave(g, filename = paste0("fig/networkGraphs/daily/feeding_", .y, ".png"), width = 6, height = 5)
-}, .progress = T)
+  furrr::future_walk2(fl, brks[[i]], ~{
+    end <- lubridate::ymd(.y) + days
+    title <- paste0("Co-flight, ", days, "-day interval: [", .y, ", ", end, ")")
+    g <- ggraph(.x, layout = "fr")+
+      geom_edge_link(alpha = 0.3)+
+      geom_node_point(aes(col = degree, size = degree))+
+      geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
+      scale_color_viridis()+
+      theme_void()+
+      ggtitle(title)
+    filename <- paste0("fig/networkGraphs/interval/days_", 
+                       str_pad(days, width = 2, side = "left", pad = "0"), 
+                       "/flight_", .y, "_", lubridate::ymd(.y)+2, ".png")
+    ggsave(g, filename = filename, width = 6, height = 5)
+  }, .progress = T)
+  
+  furrr::future_walk2(fe, brks[[i]], ~{
+    end <- lubridate::ymd(.y) + days
+    title <- paste0("Co-feeding, ", days, "-day interval: [", .y, ", ", end, ")")
+    g <- ggraph(.x, layout = "fr")+
+      geom_edge_link(alpha = 0.3)+
+      geom_node_point(aes(col = degree, size = degree))+
+      geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
+      scale_color_viridis()+
+      theme_void()+
+      ggtitle(title)
+    filename <- paste0("fig/networkGraphs/interval/days_", 
+                       str_pad(days, width = 2, side = "left", pad = "0"), 
+                       "/feeding_", .y, "_", lubridate::ymd(.y)+2, ".png")
+    ggsave(g, filename = filename, width = 6, height = 5)
+  }, .progress = T)
+  
+  furrr::future_walk2(ro, brks_roosts[[i]], ~{
+    end <- lubridate::ymd(.y) + days
+    title <- paste0("Co-roosting, ", days, "-day interval: [", .y, ", ", end, ")")
+    g <- ggraph(.x, layout = "fr")+
+      geom_edge_link(alpha = 0.3)+
+      geom_node_point(aes(col = degree, size = degree))+
+      geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
+      scale_color_viridis()+
+      theme_void()+
+      ggtitle(title)
+    filename <- paste0("fig/networkGraphs/interval/days_", 
+                       str_pad(days, width = 2, side = "left", pad = "0"), 
+                       "/roosting_", .y, "_", lubridate::ymd(.y)+2, ".png")
+    ggsave(g, filename = filename, width = 6, height = 5)
+  }, .progress = T)
+}
 
-future::plan(future::multisession, workers = 10)
-furrr::future_map2(tbl_graphs_roosting, days_r, ~{
-  title <- paste(.y, "roosting")
-  g <- ggraph(.x, layout = "fr")+
-    geom_edge_link(alpha = 0.3)+
-    geom_node_point(aes(col = degree, size = degree))+
-    geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
-    scale_color_viridis()+
-    theme_void()+
-    ggtitle(title)
-  ggsave(g, filename = paste0("fig/networkGraphs/daily/roosting_", .y, ".png"), width = 6, height = 5)
-}, .progress = T)
+# Graphs of metrics -------------------------------------------------------
+glimpse(metrics)
+metrics <- metrics %>%
+  group_by(ndays, int) %>%
+  mutate(normDegree = degree/(n-1),
+         normStrength = strength/sum(strength, na.rm = T))
+
+metrics %>%
+  ggplot(aes(x = ndays, y = normDegree, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme_classic()+
+  facet_wrap(~type) # we can see the relative degree saturating at least for roosting; the few individuals that have a low normalized degree all the time are presumably from the Carmel. For feeding and flight the pattern is less clear; it seems to diverge for feeding, and for flight I'm not sure if it saturates or not.
+
+metrics %>%
+  ggplot(aes(x = ndays, y = normStrength, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme_classic()+
+  facet_wrap(~type) # I do not understand why this does DOWN. Am I normalizing it incorrectly?
