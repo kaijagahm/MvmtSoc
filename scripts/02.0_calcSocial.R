@@ -4,11 +4,13 @@ library(vultureUtils)
 library(igraph)
 library(tidyverse)
 library(sf)
+library(future)
+future::plan(future::multisession(), workers = 10)
 
 ## Data ---------------------------------------------------------------
 load("data/dataPrep/downsampled_10min_forSocial.Rda") # this is the last dataset we produced in the dataPrep script before moving on to the further cleaning for movement, so this is the one we're going to use for the social interactions.
 sfdata <- map(downsampled_10min_forSocial, ~st_as_sf(.x, coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
-datasetAssignments <- map(downsampled_10min_forSocial, ~.x %>% select(Nili_id, dataset, seasonUnique) %>% distinct() %>% group_by(Nili_id, seasonUnique) %>%
+datasetAssignments <- map(downsampled_10min_forSocial, ~.x %>% dplyr::select(Nili_id, dataset, seasonUnique) %>% distinct() %>% group_by(Nili_id, seasonUnique) %>%
                             mutate(dataset = case_when(n() > 1 ~ "both",
                                                        TRUE ~ dataset)) %>%
                             ungroup() %>%
@@ -22,15 +24,13 @@ load("data/dataPrep/season_names.Rda")
 load("data/dataPrep/roosts.Rda") # XXX load
 load("data/derived/cc.Rda")
 
-
-# Investigate the data ----------------------------------------------------
-# How many individuals do we have with vs. without excluding those with a lower sampling rate?
-all <- map_dbl(sfdata, ~length(unique(.x$Nili_id)))
-nindivs <- map(sfdata, ~.x %>% sf::st_drop_geometry() %>% select(Nili_id, dataset) %>% distinct() %>% group_by(dataset) %>% summarize(n = length(unique(Nili_id)))) %>% map2(.x = ., .y = season_names, ~.x %>% mutate(seasonUnique = .y)) %>% purrr::list_rbind() 
-nindivs # so generally more ornitela than inpa individuals, but by the later seasons we do have double digits of inpa individuals.
-
 # Social Networks ---------------------------------------------------------
 flight <- vector(mode = "list", length = length(sfdata))
+future::plan(future::multisession(), workers = 10)
+flight <- furrr::future_map(sfdata, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons,
+                                                                  distThreshold = 1000, idCol = "Nili_id",
+                                                                  return = "both", getLocs = T), .progress = T)
+
 for(i in 1:length(sfdata)){
   cat("Working on iteration", i, "\n")
   dat <- sfdata[[i]]
