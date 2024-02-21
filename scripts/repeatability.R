@@ -9,6 +9,7 @@ library(zoo)
 
 # Repeatability across seasons --------------------------------------------
 load("data/mixedModels/linked.Rda")
+future::plan(future::multisession(), workers = 10)
 
 ## Just using the traits we've already calculated and plotting across seasons, and coloring by the average value for each individual across all of its seasons, let's see if we get gradients
 
@@ -87,7 +88,7 @@ annotated <- map(breaks, ~testseason %>%
 
 # XXX I'll have to find a way to include the last few dates in these (i.e. add one more element to "breaks" that's [last one + 1 interval unit]), but for now it's fine to leave them as NA.
 
-split_sfData <- purrr::map(annotated, ~{
+split_sfData <- map(annotated, ~{
   cat("grouping\n")
   lst <- .x %>%
     group_by(int) %>%
@@ -138,8 +139,9 @@ for(split in 1:length(ndays)){
   datalist <- split_sfData[[split]]
   roostlist <- split_sfData_roosts[[split]]
   cat("working on flight\n")
-  future::plan(future::multisession, workers = 16)
+  future::plan(future::multisession, workers = 5)
   fl <- suppressWarnings(furrr::future_map(datalist, ~{
+    library(sf)
     vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons,
                                  distThreshold = 1000, idCol = "Nili_id",
                                  return = "sri")
@@ -242,11 +244,11 @@ for(i in 1:length(ndays)){
 graphs_flight <- vector(mode = "list", length = length(ndays))
 graphs_feeding <- vector(mode = "list", length = length(ndays))
 graphs_roosting <- vector(mode = "list", length = length(ndays))
+future::plan(future::multisession, workers = 5)
 for(i in 1:length(ndays)){
   flight <- flout[[i]]
   feeding <- feout[[i]]
   roosting <- roout[[i]]
-  future::plan(future::multisession, workers = 16)
   flightgraphs <- furrr::future_map(flight, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T),
                                     .progress = T)
   feedinggraphs <- furrr::future_map(feeding, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T),
@@ -330,6 +332,7 @@ metrics_roosting_df <- map(metrics_roosting, ~purrr::list_rbind(.x))
 metrics <- bind_rows(purrr::list_rbind(metrics_flight_df), 
                      purrr::list_rbind(metrics_feeding_df), 
                      purrr::list_rbind(metrics_roosting_df))
+save(metrics, file = "data/metrics.Rda")
 
 # Create tbl graphs and join metrics
 graphs_flight_tbl <- vector(mode = "list", length = length(ndays))
@@ -376,7 +379,7 @@ ggraph(test, layout = "fr")+
   theme_void()+
   ggtitle(title)
 
-future::plan(future::multisession, workers = 10)
+future::plan(future::multisession, workers = 5)
 for(i in 1:length(ndays)){
   days <- ndays[[i]]
   fl <- graphs_flight_tbl[[i]]
@@ -434,6 +437,7 @@ for(i in 1:length(ndays)){
 }
 
 # Graphs of metrics -------------------------------------------------------
+load("data/metrics.Rda")
 glimpse(metrics)
 metrics <- metrics %>%
   group_by(ndays, int) %>%
@@ -444,10 +448,50 @@ metrics %>%
   ggplot(aes(x = ndays, y = normDegree, col = type))+
   geom_jitter(alpha = 0.1, width = 0.6)+
   theme_classic()+
-  facet_wrap(~type) # we can see the relative degree saturating at least for roosting; the few individuals that have a low normalized degree all the time are presumably from the Carmel. For feeding and flight the pattern is less clear; it seems to diverge for feeding, and for flight I'm not sure if it saturates or not.
+  facet_wrap(~type) # There are a few individuals that don't roost with the others and therefore have a low degree, even at the high time windows. I thought those were Carmel birds, but I've now removed the northern indivs and we still see this pattern.
 
 metrics %>%
   ggplot(aes(x = ndays, y = normStrength, col = type))+
   geom_jitter(alpha = 0.1, width = 0.6)+
   theme_classic()+
-  facet_wrap(~type) # I do not understand why this does DOWN. Am I normalizing it incorrectly?
+  facet_wrap(~type) # I do not understand why this goes DOWN. Am I normalizing it incorrectly?
+
+# What about degree/strength per time period?
+ids <- unique(metrics$Nili_id)
+rand <- sample(ids, size = 5, replace = FALSE)
+metrics <- metrics %>%
+  mutate(highlight = ifelse(Nili_id %in% rand, T, F))
+
+future::plan(future::multisession(), workers = 5)
+furrr::future_walk(ndays, ~{
+  days <- .x
+  
+  plt_deg <- metrics %>%
+    filter(ndays == days, highlight) %>%
+    ggplot(aes(x = lubridate::ymd(int), y = normDegree, group = interaction(Nili_id, type)))+
+    geom_line(aes(col = Nili_id), alpha = 0.7)+
+    facet_wrap(~type, scales = "free", ncol = 1)+
+    theme_classic()+
+    theme(legend.position = "none")+
+    ylab("Degree (normalized)")+
+    xlab("Date")+
+    ggtitle(paste0("Degree, ", days, "-day intervals,\n5 random vultures"))
+  
+  plt_str <- metrics %>%
+    filter(ndays == days, highlight) %>%
+    ggplot(aes(x = lubridate::ymd(int), y = normStrength, group = interaction(Nili_id, type)))+
+    geom_line(aes(col = Nili_id), alpha = 0.7)+
+    facet_wrap(~type, scales = "free", ncol = 1)+
+    theme_classic()+
+    theme(legend.position = "none")+
+    ylab("Strength (normalized)")+
+    xlab("Date")+
+    ggtitle(paste0("Strength, ", days, "-day intervals,\n5 random vultures"))
+  
+  ggsave(plt_deg, file = paste0("fig/timePlots/degree_", 
+                                str_pad(days, width = 2, side = "left", pad = "0"), ".png"),
+         width = 9, height = 5)
+  ggsave(plt_str, file = paste0("fig/timePlots/strength_", 
+                                str_pad(days, width = 2, side = "left", pad = "0"), ".png"),
+         width = 9, height = 5)
+})
