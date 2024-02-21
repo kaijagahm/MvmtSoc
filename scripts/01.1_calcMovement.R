@@ -179,7 +179,7 @@ dfddf %>%
 ### Daily Distance Traveled/Mean Displacement -------------------------------
 
 # set up parallel backend with 4 sessions (change this to match your machine)
-future::plan(future::multicore, workers = 4)
+future::plan(future::multicore, workers = 10)
 
 # function to calculate displacements within a group
 calc_displacements <- function(group) {
@@ -217,7 +217,7 @@ calc_metrics <- function(data){
 }
 
 # apply the calc_metrics() function to each season in the list using purrr::map()
-dailyMovementList_seasons <- purrr::map(downsampled_10min_sf, calc_metrics, .progress = T)
+dailyMovementList_seasons <- map(downsampled_10min_sf, calc_metrics, .progress = T)
 save(dailyMovementList_seasons, file = "data/calcMovement/dailyMovementList_seasons.Rda")
 load("data/calcMovement/dailyMovementList_seasons.Rda") 
 
