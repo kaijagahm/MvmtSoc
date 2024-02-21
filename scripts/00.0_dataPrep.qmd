@@ -591,6 +591,63 @@ rm(season_names)
 gc()
 ```
 
+## Restrict to southern population
+
+Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (UTM 36N, <https://epsg.io/32636)>
+
+*Inputs:*
+
+-   `data/dataPrep/seasons_list.Rda`
+-   `data/dataPrep/season_names.Rda`
+
+*Outputs:*
+
+-   `data/dataPrep/removed_northern.Rda`
+
+```{r}
+load(here::here("data", "dataPrep", "seasons_list.Rda"))
+load(here::here("data", "dataPrep", "season_names.Rda"))
+```
+
+```{r}
+#| eval: false
+# Transform to SF object, so we can get centroids
+seasons_sf <- map(seasons_list, ~.x %>%
+                   sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
+                   sf::st_set_crs("WGS84") %>%
+                   sf::st_transform(32636))
+
+## Get centroids, so we can see who's "southern" for that season.
+centroids <- map(seasons_sf, ~.x %>%
+                   group_by(Nili_id) %>%
+                   summarize(geometry = st_union(geometry)) %>%
+                   st_centroid())
+
+## Examine a histogram of centroid latitudes 
+#walk(centroids, ~hist(st_coordinates(.x)[,2])) # looks like 3550000 is generally a good cutoff point here.
+
+## Get southern individuals for each season, so we can filter the data
+southern_indivs <- map(centroids, ~.x %>%
+                        filter(st_coordinates(.)[,2] < 3550000) %>%
+                        pull(Nili_id))
+
+## Remove individuals not in the south
+removed_northern <- map2(.x = seasons_list, 
+                         .y = southern_indivs, ~.x 
+                         %>% filter(Nili_id %in% .y))
+save(removed_northern, file = here::here("data", "dataPrep", "removed_northern.Rda"))
+
+# tidy up
+rm(seasons_list)
+rm(season_names)
+rm(seasons_sf)
+rm(centroids)
+rm(southern_indivs)
+rm(removed_northern)
+rm(df)
+gc()
+```
+
 ## Identify individuals with low fix rate
 
 Some of the INPA vultures were tracked only once an hour, or some other low fix rate. However, determining which birds these are is tricky because even the vultures that should have a 10-minute fix rate do not always have points every 10 minutes, e.g. due to lack of reception or low tag battery.\
@@ -601,7 +658,7 @@ Because tags can be put on and off and the fix rate can change, I'm calculating 
 
 *Inputs:*
 
--   `data/dataPrep/seasons_list.Rda`
+-   `data/dataPrep/removed_northern.Rda`
 -   `data/dataPrep/season_names.Rda`
 
 *Outputs:*
@@ -609,7 +666,7 @@ Because tags can be put on and off and the fix rate can change, I'm calculating 
 -   `data/dataPrep/low_fix_rate_indivs.Rda`
 
 ```{r}
-load(here::here("data", "dataPrep", "seasons_list.Rda"))
+load(here::here("data", "dataPrep", "removed_northern.Rda"))
 load(here::here("data", "dataPrep", "season_names.Rda"))
 ```
 
@@ -622,7 +679,7 @@ Mode <- function(x) {
 }
 
 # Calculate daily modes and add them to the dataset (using the function defined above)
-with_modes <- map(seasons_list, ~.x %>%
+with_modes <- map(removed_northern, ~.x %>%
                  group_by(dateOnly, Nili_id) %>%
                  mutate(diff = as.numeric(difftime(lead(timestamp), timestamp, units = "mins"))) %>%
                  group_by(dateOnly, Nili_id) %>%
@@ -644,7 +701,7 @@ save(low_fix_rate_indivs,
 # Don't need to save with_modes because we've already used this step to identify low fix rate individuals.
 
 # Tidy up
-rm(seasons_list)
+rm(removed_northern)
 rm(season_names)
 rm(low_fix_rate_indivs)
 rm(with_modes)
@@ -655,24 +712,26 @@ gc()
 
 *Inputs:*
 
--   `data/dataPrep/seasons_list.Rda`
+-   `data/dataPrep/removed_northern.Rda`
 
 -   `data/dataPrep/low_fix_rate_indivs.Rda`
 
 ```{r}
-load(here::here("data", "dataPrep", "seasons_list.Rda")) 
+load(here::here("data", "dataPrep", "removed_northern.Rda")) 
 load(here::here("data", "dataPrep", "low_fix_rate_indivs.Rda"))
 ```
 
 ```{r}
-removed_lfr <- map2(seasons_list, low_fix_rate_indivs,                     ~.x %>% filter(!(Nili_id %in% .y))) 
+removed_lfr <- map2(removed_northern, low_fix_rate_indivs,                     ~.x %>% filter(!(Nili_id %in% .y))) 
 save(removed_lfr, file = here::here("data", "dataPrep", "removed_lfr.Rda"))  
 # tidy up 
-rm(seasons_list) 
+rm(removed_northern) 
 rm(low_fix_rate_indivs) 
 rm(removed_lfr) 
 gc()
 ```
+
+## Remove high-frequency fixes
 
 ```{r}
 load(here::here("data", "dataPrep", "removed_lfr.Rda"))
@@ -715,66 +774,9 @@ rm(downsampled_10min_forSocial)
 gc()
 ```
 
-## Restrict to southern population
-
-Based on previous investigations for the 2022 breeding and non-breeding seasons, have found that a good cutoff for southern vs. non-southern is 3550000 (UTM 36N, <https://epsg.io/32636)>
-
-*Inputs:*
-
--   `data/dataPrep/removed_lfr.Rda`
--   `data/dataPrep/season_names.Rda`
-
-*Outputs:*
-
--   `data/dataPrep/removed_northern.Rda`
-
-```{r}
-load(here::here("data", "dataPrep", "removed_lfr.Rda"))
-load(here::here("data", "dataPrep", "season_names.Rda"))
-```
-
-```{r}
-#| eval: false
-# Transform to SF object, so we can get centroids
-seasons_sf <- map(removed_lfr, ~.x %>%
-                   sf::st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>%
-                   sf::st_set_crs("WGS84") %>%
-                   sf::st_transform(32636))
-
-## Get centroids, so we can see who's "southern" for that season.
-centroids <- map(seasons_sf, ~.x %>%
-                   group_by(Nili_id) %>%
-                   summarize(geometry = st_union(geometry)) %>%
-                   st_centroid())
-
-## Examine a histogram of centroid latitudes 
-walk(centroids, ~hist(st_coordinates(.x)[,2])) # looks like 3550000 is generally a good cutoff point here.
-
-## Get southern individuals for each season, so we can filter the data
-southern_indivs <- map(centroids, ~.x %>%
-                        filter(st_coordinates(.)[,2] < 3550000) %>%
-                        pull(Nili_id))
-
-## Remove individuals not in the south
-removed_northern <- map2(.x = removed_lfr, 
-                         .y = southern_indivs, ~.x 
-                         %>% filter(Nili_id %in% .y))
-save(removed_northern, file = here::here("data", "dataPrep", "removed_northern.Rda"))
-
-# tidy up
-rm(removed_lfr)
-rm(season_names)
-rm(seasons_sf)
-rm(centroids)
-rm(southern_indivs)
-rm(removed_northern)
-rm(df)
-gc()
-```
-
 ### Data for social analysis
 
-The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `seasons_list` and not anything further along.
+The next step will be to remove individuals with too few points per day or too few days tracked. But we don't want those indivs removed for the *social* analysis, since those things will be accounted for with SRI and all individuals make up important parts of the social fabric. So when we do the social analysis, we will use `removed_lfr` and not anything further along.
 
 ## Get roosts before removing night points
 
@@ -782,28 +784,28 @@ We are going to need to get nightly roost locations for all of the vultures. We 
 
 *Inputs:*
 
--   `data/dataPrep/removed_northern.Rda`
+-   `data/dataPrep/downsampled_10min_forSocial.Rda`
 
 *Outputs:*
 
 -   `data/dataPrep/roosts.Rda`
 
 ```{r}
-load(here::here("data", "dataPrep", "removed_northern.Rda"))
+load(here::here("data", "dataPrep", "downsampled_10min_forSocial.Rda"))
 ```
 
 ```{r}
 #| eval: false
 # Get roosts for each season ----------------------------------------------
-roosts <- furrr::future_map(removed_northern, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"), .progress = T)
+roosts <- map(downsampled_10min_forSocial, ~vultureUtils::get_roosts_df(df = .x, id = "Nili_id"), .progress = T)
 roosts <- roosts %>%
-  furrr::future_map(., ~st_as_sf(.x, crs = "WGS84", 
+  map(., ~st_as_sf(.x, crs = "WGS84", 
                    coords = c("location_long", "location_lat"), 
                    remove = F), .progress = T)
 save(roosts, file = here::here("data", "dataPrep", "roosts.Rda"))
 
 # Tidy up
-rm(removed_northern)
+rm(downsampled_10min_forSocial)
 rm(roosts)
 gc()
 ```
@@ -814,7 +816,7 @@ gc()
 
 *Inputs:*
 
--   `data/dataPrep/removed_northern.Rda`
+-   `data/dataPrep/removed_lfr.Rda`
 -   `data/dataPrep/season_names.Rda`
 
 *Outputs:*
@@ -822,14 +824,14 @@ gc()
 -   `data/dataPrep/removed_nightime.Rda`
 
 ```{r}
-load(here::here("data", "dataPrep", "removed_northern.Rda"))
+load(here::here("data", "dataPrep", "removed_lfr.Rda"))
 load(here::here("data", "dataPrep", "season_names.Rda"))
 ```
 
 ```{r}
 #| eval: false
 # Remove nighttime points -------------------------------------------------
-removed_nighttime <- map(removed_northern, ~{
+removed_nighttime <- map(removed_lfr, ~{
   times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
                                      lat = 31.434306, lon = 34.991889, # XXX revisit this!
                                      keep = c("sunrise", "sunset")) %>%
@@ -840,13 +842,13 @@ removed_nighttime <- map(removed_northern, ~{
     dplyr::left_join(times, by = "dateOnly") %>%
     dplyr::mutate(daylight = ifelse(timestamp >= sunrise & timestamp <= sunset, "day", "night")) %>%
     dplyr::filter(daylight == "day")
-})
+}, .progress = T)
 
 save(removed_nighttime, file = here::here("data", "dataPrep", "removed_nighttime.Rda"))
 
 # tidy up
 rm(removed_nighttime)
-rm(removed_northern)
+rm(removed_lfr)
 rm(season_names)
 gc()
 ```
@@ -855,24 +857,24 @@ gc()
 
 *Inputs:*
 
--   `data/dataPrep/removed_northern.Rda`
+-   `data/dataPrep/removed_nighttime.Rda`
 
 *Outputs:*
 
 -   `data/dataPrep/removed_lowppd.Rda`
 
 ```{r}
-load(here::here("data", "dataPrep", "removed_northern.Rda"))
+load(here::here("data", "dataPrep", "removed_nighttime.Rda"))
 ```
 
 ```{r}
 #| eval: false
 # Calculate number of points per day for each individual
-ppd <- map_dfr(removed_northern, ~.x %>%
+ppd <- map_dfr(removed_nighttime, ~.x %>%
                  st_drop_geometry() %>%
                  group_by(seasonUnique, season, Nili_id, dateOnly) %>%
                  summarize(n = n(),
-                           minBatt = min(battery_charge_percent, na.rm = T)))
+                           minBatt = min(battery_charge_percent, na.rm = T)), .progress = T)
 
 # Sometimes, fewer points per day is due to low battery charge percent. Let's examine the relationship between battery charge and number of points per day.
 ppd %>%
@@ -900,7 +902,7 @@ ppd %>%
   theme_classic()
 
 ## Keep days with more than 10 points, or with fewer than 10 if the minimum battery charge that day is >50%
-removed_lowppd <- map(removed_northern, ~.x %>%
+removed_lowppd <- map(removed_nighttime, ~.x %>%
                  group_by(Nili_id, dateOnly) %>%
                  filter(n() >= 10 | (n() < 10 & 
                                        min(battery_charge_percent, 
@@ -954,15 +956,12 @@ indivsToKeep <- map(removed_lowppd, ~.x %>%
                        summarize(nDaysTracked = 
                                    length(unique(dateOnly))) %>%
                        filter(nDaysTracked >= 30) %>%
-                       pull(Nili_id))
+                       pull(Nili_id), .progress = T)
 
 ## remove those individuals not tracked for enough days
 removed_too_few_days <- map2(.x = removed_lowppd, 
                              .y = indivsToKeep, ~.x %>% 
                 filter(Nili_id %in% .y))
-
-beforeIndivs <- map_dbl(removed_lowppd, ~length(unique(.x$Nili_id)))
-afterIndivs <- map_dbl(removed_too_few_days, ~length(unique(.x$Nili_id)))
 
 save(removed_too_few_days, file = here::here("data", "dataPrep", "removed_too_few_days.Rda"))
 save(season_durations, file = here::here("data", "dataPrep", "season_durations.Rda"))
@@ -973,8 +972,6 @@ rm(season_names)
 rm(season_durations)
 rm(indivsToKeep)
 rm(removed_too_few_days)
-rm(beforeIndivs)
-rm(afterIndivs)
 gc()
 ```
 
@@ -998,7 +995,7 @@ load(here::here("data", "dataPrep", "removed_too_few_days.Rda"))
 #| eval: false
 # Get elevation rasters ---------------------------------------------------
 sf <- map(removed_too_few_days, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-elevs_z10 <- map(sf, ~elevatr::get_elev_raster(.x , z = 10))
+elevs_z10 <- map(sf, ~elevatr::get_elev_raster(.x , z = 10), .progress = T)
 save(elevs_z10, file = here::here("data", "dataPrep", "elevs_z10.Rda"))
 save(sf, file = here::here("data", "dataPrep", "sf.Rda"))
 ```
@@ -1010,7 +1007,7 @@ load(here::here("data", "dataPrep", "sf.Rda"))
 
 ```{r}
 #| eval: false
-groundElev_z10 <- map2(elevs_z10, sf, ~raster::extract(x = .x, y = .y)) # have to convert the crs because the raster from elevatr is in WGS84.
+groundElev_z10 <- map2(elevs_z10, sf, ~raster::extract(x = .x, y = .y), .progress = T) # have to convert the crs because the raster from elevatr is in WGS84.
 
 ## use elevation rasters to calculate height above ground level
 with_altitudes <- map2(.x = removed_too_few_days, .y = groundElev_z10, 
