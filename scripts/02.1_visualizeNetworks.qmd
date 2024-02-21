@@ -27,8 +27,12 @@ load(here("data", "mixedModels", "linked.Rda"))
 info <- networkMetrics %>%
   left_join(linked %>%
               select(Nili_id, "season" = seasonUnique, daysTracked, propDaysTracked, birth_year, sex, space_use, movement, roost_div, space_use_log, age, age_group, type)) %>%
-  mutate(focal = case_when(is.na(movement) & is.na(space_use) & is.na(roost_div) ~ FALSE,
-                           TRUE ~ TRUE))
+  mutate(focal = case_when(is.na(movement) & 
+                             is.na(space_use) & 
+                             is.na(roost_div) ~ FALSE,
+                           TRUE ~ TRUE),
+         label = case_when(!focal ~ Nili_id,
+                           TRUE ~ NA_character_))
 nrow(info) == nrow(networkMetrics) # TRUE
 nrow(linked) < nrow(info) # TRUE
 
@@ -66,12 +70,16 @@ roostingGraphs <- map2(roostingGraphs, infos_roosting, ~{
 ```
 
 ```{r}
+#| message: false
 # Network visualizations ----------------------------------------------------------------
 grph_deg <- function(graph, season_name, type){
   g <- graph %>%
     ggraph(layout = "fr")+
     geom_edge_link(alpha = 0.2)+
-    geom_node_point(aes(size = normDegree, col = normDegree))+
+    geom_node_point(aes(size = normDegree, col = normDegree, shape = dataset))+
+    geom_node_text(aes(label = label,
+                       hjust = -0.2, vjust = 0.1))+
+    scale_shape_manual(name = "Focal", values = c(17, 16))+
     scale_color_viridis()+
     theme(legend.position = "none")+
     ggtitle(season_name)
@@ -82,14 +90,38 @@ grph_str <- function(graph, season_name, type){
   g <- graph %>%
     ggraph(layout = "fr")+
     geom_edge_link(alpha = 0.2)+
-    geom_node_point(aes(size = normStrength, col = normStrength))+
+    geom_node_point(aes(size = normStrength, 
+                        col = normStrength, 
+                        shape = dataset))+
+    geom_node_text(aes(label = label,
+                       hjust = -0.2, vjust = 0.1))+
+    scale_shape_manual(name = "Focal", values = c(17, 16))+
     scale_color_viridis()+
     theme(legend.position = "none")+
     ggtitle(season_name)
   return(g)
 }
 
+grph_test <- function(graph, season_name, type){
+  g <- graph %>%
+    ggraph(layout = "fr")+
+    geom_edge_link(alpha = 0.2)+
+    geom_node_point(aes(size = normStrength, 
+                        col = normStrength, 
+                        shape = focal))+
+    geom_node_text(aes(label = label,
+                       hjust = -0.2, vjust = 0.1))+
+    scale_shape_manual(name = "Focal", values = c(17, 16))+
+    scale_color_viridis()+
+    theme(legend.position = "none")+
+    ggtitle(season_name)
+  return(g)
+}
 
+grph_test(flightGraphs[[2]], "2021_breeding", type = "flight")
+```
+
+```{r}
 flightPlots_degree <- map2(.x = flightGraphs, .y = season_names, ~grph_deg(.x, .y, type = "flight"))
 feedingPlots_degree <- map2(.x = feedingGraphs, .y = season_names, ~grph_deg(.x, .y, type = "feeding"))
 roostingPlots_degree <- map2(.x = roostingGraphs, .y = season_names, ~grph_deg(.x, .y, type = "roosting"))
