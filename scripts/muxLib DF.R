@@ -1124,11 +1124,12 @@ GetMultilayerReducibility <- function(SupraAdjacencyMatrix,Layers,Nodes,Method,T
       
       print(paste("DEBUG:", i, SingleLayerEntropy[i]))
     }
-    
+    cat("finished singlelayerentropy\n")
     ###########################
     #JSD
     ###########################
     JSD <- Matrix(0, Layers, Layers)
+    cat("initialized jsd\n")
     
     if(Type=="Ordinal"){
       #this line is required, because a 0 means no distance..
@@ -1139,21 +1140,26 @@ GetMultilayerReducibility <- function(SupraAdjacencyMatrix,Layers,Nodes,Method,T
         JSD[i,j] <- GetJensenShannonDivergence(NodesTensor[[i]], NodesTensor[[j]], 
                                                SingleLayerEntropy[i],SingleLayerEntropy[j])
         #JSD[j,i] <- JSD[i,j]
-      }  
+      }
+      cat("got jsd for ordinal\n")
     }
     if(Type=="Categorical"){
+      cat("Calculating JSDs\n")
       for(i in 1:(Layers-1)){
         for(j in (i+1):Layers){
           JSD[i,j] <- GetJensenShannonDivergence(NodesTensor[[i]], NodesTensor[[j]], 
                                                  SingleLayerEntropy[i],SingleLayerEntropy[j])
           JSD[j,i] <- JSD[i,j]
         }
+        cat("Finished with layer", i, "out of", layers, "\n")
       }
+      cat("got jsd for categorical\n")
     }
     JSD <- sqrt(JSD)
-    
+
     #Quality function
     hc <- hclust(as.dist(JSD), method=Method)
+    cat("clustered \n")
     
     ## list of merging operations
     #see http://stackoverflow.com/questions/18215184/how-to-print-the-order-of-hierarchical-clustering-in-r
@@ -1165,9 +1171,11 @@ GetMultilayerReducibility <- function(SupraAdjacencyMatrix,Layers,Nodes,Method,T
     for(i in 2:Layers){
       AggregateMatrix <- AggregateMatrix + NodesTensor[[i]]
     }
+    cat("got aggregate matrix\n")
     
     #aggregate entropy
     AggregateEntropy <- GetRenyiEntropyFromAdjacencyMatrix(AggregateMatrix,1)
+    cat("got aggregate entropy\n")
     
     print(paste("DEBUG: Aggregate entropy", AggregateEntropy))
     print(MergeMatrix)
@@ -1227,59 +1235,7 @@ GetMultilayerReducibility <- function(SupraAdjacencyMatrix,Layers,Nodes,Method,T
     }
   }
   
-  #        MergedTensor <- list()
-  #        MergedEntropy <- list()
-  #        for(m in 1:(Layers-1)){
-  #            if(MergeMatrix[m,1]<0){
-  #                #we must use the network in NodesTensor
-  #                A <- NodesTensor[[ -MergeMatrix[m,1] ]]
-  #                entropyA <- SingleLayerEntropy[-MergeMatrix[m,1]]
-  #                SingleLayerEntropy[-MergeMatrix[m,1]] <- 0
-  #            }else{
-  #                #we must use the network stored in MergedTensor
-  #                A <- MergedTensor[[ MergeMatrix[m,1] ]]
-  #                entropyA <- MergedEntropy[[ MergeMatrix[m,1] ]]
-  #                MergedEntropy[[ MergeMatrix[m,1] ]] <- 0
-  #            }
-  #    
-  #            if(MergeMatrix[m,2]<0){
-  #                #we must use the network in NodesTensor
-  #                B <- NodesTensor[[ -MergeMatrix[m,2] ]]
-  #                entropyB <- SingleLayerEntropy[-MergeMatrix[m,2]]
-  #                SingleLayerEntropy[-MergeMatrix[m,2]] <- 0
-  #            }else{
-  #                #we must use the network stored in MergedTensor
-  #                B <- MergedTensor[[ MergeMatrix[m,2] ]]
-  #                entropyB <- MergedEntropy[[ MergeMatrix[m,2] ]]
-  #                MergedEntropy[[ MergeMatrix[m,2] ]] <- 0
-  #            }
-  #
-  #            MergedTensor[[m]] <- A + B
-  #            tmpLayerEntropy <- GetRenyiEntropyFromAdjacencyMatrix(MergedTensor[[m]],1)
-  #            MergedEntropy[[m]] <- tmpLayerEntropy
-  #            diffEntropy <- 2*tmpLayerEntropy - (entropyA + entropyB)
-  #            reldiffEntropy <- diffEntropy/(2*tmpLayerEntropy)
-  #            
-  #            cntCurrentLayers <- Layers - m
-  #
-  #            gQualityFunction[m+1] <- sum(SingleLayerEntropy[SingleLayerEntropy>0])
-  #
-  #            print(paste(cntCurrentLayers, sum(SingleLayerEntropy>0), tmpLayerEntropy , diffEntropy ))
-  #            #print(MergedTensor)
-  #            print(MergedEntropy)
-  #
-  #            for(i in 1:m){
-  #                # the current merge is accounted by position m
-  #                if(MergedEntropy[[i]]>0){
-  #                    #resetting the values as above, will guarantee that we consider only layers
-  #                    #that are still to be merged
-  #                    gQualityFunction[m+1] <- gQualityFunction[m+1] + MergedEntropy[[i]]
-  #                }
-  #            }
-  #            gQualityFunction[m+1] <- cntCurrentLayers*AggregateEntropy - gQualityFunction[m+1]
-  #            relgQualityFunction[m+1] <- gQualityFunction[m+1]/(cntCurrentLayers*AggregateEntropy)   
-  #        }
-  #    }
-  
-  return(list(JSD=JSD, gQualityFunction=gQualityFunction, relgQualityFunction=relgQualityFunction))
+  return(list(JSD=JSD, 
+              gQualityFunction=gQualityFunction, 
+              relgQualityFunction=relgQualityFunction))
 }
