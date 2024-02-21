@@ -27,6 +27,7 @@ seasons_split <- map(downsampled_10min, ~.x %>%
                        group_split())
 telems_list <- map(seasons_split, ~map(.x, as.telemetry))
 save(telems_list, file = "data/telems_list.Rda")
+load("data/telems_list.Rda")
 # check out a few examples
 dt.plot(telems_list[[1]][[3]])
 dt.plot(telems_list[[1]][[4]])
@@ -43,17 +44,19 @@ walk(variograms_list[[1]], plot) # just get a brief glimpse of the different ind
 # AAA in the ctmm google group, it seems like people check for range-residency and dispersal movements for every animal. I don't think that is practical here, and I could go down basically an infinite rabbit hole trying to do that, so since most of the animals are range resident I am going to assume they all are, generally, and hope that variation in home range sizes basically gets washed out.
 
 # Selecting the best-fit movement model through model selection
-guesses_list <- map(telems_list, ~map(.x, ~ctmm.guess(.x, interactive = FALSE), .progress = T))
+future::plan(future::multisession(), workers = 20)
+guesses_list <- furrr::future_map(telems_list, ~map(.x, ~ctmm.guess(.x, interactive = FALSE), .progress = T))
 save(guesses_list, file = "data/akde/guesses_list.Rda")
 load("data/akde/guesses_list.Rda")
 
 # Now we do the fits, which I suspect will take a long time. I'm going to do these in a for loop so they will save along the way.
-# for(i in 1:length(telems_list)){
-#   cat("processing season", i, "\n")
-#   fits <- map2(.x = telems_list[[i]], .y = guesses_list[[i]], ~ctmm.select(.x, .y, method = "pHREML"), .progress = TRUE)
-#   filename <- paste0("data/akde/pHREML_fits_", season_names[i], ".Rda")
-#   save(fits, file = filename)
-# }
+for(i in 2:length(telems_list)){ # XXX STARTING FROM 2
+  cat("processing season", i, "\n")
+  fits <- furrr::future_map2(.x = telems_list[[i]], .y = guesses_list[[i]], 
+                             ~ctmm.select(.x, .y, method = "pHREML"), .progress = TRUE)
+  filename <- paste0("data/akde/pHREML_fits_", season_names[i], ".Rda")
+  save(fits, file = filename)
+}
 # Load each of the fits objects in. Because I stupidly saved them all as "fits", need to rename them after loading them in.
 load("data/akde/pHREML_fits_2020_fall.Rda")
 fits_2020_fall <- fits
@@ -79,7 +82,7 @@ names(fits_list) <- season_names
 
 # Now get the uds for each of these, which will also take a long time. We're going to use weighted akdes, even though they take longer to run, because we have variable sampling rates.
 dt <- 10 %#% "min" # set the time difference for the uds
-future::plan(future::multisession, workers = 15)
+future::plan(future::multisession, workers = 20)
 tictoc::tic()
 uds_w <- vector(mode = "list", length = length(fits_list))
 for(i in 1:length(fits_list)){
@@ -137,3 +140,6 @@ plothr <- function(season, animal, level = 0.95){
   season_name <- season_names[season]
   title(paste(stringr::str_to_title(animals[[season]][animal]), season_name))
 }
+
+plothr(3, 3)
+plothr(3, 3, level = 0.5)
