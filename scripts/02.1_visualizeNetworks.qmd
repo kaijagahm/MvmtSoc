@@ -22,6 +22,7 @@ load(here("data", "calcSocial", "flightGraphs.Rda"))
 load(here("data", "calcSocial", "roostingGraphs.Rda"))
 load(here("data", "calcSocial", "networkMetrics.Rda"))
 load(here("data", "mixedModels", "linked.Rda"))
+load(here("data/dataPrep/season_names.Rda"))
 
 # Have to join `linked` back to `networkMetrics` so we maintain the network values for those that don't ultimately get included in movement
 info <- networkMetrics %>%
@@ -128,14 +129,14 @@ roostingPlots_strength <- map2(.x = roostingGraphs, .y = season_names, ~grph_str
 fl_d <- patchwork::wrap_plots(flightPlots_degree, nrow = 3, ncol = 3)
 fe_d <- patchwork::wrap_plots(feedingPlots_degree, nrow = 3, ncol = 3)
 ro_d <- patchwork::wrap_plots(roostingPlots_degree, nrow = 3, ncol = 3)
-ggsave(fl_d, filename = here("fig", "networkGraphs", "seasonal", "degree", "flight.png"), width = 9, height = 7)
-ggsave(fe_d, filename = here("fig", "networkGraphs", "seasonal", "degree", "feeding.png"), width = 9, height = 7)
-ggsave(ro_d, filename = here("fig", "networkGraphs", "seasonal", "degree", "roosting.png"), width = 9, height = 7)
+ggsave(fl_d, filename = here("fig", "networkGraphs", "seasonal", "degree", "flight.png"), width = 9, height = 7, bg = "transparent")
+ggsave(fe_d, filename = here("fig", "networkGraphs", "seasonal", "degree", "feeding.png"), width = 9, height = 7, bg = "transparent")
+ggsave(ro_d, filename = here("fig", "networkGraphs", "seasonal", "degree", "roosting.png"), width = 9, height = 7, bg = "transparent")
 
 fl_s <- patchwork::wrap_plots(flightPlots_strength, nrow = 3, ncol = 3)
 fe_s <- patchwork::wrap_plots(feedingPlots_strength, nrow = 3, ncol = 3)
 ro_s <- patchwork::wrap_plots(roostingPlots_strength, nrow = 3, ncol = 3)
-ggsave(fl_s, filename = here("fig", "networkGraphs", "seasonal", "strength", "flight.png"), width = 9, height = 7)
-ggsave(fe_s, filename = here("fig", "networkGraphs", "seasonal", "strength", "feeding.png"), width = 9, height = 7)
-ggsave(ro_s, filename = here("fig", "networkGraphs", "seasonal", "strength", "roosting.png"), width = 9, height = 7)
+ggsave(fl_s, filename = here("fig", "networkGraphs", "seasonal", "strength", "flight.png"), width = 9, height = 7, bg = "transparent")
+ggsave(fe_s, filename = here("fig", "networkGraphs", "seasonal", "strength", "feeding.png"), width = 9, height = 7, bg = "transparent")
+ggsave(ro_s, filename = here("fig", "networkGraphs", "seasonal", "strength", "roosting.png"), width = 9, height = 7, bg = "transparent")
 ```
