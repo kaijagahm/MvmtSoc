@@ -163,6 +163,23 @@ space_use <- space_use %>%
   mutate(space_pc1 = pca_space$x[,1]*-1)
 ```
 
+```{r}
+#| warning: false
+#| message: false
+
+space_use %>%
+  rename("Home range (log-transformed)" = "homeRange_log", "CA/HR ratio" = "coreAreaFidelity") %>%
+  pivot_longer(cols = c("Home range (log-transformed)", "CA/HR ratio"),
+               names_to = "measure", values_to = "value") %>%
+  ggplot(aes(x = space_pc1, y = value))+
+  geom_point()+geom_smooth(method = "lm")+theme_minimal()+
+  facet_wrap(~measure)+
+  ylab("Value (scaled)")+
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+```
+
 ## Variable distributions
 
 ```{r}
@@ -230,11 +247,11 @@ cor <- round(cor(red$roost_div, red$space_use), 2)
 red %>%
   ggplot(aes(x = roost_div, y = space_use))+
   geom_point(color = "chartreuse3")+ geom_smooth(method = "lm", col = "chartreuse3")+ theme_minimal()+
-  xlab("Roost diversification")+ ylab("Space use (log)")+
+  xlab("Roost diversification")+ ylab("Space use")+
   ggplot2::annotate(geom = "text", x = 3, y = -2, label = paste0("Correlation = ", cor))
 ```
 
-Finally, **log-transformed home range** and **movement** have a correlation of `r round(cor(red$space_use_log, red$movement), 2)`.
+Finally, **log-transformed home range** and **movement** have a correlation of `r round(cor(red$space_use, red$movement), 2)`.
 
 ```{r}
 #| message: false
@@ -243,7 +260,7 @@ cor <- round(cor(red$space_use, red$movement), 2)
 red %>%
   ggplot(aes(x = space_use, y = movement))+
   geom_point(color = "orange2")+ geom_smooth(method = "lm", col = "orange2")+ theme_minimal()+
-  xlab("Space use (log)") + ylab("Movement")+
+  xlab("Space use") + ylab("Movement")+
   ggplot2::annotate(geom = "text", x = 2.5, y = -3, label = paste0("Correlation = ", cor))
 ```
 
