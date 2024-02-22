@@ -68,6 +68,7 @@ normDegree_years_seasons_flight <- linked %>%
   xlab("Degree (normalized)")+
   facet_wrap(~season)+
   theme(legend.position = "none", text = element_text(size = 20))
+normDegree_years_seasons_flight
 ggsave(normDegree_years_seasons_flight, filename = "fig/normDegree_years_seasons_flight.png", width = 9, height = 7)
 
 normDegree_years_seasons_feeding <- linked %>%
@@ -133,7 +134,7 @@ degree_3 <- glmmTMB(normDegree ~ situ*movement + situ*space_use + season*movemen
 summary(degree_3) # after removing season*space_use, we still don't have a significant interaction between movement and season
 
 degree_4 <- glmmTMB(normDegree ~ situ*movement + situ*space_use + season + roost_div  + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_4) # made sure to add season bask as a main effect. 
+summary(degree_4) # made sure to add season back as a main effect. 
 check_collinearity(degree_4) # as a bonus, now none of our VIFs are above 3. Yay!
 
 degree_mod <- degree_4
@@ -195,7 +196,6 @@ plot_d_eff_situ_movement <- ggplot(d_eff_situ_movement, aes(x, predicted))+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_movement
 ggsave(plot_d_eff_situ_movement, file = "fig/plot_d_eff_situ_movement.png", width = 9, height = 6)
-
 
 ## situ:movement (forest plot) ---------------------------------------------
 d_emt_situ_movement <- emmeans::emtrends(degree_mod, "situ", var = "movement") %>%
