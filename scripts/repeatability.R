@@ -266,17 +266,18 @@ save(graphs_flight, file = "data/graphs_flight.Rda")
 save(graphs_feeding, file = "data/graphs_feeding.Rda")
 save(graphs_roosting, file = "data/graphs_roosting.Rda")
 
-# Get metrics for each graph
-metrics_flight <- vector(mode = "list", length = length(ndays))
-metrics_feeding <- vector(mode = "list", length = length(ndays))
-metrics_roosting <- vector(mode = "list", length = length(ndays))
+
+# Individual-level metrics ------------------------------------------------
+metrics_flight_indiv <- vector(mode = "list", length = length(ndays))
+metrics_feeding_indiv <- vector(mode = "list", length = length(ndays))
+metrics_roosting_indiv <- vector(mode = "list", length = length(ndays))
 
 for(i in 1:length(ndays)){
   fl <- graphs_flight[[i]]
   fe <- graphs_feeding[[i]]
   ro <- graphs_roosting[[i]]
   
-  metrics_flight[[i]] <- map2(fl, brks[[i]], ~{
+  metrics_flight_indiv[[i]] <- map2(fl, brks[[i]], ~{
     if(length(.x) > 0){
       out <- data.frame(degree = igraph::degree(.x),
                         strength = igraph::strength(.x),
@@ -291,7 +292,7 @@ for(i in 1:length(ndays)){
     }
     return(out)
   })
-  metrics_feeding[[i]] <- map2(fe, brks[[i]], ~{
+  metrics_feeding_indiv[[i]] <- map2(fe, brks[[i]], ~{
     if(length(.x) > 0){
       out <- data.frame(degree = igraph::degree(.x),
                         strength = igraph::strength(.x),
@@ -306,7 +307,7 @@ for(i in 1:length(ndays)){
     }
     return(out)
   })
-  metrics_roosting[[i]] <- map2(ro, brks_roosts[[i]], ~{
+  metrics_roosting_indiv[[i]] <- map2(ro, brks_roosts[[i]], ~{
     if(length(.x) > 0){
       out <- data.frame(degree = igraph::degree(.x),
                         strength = igraph::strength(.x),
@@ -325,14 +326,14 @@ for(i in 1:length(ndays)){
   rm(fe)
   rm(ro)
 }
-metrics_flight_df <- map(metrics_flight, ~purrr::list_rbind(.x))
-metrics_feeding_df <- map(metrics_feeding, ~purrr::list_rbind(.x))
-metrics_roosting_df <- map(metrics_roosting, ~purrr::list_rbind(.x))
+metrics_flight_indiv_df <- map(metrics_flight_indiv, ~purrr::list_rbind(.x))
+metrics_feeding_indiv_df <- map(metrics_feeding_indiv, ~purrr::list_rbind(.x))
+metrics_roosting_indiv_df <- map(metrics_roosting_indiv, ~purrr::list_rbind(.x))
 
-metrics <- bind_rows(purrr::list_rbind(metrics_flight_df), 
-                     purrr::list_rbind(metrics_feeding_df), 
-                     purrr::list_rbind(metrics_roosting_df))
-save(metrics, file = "data/metrics.Rda")
+metrics_indiv <- bind_rows(purrr::list_rbind(metrics_flight_indiv_df), 
+                     purrr::list_rbind(metrics_feeding_indiv_df), 
+                     purrr::list_rbind(metrics_roosting_indiv_df))
+save(metrics_indiv, file = "data/metrics_indiv.Rda")
 
 # Create tbl graphs and join metrics
 graphs_flight_tbl <- vector(mode = "list", length = length(ndays))
@@ -347,15 +348,15 @@ for(i in 1:length(ndays)){
   fe_tbl <- map(fe, ~as_tbl_graph(.x))
   ro_tbl <- map(ro, ~as_tbl_graph(.x))
   
-  graphs_flight_tbl[[i]] <- map2(fl_tbl, metrics_flight[[i]], ~{
+  graphs_flight_tbl[[i]] <- map2(fl_tbl, metrics_flight_indiv[[i]], ~{
     .x %>% activate(nodes) %>%
       left_join(.y, by = c("name" = "Nili_id"))
   })
-  graphs_feeding_tbl[[i]] <- map2(fe_tbl, metrics_feeding[[i]], ~{
+  graphs_feeding_tbl[[i]] <- map2(fe_tbl, metrics_feeding_indiv[[i]], ~{
     .x %>% activate(nodes) %>%
       left_join(.y, by = c("name" = "Nili_id"))
   })
-  graphs_roosting_tbl[[i]] <- map2(ro_tbl, metrics_roosting[[i]], ~{
+  graphs_roosting_tbl[[i]] <- map2(ro_tbl, metrics_roosting_indiv[[i]], ~{
     .x %>% activate(nodes) %>%
       left_join(.y, by = c("name" = "Nili_id"))
   })
@@ -364,6 +365,7 @@ for(i in 1:length(ndays)){
   rm(fe)
   rm(ro)
 }
+
 
 i <- 3
 int <- 10
@@ -437,36 +439,36 @@ for(i in 1:length(ndays)){
 }
 
 # Graphs of metrics -------------------------------------------------------
-load("data/metrics.Rda")
-glimpse(metrics)
-metrics <- metrics %>%
+load("data/metrics_indiv.Rda")
+glimpse(metrics_indiv)
+metrics_indiv <- metrics_indiv %>%
   group_by(ndays, int) %>%
   mutate(normDegree = degree/(n-1),
-         normStrength = strength/sum(strength, na.rm = T))
+         normStrength = strength/sum(strength, na.rm = T)) # XXX WHAT IS WRONG HERE?
 
-metrics %>%
+metrics_indiv %>%
   ggplot(aes(x = ndays, y = normDegree, col = type))+
   geom_jitter(alpha = 0.1, width = 0.6)+
   theme_classic()+
   facet_wrap(~type) # There are a few individuals that don't roost with the others and therefore have a low degree, even at the high time windows. I thought those were Carmel birds, but I've now removed the northern indivs and we still see this pattern.
 
-metrics %>%
+metrics_indiv %>%
   ggplot(aes(x = ndays, y = normStrength, col = type))+
   geom_jitter(alpha = 0.1, width = 0.6)+
   theme_classic()+
   facet_wrap(~type) # I do not understand why this goes DOWN. Am I normalizing it incorrectly?
 
 # What about degree/strength per time period?
-ids <- unique(metrics$Nili_id)
+ids <- unique(metrics_indiv$Nili_id)
 rand <- sample(ids, size = 5, replace = FALSE)
-metrics <- metrics %>%
+metrics_indiv <- metrics_indiv %>%
   mutate(highlight = ifelse(Nili_id %in% rand, T, F))
 
 future::plan(future::multisession(), workers = 5)
 furrr::future_walk(ndays, ~{
   days <- .x
   
-  plt_deg <- metrics %>%
+  plt_deg <- metrics_indiv %>%
     filter(ndays == days, highlight) %>%
     ggplot(aes(x = lubridate::ymd(int), y = normDegree, group = interaction(Nili_id, type)))+
     geom_line(aes(col = Nili_id), alpha = 0.7)+
@@ -477,7 +479,7 @@ furrr::future_walk(ndays, ~{
     xlab("Date")+
     ggtitle(paste0("Degree, ", days, "-day intervals,\n5 random vultures"))
   
-  plt_str <- metrics %>%
+  plt_str <- metrics_indiv %>%
     filter(ndays == days, highlight) %>%
     ggplot(aes(x = lubridate::ymd(int), y = normStrength, group = interaction(Nili_id, type)))+
     geom_line(aes(col = Nili_id), alpha = 0.7)+
@@ -495,3 +497,51 @@ furrr::future_walk(ndays, ~{
                                 str_pad(days, width = 2, side = "left", pad = "0"), ".png"),
          width = 9, height = 5)
 })
+
+# How do network-level measures change over the time points?
+metrics_net <- metrics_indiv %>%
+  group_by(ndays, int, type, n) %>%
+  summarize(mndeg = mean(degree),
+            mnstr = mean(strength),
+            mnnormdeg = mean(normDegree),
+            mnnormstr = mean(normStrength)) %>%
+  mutate(int = lubridate::ymd(int))
+
+metrics_net %>%
+  ggplot(aes(x = int, y = mnnormdeg, col = factor(ndays)))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~type, ncol = 1, scales = "free")+
+  geom_hline(aes(yintercept = 0.5), col = "black", linetype = 2) # okay, so let's say we wanted to use this as a criterion and find the "timescale of half-saturation" (need to look at whether there is literature precedent for this being the characteristic timescale.)
+
+metrics_net %>%
+  ggplot(aes(x = mnnormdeg, col = factor(ndays)))+
+  geom_density()+
+  facet_grid(rows = vars(type), cols = vars(ndays), scales = "free")+
+  geom_vline(aes(xintercept = 0.5)) # yeah, this is getting a lot closer to what I wanted. The problem is, we would need more seasons of data to really zero in on a timescale here.
+
+# THIS ONE
+metrics_net %>%
+  group_by(ndays, type) %>%
+  summarize(mn_mnnormdeg = mean(mnnormdeg)) %>%
+  ggplot(aes(x = ndays, y = mn_mnnormdeg, col = type))+
+  geom_point()+
+  geom_line()+
+  ylab("Mean of mean normalized degree (across all time slices)")+
+  xlab("Time window (days)")+
+  scale_color_manual(name = "Situation",
+                     values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  geom_hline(aes(yintercept = 0.5), linetype = 2)
+# I think this is the graph I've been envisioning the whole time!
+  
+
+
+# XXX something isn't right with strength
+metrics_net %>%
+  ggplot(aes(x = int, y = mnnormstr, col = factor(ndays)))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~type, ncol = 1, scales = "free")+
+  #geom_hline(aes(yintercept = 0.5), col = "black", linetype = 2)+
+  NULL # something is WRONG HERE. Feeding and roosting seem to be exact inverses of each other. Why?
+
