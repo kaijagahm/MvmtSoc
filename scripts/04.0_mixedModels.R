@@ -143,6 +143,21 @@ degree_mod <- degree_4
 # Degree plots ------------------------------------------------------------
 # Interaction plots for degree model
 
+## Space use (effect plot) -------------------------------------------------
+d_eff_space <- as.data.frame(ggeffect(degree_mod, terms = c("space_use")))
+plot_d_eff_space <- ggplot(d_eff_space, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = space_use, y = normDegree, col = situ), alpha = 0.5)+
+  geom_line(linewidth = 1, col = "black")+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Degree (normalized)")+
+  xlab("Space use (log-transformed)")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+plot_d_eff_space
+ggsave(plot_d_eff_space, file = "fig/mmPlots/plot_d_eff_space.png", width = 7, height = 6)
+
 ## situ:space_use (effect plot) -----------------------------------------------------
 d_eff_situ_space <- as.data.frame(ggeffect(degree_mod, terms = c("space_use", "situ")))
 plot_d_eff_situ_space <- ggplot(d_eff_situ_space, aes(x, predicted))+
@@ -178,8 +193,23 @@ plot_d_emt_situ_space <- d_emt_situ_space %>%
   ylab("Space use effect")+
   xlab("Situation")+
   coord_flip()
+plot_d_emt_situ_space
 ggsave(plot_d_emt_situ_space, file = "fig/mmPlots/plot_d_emt_situ_space.png", width = 5, height = 6)
 
+## Movement (effect plot) -------------------------------------------------
+d_eff_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement")))
+plot_d_eff_movement <- ggplot(d_eff_movement, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = movement, y = normDegree, col = situ), alpha = 0.5)+
+  geom_line(linewidth = 1, col = "black")+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Degree (normalized)")+
+  xlab("Movement")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+plot_d_eff_movement
+ggsave(plot_d_eff_movement, file = "fig/mmPlots/plot_d_eff_movement.png", width = 7, height = 6)
 
 ## situ:movement (effect plot) ---------------------------------------------
 d_eff_situ_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement", "situ")))
@@ -216,6 +246,7 @@ plot_d_emt_situ_movement <- d_emt_situ_movement %>%
   ylab("Movement effect")+
   xlab("Situation")+
   coord_flip()
+plot_d_emt_situ_movement
 ggsave(plot_d_emt_situ_movement, file = "fig/mmPlots/plot_d_emt_situ_movement.png", width = 5, height = 6)
 
 ## roost_div (effect plot) -------------------------------------------------
@@ -297,6 +328,20 @@ check_model(strength_5) # we have non-significant trends for movement, season, a
 strength_mod <- strength_5
 
 # Strength plots ----------------------------------------------------------
+## Space use (effect plot) -------------------------------------------------
+s_eff_space <- as.data.frame(ggeffect(strength_mod, terms = c("space_use")))
+plot_s_eff_space <- ggplot(s_eff_space, aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = linked, aes(x = space_use, y = normStrength, col = situ), alpha = 0.5)+
+  geom_line(linewidth = 1, col = "black", linetype = 2)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  ylab("Strength (normalized)")+
+  xlab("Space use (log-transformed)")+
+  ggtitle("")+theme_classic()+
+  theme(text = element_text(size = 16))
+plot_s_eff_space
+ggsave(plot_s_eff_space, file = "fig/mmPlots/plot_s_eff_space.png", width = 7, height = 6)
 
 ## situ:space_use (effect plot) --------------------------------------------
 s_eff_situ_space <- as.data.frame(ggeffect(strength_mod, terms = c("space_use", "situ")))
@@ -355,7 +400,6 @@ plot_s_eff_age <- ggplot(s_eff_age, aes(x, predicted))+
 plot_s_eff_age
 ggsave(plot_s_eff_age, file = "fig/mmPlots/plot_s_eff_age.png", width = 7, height = 6)
 
-
 ## movement (effect plot) --------------------------------------------------
 s_eff_movement <- as.data.frame(ggeffect(strength_mod, terms = "movement"))
 plot_s_eff_movement <- ggplot(s_eff_movement, aes(x, predicted))+
@@ -399,3 +443,4 @@ plot_s_eff_season <- ggplot(s_eff_season, aes(x, predicted))+
         legend.position = "none")
 plot_s_eff_season
 ggsave(plot_s_eff_season, file = "fig/mmPlots/plot_s_eff_season.png", width = 7, height = 6)
+
