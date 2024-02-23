@@ -369,7 +369,7 @@ plot_s_eff_movement <- ggplot(s_eff_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_movement
-ggsave(plot_s_eff_movement, file = "fig/mmPlots/plot_s_eff_movement.png", width = 5, height = 6)
+ggsave(plot_s_eff_movement, file = "fig/mmPlots/plot_s_eff_movement.png", width = 7, height = 6)
 
 ## roost_div (effect plot) --------------------------------------------------
 s_eff_roost <- as.data.frame(ggeffect(strength_mod, terms = "roost_div"))
