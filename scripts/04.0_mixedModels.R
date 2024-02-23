@@ -157,7 +157,7 @@ plot_d_eff_situ_space <- ggplot(d_eff_situ_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_space
-ggsave(plot_d_eff_situ_space, file = "fig/mmPlots/plot_d_eff_situ_space.png", width = 9, height = 6)
+ggsave(plot_d_eff_situ_space, file = "fig/mmPlots/plot_d_eff_situ_space.png", width = 7, height = 6)
 
 ## situ:space_use (forest plot) --------------------------------------------
 d_emt_situ_space <- emmeans::emtrends(degree_mod, "situ", var = "space_use") %>%
@@ -178,7 +178,7 @@ plot_d_emt_situ_space <- d_emt_situ_space %>%
   ylab("Space use effect")+
   xlab("Situation")+
   coord_flip()
-ggsave(plot_d_emt_situ_space, file = "fig/mmPlots/plot_d_emt_situ_space.png", width = 10, height = 6)
+ggsave(plot_d_emt_situ_space, file = "fig/mmPlots/plot_d_emt_situ_space.png", width = 5, height = 6)
 
 
 ## situ:movement (effect plot) ---------------------------------------------
@@ -195,7 +195,7 @@ plot_d_eff_situ_movement <- ggplot(d_eff_situ_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_movement
-ggsave(plot_d_eff_situ_movement, file = "fig/mmPlots/plot_d_eff_situ_movement.png", width = 9, height = 6)
+ggsave(plot_d_eff_situ_movement, file = "fig/mmPlots/plot_d_eff_situ_movement.png", width = 7, height = 6)
 
 ## situ:movement (forest plot) ---------------------------------------------
 d_emt_situ_movement <- emmeans::emtrends(degree_mod, "situ", var = "movement") %>%
@@ -216,7 +216,7 @@ plot_d_emt_situ_movement <- d_emt_situ_movement %>%
   ylab("Movement effect")+
   xlab("Situation")+
   coord_flip()
-ggsave(plot_d_emt_situ_movement, file = "fig/mmPlots/plot_d_emt_situ_movement.png", width = 10, height = 6)
+ggsave(plot_d_emt_situ_movement, file = "fig/mmPlots/plot_d_emt_situ_movement.png", width = 5, height = 6)
 
 ## roost_div (effect plot) -------------------------------------------------
 d_eff_roost <- as.data.frame(ggeffect(degree_mod, terms = "roost_div"))
@@ -231,7 +231,7 @@ plot_d_eff_roost <- ggplot(d_eff_roost, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_roost
-ggsave(plot_d_eff_roost, file = "fig/mmPlots/plot_d_eff_roost.png", width = 9, height = 6)
+ggsave(plot_d_eff_roost, file = "fig/mmPlots/plot_d_eff_roost.png", width = 7, height = 6)
 
 ## season (effect plot) ----------------------------------------------------
 d_eff_season <- as.data.frame(ggeffect(degree_mod, terms = "season"))
@@ -245,7 +245,7 @@ plot_d_eff_season <- ggplot(d_eff_season, aes(x, predicted))+
   theme(text = element_text(size = 16),
         legend.position = "none")
 plot_d_eff_season
-ggsave(plot_d_eff_season, file = "fig/mmPlots/plot_d_eff_season.png", width = 9, height = 6)
+ggsave(plot_d_eff_season, file = "fig/mmPlots/plot_d_eff_season.png", width = 7, height = 6)
 
 ## age group (effect plot) -------------------------------------------------
 d_eff_age <- as.data.frame(ggeffect(degree_mod, terms = "age_group")) %>%
@@ -264,7 +264,7 @@ plot_d_eff_age <- ggplot(d_eff_age, aes(x, predicted))+
   theme(text = element_text(size = 16),
         legend.position = "none")
 plot_d_eff_age
-ggsave(plot_d_eff_age, file = "fig/mmPlots/plot_d_eff_age.png", width = 9, height = 6)
+ggsave(plot_d_eff_age, file = "fig/mmPlots/plot_d_eff_age.png", width = 7, height = 6)
 
 # Strength ----------------------------------------------------------------
 strength_base <- glmmTMB(normStrength ~ situ + movement + roost_div + space_use + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
@@ -312,7 +312,7 @@ plot_s_eff_situ_space <- ggplot(s_eff_situ_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_situ_space
-ggsave(plot_s_eff_situ_space, file = "fig/mmPlots/plot_s_eff_situ_space.png", width = 9, height = 6)
+ggsave(plot_s_eff_situ_space, file = "fig/mmPlots/plot_s_eff_situ_space.png", width = 7, height = 6)
 
 ## situ:space_use (forest plot) --------------------------------------------
 s_emt_situ_space <- emmeans::emtrends(strength_mod, "situ", var = "space_use") %>%
@@ -334,7 +334,7 @@ plot_s_emt_situ_space <- s_emt_situ_space %>%
   xlab("Situation")+
   coord_flip()
 plot_s_emt_situ_space
-ggsave(plot_s_emt_situ_space, file = "fig/mmPlots/plot_s_emt_situ_space.png", width = 10, height = 6)
+ggsave(plot_s_emt_situ_space, file = "fig/mmPlots/plot_s_emt_situ_space.png", width = 5, height = 6)
 
 ## age group (effect plot) -------------------------------------------------
 s_eff_age <- as.data.frame(ggeffect(strength_mod, terms = "age_group")) %>%
@@ -353,7 +353,7 @@ plot_s_eff_age <- ggplot(s_eff_age, aes(x, predicted))+
   theme(text = element_text(size = 16),
         legend.position = "none")
 plot_s_eff_age
-ggsave(plot_s_eff_age, file = "fig/mmPlots/plot_s_eff_age.png", width = 9, height = 6)
+ggsave(plot_s_eff_age, file = "fig/mmPlots/plot_s_eff_age.png", width = 7, height = 6)
 
 
 ## movement (effect plot) --------------------------------------------------
@@ -369,7 +369,7 @@ plot_s_eff_movement <- ggplot(s_eff_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_movement
-ggsave(plot_s_eff_movement, file = "fig/mmPlots/plot_s_eff_movement.png", width = 9, height = 6)
+ggsave(plot_s_eff_movement, file = "fig/mmPlots/plot_s_eff_movement.png", width = 5, height = 6)
 
 ## roost_div (effect plot) --------------------------------------------------
 s_eff_roost <- as.data.frame(ggeffect(strength_mod, terms = "roost_div"))
@@ -384,7 +384,7 @@ plot_s_eff_roost <- ggplot(s_eff_roost, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_roost
-ggsave(plot_s_eff_roost, file = "fig/mmPlots/plot_s_eff_roost.png", width = 9, height = 6)
+ggsave(plot_s_eff_roost, file = "fig/mmPlots/plot_s_eff_roost.png", width = 7, height = 6)
 
 ## season (effect plot) ----------------------------------------------------
 s_eff_season <- as.data.frame(ggeffect(strength_mod, terms = "season"))
@@ -398,4 +398,4 @@ plot_s_eff_season <- ggplot(s_eff_season, aes(x, predicted))+
   theme(text = element_text(size = 16),
         legend.position = "none")
 plot_s_eff_season
-ggsave(plot_s_eff_season, file = "fig/mmPlots/plot_s_eff_season.png", width = 9, height = 6)
+ggsave(plot_s_eff_season, file = "fig/mmPlots/plot_s_eff_season.png", width = 7, height = 6)
