@@ -26,8 +26,8 @@ seasons_split <- map(downsampled_10min, ~.x %>%
                        group_by(ID) %>%
                        group_split())
 telems_list <- map(seasons_split, ~map(.x, as.telemetry))
-save(telems_list, file = "data/telems_list.Rda")
-load("data/telems_list.Rda")
+save(telems_list, file = "data/akde/telems_list.Rda")
+load("data/akde/telems_list.Rda")
 # check out a few examples
 dt.plot(telems_list[[1]][[3]])
 dt.plot(telems_list[[1]][[4]])
@@ -50,7 +50,7 @@ save(guesses_list, file = "data/akde/guesses_list.Rda")
 load("data/akde/guesses_list.Rda")
 
 # Now we do the fits, which I suspect will take a long time. I'm going to do these in a for loop so they will save along the way.
-for(i in 2:length(telems_list)){ # XXX STARTING FROM 2
+for(i in 1:length(telems_list)){ 
   cat("processing season", i, "\n")
   fits <- furrr::future_map2(.x = telems_list[[i]], .y = guesses_list[[i]], 
                              ~ctmm.select(.x, .y, method = "pHREML"), .progress = TRUE)
