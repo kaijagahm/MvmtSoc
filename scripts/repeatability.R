@@ -521,17 +521,19 @@ metrics_net %>%
   geom_vline(aes(xintercept = 0.5)) # yeah, this is getting a lot closer to what I wanted. The problem is, we would need more seasons of data to really zero in on a timescale here.
 
 # THIS ONE
-metrics_net %>%
+m <- metrics_net %>%
   group_by(ndays, type) %>%
   summarize(mn_mnnormdeg = mean(mnnormdeg)) %>%
   ggplot(aes(x = ndays, y = mn_mnnormdeg, col = type))+
-  geom_point()+
-  geom_line()+
-  ylab("Mean of mean normalized degree (across all time slices)")+
+  geom_point(size = 5)+
+  geom_line(linewidth = 2)+
+  ylab("Mean degree (normalized)")+
   xlab("Time window (days)")+
   scale_color_manual(name = "Situation",
                      values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  geom_hline(aes(yintercept = 0.5), linetype = 2)
+  geom_hline(aes(yintercept = 0.5), linetype = 2)+
+  theme(text = element_text(size = 20))
+ggsave(m, file = "fig/timescales.png", width = 9, height = 7)
 # I think this is the graph I've been envisioning the whole time!
   
 
