@@ -1,5 +1,5 @@
 # Vulture natural history visualizations, general
-# 2023-09-13
+# 2024-02-24
 
 library(vultureUtils)
 library(tidyverse)
@@ -9,8 +9,7 @@ library(ggspatial)
 library(grid)
 library(ggmap)
 library(Polychrome)
-load("data/derived/seasonNames_orig.Rda")
-seasonNames <- seasonNames_orig[-1]
+load("data/dataPrep/season_names.Rda")
 
 # Roosts map --------------------------------------------------------------
 r <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
