@@ -140,6 +140,3 @@ plothr <- function(season, animal, level = 0.95){
   season_name <- season_names[season]
   title(paste(stringr::str_to_title(animals[[season]][animal]), season_name))
 }
-
-plothr(3, 3)
-plothr(3, 3, level = 0.5)
