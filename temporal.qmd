@@ -1,0 +1,105 @@
+---
+title: "Examining vulture social networks across time scales"
+author: "Kaija Gahm"
+date: 2024-02-28
+format: 
+  html:
+    self-contained: true
+execute:
+  message: false
+  warning: false
+editor: visual
+---
+
+```{r}
+#| include: false
+library(tidyverse)
+library(here)
+theme_set(theme_classic())
+```
+
+```{r}
+#| include: false
+# Graphs of metrics -------------------------------------------------------
+load(here::here("data/metrics_indiv.Rda"))
+load(here::here("data/derived/cc.Rda"))
+glimpse(metrics_indiv)
+metrics_indiv <- metrics_indiv %>%
+  group_by(ndays, int) %>%
+  mutate(normDegree = degree/(n-1),
+         normStrength = strength/sum(strength, na.rm = T)) # XXX WHAT IS WRONG HERE?
+```
+
+```{r}
+#| echo: false
+metrics_indiv %>%
+  ggplot(aes(x = ndays, y = normDegree, col = type))+
+  ylab("Degree (normalized)")+
+  xlab("Time window (days)")+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  theme(axis.title = element_text(size = 14))+
+  facet_wrap(~type) # There are a few individuals that don't roost with the others and therefore have a low degree, even at the high time windows. I thought those were Carmel birds, but I've now removed the northern indivs and we still see this pattern.
+
+metrics_indiv %>%
+  ggplot(aes(x = ndays, y = normStrength, col = type))+
+  geom_jitter(alpha = 0.1, width = 0.6)+
+  xlab("Time window (days)")+
+  ylab("Strength (normalized)")+
+  theme(axis.title = element_text(size = 14))+
+  facet_wrap(~type) # I do not understand why this goes DOWN. Am I normalizing it incorrectly?
+
+# How do network-level measures change over the time points?
+metrics_net <- metrics_indiv %>%
+  group_by(ndays, int, type, n) %>%
+  summarize(mndeg = mean(degree),
+            mnstr = mean(strength),
+            mnnormdeg = mean(normDegree),
+            mnnormstr = mean(normStrength)) %>%
+  mutate(int = lubridate::ymd(int))
+```
+
+```{r}
+#| echo: false
+metrics_net %>%
+  ggplot(aes(x = int, y = mnnormdeg, col = factor(ndays)))+
+  ylab("Mean degree (normalized)")+
+  xlab("Date")+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~type, ncol = 1, scales = "free")+
+  theme(axis.title = element_text(size = 14))+
+  labs(color = "Time window\n(days)")+
+  geom_hline(aes(yintercept = 0.5), col = "black", linetype = 2)
+```
+
+```{r}
+#| echo: false
+#| fig-height: 10
+metrics_net %>%
+  ggplot(aes(x = mnnormdeg, col = type))+
+  xlab("Mean degree (normalized)")+
+  geom_density(linewidth = 1)+
+  facet_wrap(~interaction(type, ndays), scales = "free", ncol = 3, nrow = 7)+
+  scale_color_manual(name = "Situation",
+                     values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(size = 14))+
+  geom_vline(aes(xintercept = 0.5), linetype = 2)
+```
+
+```{r}
+#| echo: false
+metrics_net %>%
+  group_by(ndays, type) %>%
+  summarize(mn_mnnormdeg = mean(mnnormdeg)) %>%
+  ggplot(aes(x = ndays, y = mn_mnnormdeg, col = type))+
+  geom_point(size = 5)+
+  geom_line(linewidth = 2)+
+  ylab("Mean degree (normalized)")+
+  xlab("Time window (days)")+
+  scale_color_manual(name = "Situation",
+                     values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  geom_hline(aes(yintercept = 0.5), linetype = 2)+
+  theme(text = element_text(size = 14))
+```
