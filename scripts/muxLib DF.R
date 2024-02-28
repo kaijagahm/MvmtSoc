@@ -1151,7 +1151,7 @@ GetMultilayerReducibility <- function(SupraAdjacencyMatrix,Layers,Nodes,Method,T
                                                  SingleLayerEntropy[i],SingleLayerEntropy[j])
           JSD[j,i] <- JSD[i,j]
         }
-        cat("Finished with layer", i, "out of", layers, "\n")
+        cat("Finished with layer", i, "out of", length(1:Layers-1), "\n")
       }
       cat("got jsd for categorical\n")
     }
