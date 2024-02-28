@@ -72,18 +72,23 @@ rm(feedingEdges)
 rm(feedingSRI)
 gc()
 
-roostingSRI <- map(roosts, ~{
+roosting <- map(roosts, ~{
   vultureUtils::getRoostEdges(.x, mode = "polygon", 
                               roostPolygons = roostPolygons, 
-                              return = "sri", 
+                              return = "both", 
                               latCol = "location_lat", 
                               longCol = "location_long", 
                               idCol = "Nili_id", 
                               dateCol = "roost_date")
   }, .progress = T)
 
+roostingEdges <- map(roosting, "edges")
+roostingSRI <- map(roosting, "sri")
+save(roosting, file = "data/calcSocial/roosting.Rda")
+save(roostingEdges, file = "data/calcSocial/roostingEdges.Rda")
 save(roostingSRI, file = "data/calcSocial/roostingSRI.Rda")
 rm(roostingSRI)
+rm(roostingEdges)
 
 load("data/calcSocial/flightSRI.Rda")
 load("data/calcSocial/feedingSRI.Rda")
