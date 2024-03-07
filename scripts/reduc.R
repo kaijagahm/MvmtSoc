@@ -90,12 +90,14 @@ doReduce <- function(data, groupingCol){
   # Next file ---------------------------------------------------------------
   load("data/derived/multilayer/all_edges.Rda")
   source("scripts/muxLib DF.R")
+  cat("building supra am\n")
   build_supra_AM <- function(edgelist){
     BuildSupraAdjacencyMatrixFromExtendedEdgelist(
       mEdges = as.data.frame(edgelist[,1:5]),
       Layers = length(unique(edgelist$layer1)),
       Nodes = length(unique(edgelist$ID1)), isDirected=F)
   }
+  cat("built supra am\n")
   
   inters_SAM <- build_supra_AM(all_edges)
   
@@ -103,6 +105,7 @@ doReduce <- function(data, groupingCol){
   #layers <- length(unique(all_edges$layer1))
   nodes <- length(unique(all_edges$ID1))
   sam <- as(inters_SAM, "matrix")
+  cat("reducing\n")
   inters_reduce = GetMultilayerReducibility(
     SupraAdjacencyMatrix = sam, # David Fisher's hack to make this run without errors
     Layers = length(unique(all_edges$layer1)),
@@ -115,44 +118,103 @@ doReduce <- function(data, groupingCol){
   df <- data.frame("Amount of aggregation" = 1:length(gq),
                    "Difference in relative entropy" = gq)
   return(df)
+  cat("done!\n")
 }
 
 flightEdges <- flightEdges %>% 
-  mutate(group_01 = cutfun(date, days = 1),
-         group_02 = cutfun(date, days = 2),
-         group_05 = cutfun(date, days = 5),
-         group_10 = cutfun(date, days = 10),
-         group_20 = cutfun(date, days = 20),
-         group_40 = cutfun(date, days = 40))
+  mutate(timewindow_01 = cutfun(date, days = 1),
+         timewindow_02 = cutfun(date, days = 2),
+         timewindow_05 = cutfun(date, days = 5),
+         timewindow_10 = cutfun(date, days = 10),
+         timewindow_20 = cutfun(date, days = 20),
+         timewindow_40 = cutfun(date, days = 40))
 
 feedingEdges <- feedingEdges %>% 
-  mutate(group_01 = cutfun(date, days = 1),
-         group_02 = cutfun(date, days = 2),
-         group_05 = cutfun(date, days = 5),
-         group_10 = cutfun(date, days = 10),
-         group_20 = cutfun(date, days = 20),
-         group_40 = cutfun(date, days = 40))
+  mutate(timewindow_01 = cutfun(date, days = 1),
+         timewindow_02 = cutfun(date, days = 2),
+         timewindow_05 = cutfun(date, days = 5),
+         timewindow_10 = cutfun(date, days = 10),
+         timewindow_20 = cutfun(date, days = 20),
+         timewindow_40 = cutfun(date, days = 40))
 
 roostingEdges <- roostingEdges %>% 
-  mutate(group_01 = cutfun(date, days = 1),
-         group_02 = cutfun(date, days = 2),
-         group_05 = cutfun(date, days = 5),
-         group_10 = cutfun(date, days = 10),
-         group_20 = cutfun(date, days = 20),
-         group_40 = cutfun(date, days = 40))
+  mutate(timewindow_01 = cutfun(date, days = 1),
+         timewindow_02 = cutfun(date, days = 2),
+         timewindow_05 = cutfun(date, days = 5),
+         timewindow_10 = cutfun(date, days = 10),
+         timewindow_20 = cutfun(date, days = 20),
+         timewindow_40 = cutfun(date, days = 40))
 
-groupcols <- paste("group", c("02", "05", "10", "20", "40"), sep = "_")
+groupcols <- paste("timewindow", c("02", "05", "10", "20", "40"), sep = "_")
+
+# To make this more tractable, let's just take the first few days
+mindate <- min(flightEdges$date)
+stopdate <- min(flightEdges$date) + 80
+
+flightEdges_test <- flightEdges %>% filter(date >= mindate, date <= stopdate)
+feedingEdges_test <- feedingEdges %>% filter(date >= mindate, date <= stopdate)
+roostingEdges_test <- roostingEdges %>% filter(date >= mindate, date <= stopdate)
 
 outs_flight <- vector(mode = "list", length = length(groupcols))
 outs_feeding <- vector(mode = "list", length = length(groupcols))
 outs_roosting <- vector(mode = "list", length = length(groupcols))
 
-for(i in 2:length(groupcols)){
-  cat("doing ", i, "\n")
+future::plan(future::multisession, workers = 10)
+outs_flight <- furrr::future_map(groupcols, ~{
+  cat("doing", .x, "\n")
   cat("doing flight\n")
-  outs_flight[[i]] <- doReduce(flightEdges, groupingCol = groupcols[i])
-}
+  tryCatch(
+    expr = {
+      doReduce(flightEdges_test, groupingCol = .x)
+    },
+    error = function(e){ 
+      return(data.frame("Amount.of.aggregation" = NA,
+                        "Difference.in.relative.entropy" = NA))
+    }
+  )
+}, .progress = T)
+outs_flight <- map2(outs_flight, groupcols, ~.x %>% mutate(group = .y))
+out_flight <- purrr::list_rbind(outs_flight) %>% mutate(type = "flight")
 
+outs_feeding <- furrr::future_map(groupcols, ~{
+  cat("doing", .x, "\n")
+  cat("doing feeding\n")
+  tryCatch(
+    expr = {
+      doReduce(feedingEdges_test, groupingCol = .x)
+    },
+    error = function(e){ 
+      return(data.frame("Amount.of.aggregation" = NA,
+                        "Difference.in.relative.entropy" = NA))
+    }
+  )
+}, .progress = T)
+outs_feeding <- map2(outs_feeding, groupcols, ~.x %>% mutate(group = .y))
+out_feeding <- purrr::list_rbind(outs_feeding) %>% mutate(type = "feeding")
 
-outs_flight <- map(flightEdges, ~doReduce(.x, groupingCol = "group"))
-outs_flight <- map2(outs_flight, season_names, ~.x %>% mutate(season = .y)) %>% purrr::list_rbind()
+outs_roosting <- furrr::future_map(groupcols, ~{
+  cat("doing", .x, "\n")
+  cat("doing roosting\n")
+  tryCatch(
+    expr = {
+      doReduce(roostingEdges_test, groupingCol = .x)
+    },
+    error = function(e){ 
+      return(data.frame("Amount.of.aggregation" = NA,
+                        "Difference.in.relative.entropy" = NA))
+    }
+  )
+}, .progress = T)
+
+outs_roosting <- map2(outs_roosting, groupcols, ~.x %>% mutate(group = .y))
+out_roosting <- purrr::list_rbind(outs_roosting) %>% mutate(type = "roosting")
+
+out <- bind_rows(out_flight, out_feeding, out_roosting)
+
+out %>%
+  ggplot(aes(x = Amount.of.aggregation, y = Difference.in.relative.entropy, col = type))+
+  geom_point()+geom_line()+
+  facet_wrap(~group, scales = "free", ncol = 1)+
+  theme_minimal()+
+  scale_color_manual(name = "Social\nsituation",
+                     values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))
