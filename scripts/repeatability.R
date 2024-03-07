@@ -266,6 +266,9 @@ save(graphs_flight, file = "data/graphs_flight.Rda")
 save(graphs_feeding, file = "data/graphs_feeding.Rda")
 save(graphs_roosting, file = "data/graphs_roosting.Rda")
 
+load("data/graphs_flight.Rda")
+load("data/graphs_feeding.Rda")
+load("data/graphs_roosting.Rda")
 
 # Individual-level metrics ------------------------------------------------
 metrics_flight_indiv <- vector(mode = "list", length = length(ndays))
@@ -285,7 +288,9 @@ for(i in 1:length(ndays)){
                         int = .y,
                         n = length(V(.x)),
                         type = "flight",
-                        ndays = ndays[i])
+                        ndays = ndays[i]) %>%
+        mutate(normDegree = degree/n,
+               normStrength = strength/sum(strength))
     }else{
       out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
                         n = 0, type = "flight", ndays = ndays[i])
@@ -300,7 +305,9 @@ for(i in 1:length(ndays)){
                         int = .y,
                         n = length(V(.x)),
                         type = "feeding",
-                        ndays = ndays[i])
+                        ndays = ndays[i]) %>%
+        mutate(normDegree = degree/n,
+               normStrength = strength/sum(strength))
     }else{
       out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
                         n = 0, type = "feeding", ndays = ndays[i])
@@ -315,7 +322,9 @@ for(i in 1:length(ndays)){
                         int = .y,
                         n = length(V(.x)),
                         type = "roosting",
-                        ndays = ndays[i])
+                        ndays = ndays[i]) %>%
+        mutate(normDegree = degree/n,
+               normStrength = strength/sum(strength))
     }else{
       out <- data.frame(degree = NA, strength = NA, Nili_id = NA, int = .y, 
                         n = 0, type = "roosting", ndays = ndays[i])
@@ -366,23 +375,86 @@ for(i in 1:length(ndays)){
   rm(ro)
 }
 
+save(graphs_flight_tbl, file = "data/graphs_flight_tbl.Rda")
+save(graphs_feeding_tbl, file = "data/graphs_feeding_tbl.Rda")
+save(graphs_roosting_tbl, file = "data/graphs_roosting_tbl.Rda")
+
+load("data/graphs_flight_tbl.Rda")
+load("data/graphs_feeding_tbl.Rda")
+load("data/graphs_roosting_tbl.Rda")
+load("data/dataPrep/season_names.Rda")
+
+load("data/akde/sfs_est_centroids.Rda")
+row.names(sfs_est_centroids) <- NULL
+centrs <- sfs_est_centroids %>%
+  filter(seasonUnique == "2023_summer") %>%
+  select(seasonUnique, Nili_id, dist_szn_centr) %>%
+  bind_cols(as.data.frame(st_coordinates(.))) %>%
+  st_drop_geometry()
+
+minx <- min(centrs$X)-(sd(centrs$X)/10)
+miny <- min(centrs$Y)-(sd(centrs$Y)/10)
+maxx <- max(centrs$X)+(sd(centrs$X)/10)
+maxy <- max(centrs$Y)+(sd(centrs$Y)/10)
+
+# Bind the centroids on
+for(i in 1:length(ndays)){
+  fl <- graphs_flight_tbl[[i]]
+  fe <- graphs_feeding_tbl[[i]]
+  ro <- graphs_roosting_tbl[[i]]
+  
+  fl_out <- map(fl, ~.x %>% 
+                  activate(nodes) %>% 
+                  left_join(centrs, by = c("name" = "Nili_id")))
+  
+  fe_out <- map(fe, ~.x %>% 
+                  activate(nodes) %>%
+                  left_join(centrs, by = c("name" = "Nili_id")))
+  
+  ro_out <- map(ro, ~.x %>% 
+                  activate(nodes) %>%
+                  left_join(centrs, by = c("name" = "Nili_id")))
+  
+  graphs_flight_tbl[[i]] <- fl_out
+  graphs_feeding_tbl[[i]] <- fe_out
+  graphs_roosting_tbl[[i]] <- ro_out
+}
 
 i <- 3
 int <- 10
+days <- ndays[i]
 test <- graphs_feeding_tbl[[i]][[int]]
 start <- brks[[i]][int]
 end <- lubridate::ymd(start) + days
 title <- paste0(ndays[i], "-day interval: [", brks[[i]][int], ", ", lubridate::ymd(brks[[i]][int])+ndays[i], ")")
-ggraph(test, layout = "fr")+
-  geom_edge_link(alpha = 0.3)+
-  geom_node_point(aes(col = degree, size = degree))+
-  geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
-  scale_color_viridis()+
+layout <- test %>% activate(nodes) %>% data.frame() %>% select(X, Y) %>% setNames(., c("x", "y"))
+ggraph(test, layout)+
+  geom_edge_link(alpha = 0.1)+
+  geom_node_point(aes(col = normDegree, size = normDegree))+
+  geom_node_text(aes(label = name), size = 3, repel = T, max.overlaps = 15)+
+  scale_color_viridis_c(limits = c(0, 1))+
   theme_void()+
-  ggtitle(title)
+  theme(legend.position = "none")
 
-future::plan(future::multisession, workers = 5)
-for(i in 1:length(ndays)){
+graph_fn <- function(graph, layout, title){
+  g <- ggraph(graph, layout) +
+    geom_edge_link(alpha = 0.3)+
+    geom_node_point(aes(col = normDegree, size = normDegree))+
+    geom_node_text(aes(label = name), col = "white", size = 2)+
+    scale_color_viridis_c(limits = c(0, 1))+
+    scale_size_continuous(limits = c(0, 1))+
+    theme_void()+
+    xlim(minx, maxx)+
+    ylim(miny, maxy)+
+    theme(legend.position = "none",
+          panel.background = element_rect(fill = "gray80", color = "gray80"))+
+    ggtitle(title)
+  return(g)
+}
+
+# Graphs with fixed spatial positions (seasonal centroids)
+future::plan(future::multisession, workers = 15)
+for(i in 1){ # for(i in 1:length(ndays))
   days <- ndays[[i]]
   fl <- graphs_flight_tbl[[i]]
   fe <- graphs_feeding_tbl[[i]]
@@ -392,15 +464,10 @@ for(i in 1:length(ndays)){
   furrr::future_walk2(fl, brks[[i]], ~{
     end <- lubridate::ymd(.y) + days
     title <- paste0("Co-flight, ", days, "-day interval: [", .y, ", ", end, ")")
-    g <- ggraph(.x, layout = "fr")+
-      geom_edge_link(alpha = 0.3)+
-      geom_node_point(aes(col = degree, size = degree))+
-      geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
-      scale_color_viridis()+
-      theme_void()+
-      ggtitle(title)
-    filename <- paste0("fig/networkGraphs/interval/days_", 
-                       str_pad(days, width = 2, side = "left", pad = "0"), 
+    layout <- .x %>% activate(nodes) %>% data.frame() %>% select("x" = X, "y" = Y)
+    g <- graph_fn(.x, layout, title)
+    filename <- paste0("fig/networkGraphs/interval/days_",
+                       str_pad(days, width = 2, side = "left", pad = "0"),
                        "/flight_", .y, "_", lubridate::ymd(.y)+2, ".png")
     ggsave(g, filename = filename, width = 6, height = 5)
   }, .progress = T)
@@ -408,13 +475,8 @@ for(i in 1:length(ndays)){
   furrr::future_walk2(fe, brks[[i]], ~{
     end <- lubridate::ymd(.y) + days
     title <- paste0("Co-feeding, ", days, "-day interval: [", .y, ", ", end, ")")
-    g <- ggraph(.x, layout = "fr")+
-      geom_edge_link(alpha = 0.3)+
-      geom_node_point(aes(col = degree, size = degree))+
-      geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
-      scale_color_viridis()+
-      theme_void()+
-      ggtitle(title)
+    layout <- .x %>% activate(nodes) %>% data.frame() %>% select("x" = X, "y" = Y)
+    g <- graph_fn(.x, layout, title)
     filename <- paste0("fig/networkGraphs/interval/days_", 
                        str_pad(days, width = 2, side = "left", pad = "0"), 
                        "/feeding_", .y, "_", lubridate::ymd(.y)+2, ".png")
@@ -424,19 +486,58 @@ for(i in 1:length(ndays)){
   furrr::future_walk2(ro, brks_roosts[[i]], ~{
     end <- lubridate::ymd(.y) + days
     title <- paste0("Co-roosting, ", days, "-day interval: [", .y, ", ", end, ")")
-    g <- ggraph(.x, layout = "fr")+
-      geom_edge_link(alpha = 0.3)+
-      geom_node_point(aes(col = degree, size = degree))+
-      geom_node_text(aes(label = name), nudge_y = 0.3, nudge_x = 0.2)+
-      scale_color_viridis()+
-      theme_void()+
-      ggtitle(title)
-    filename <- paste0("fig/networkGraphs/interval/days_", 
-                       str_pad(days, width = 2, side = "left", pad = "0"), 
+    layout <- .x %>% activate(nodes) %>% data.frame() %>% select("x" = X, "y" = Y)
+    g <- graph_fn(.x, layout, title)
+    filename <- paste0("fig/networkGraphs/interval/days_",
+                       str_pad(days, width = 2, side = "left", pad = "0"),
                        "/roosting_", .y, "_", lubridate::ymd(.y)+2, ".png")
     ggsave(g, filename = filename, width = 6, height = 5)
   }, .progress = T)
 }
+
+# Graphs with changing spatially explicit locations 
+future::plan(future::multisession, workers = 15)
+for(i in 1){ # for(i in 1:length(ndays))
+  days <- ndays[[i]]
+  fl <- graphs_flight_tbl[[i]]
+  fe <- graphs_feeding_tbl[[i]]
+  ro <- graphs_roosting_tbl[[i]]
+  cat("working on interval", days)
+  
+  furrr::future_walk2(fl, brks[[i]], ~{
+    end <- lubridate::ymd(.y) + days
+    title <- paste0("Co-flight, ", days, "-day interval: [", .y, ", ", end, ")")
+    layout <- .x %>% activate(nodes) %>% data.frame() %>% select("x" = X, "y" = Y)
+    g <- graph_fn(.x, layout, title)
+    filename <- paste0("fig/networkGraphs/interval/days_",
+                       str_pad(days, width = 2, side = "left", pad = "0"),
+                       "/flight_", .y, "_", lubridate::ymd(.y)+2, ".png")
+    ggsave(g, filename = filename, width = 6, height = 5)
+  }, .progress = T)
+  
+  furrr::future_walk2(fe, brks[[i]], ~{
+    end <- lubridate::ymd(.y) + days
+    title <- paste0("Co-feeding, ", days, "-day interval: [", .y, ", ", end, ")")
+    layout <- .x %>% activate(nodes) %>% data.frame() %>% select("x" = X, "y" = Y)
+    g <- graph_fn(.x, layout, title)
+    filename <- paste0("fig/networkGraphs/interval/days_", 
+                       str_pad(days, width = 2, side = "left", pad = "0"), 
+                       "/feeding_", .y, "_", lubridate::ymd(.y)+2, ".png")
+    ggsave(g, filename = filename, width = 6, height = 5)
+  }, .progress = T)
+  
+  furrr::future_walk2(ro, brks_roosts[[i]], ~{
+    end <- lubridate::ymd(.y) + days
+    title <- paste0("Co-roosting, ", days, "-day interval: [", .y, ", ", end, ")")
+    layout <- .x %>% activate(nodes) %>% data.frame() %>% select("x" = X, "y" = Y)
+    g <- graph_fn(.x, layout, title)
+    filename <- paste0("fig/networkGraphs/interval/days_",
+                       str_pad(days, width = 2, side = "left", pad = "0"),
+                       "/roosting_", .y, "_", lubridate::ymd(.y)+2, ".png")
+    ggsave(g, filename = filename, width = 6, height = 5)
+  }, .progress = T)
+}
+
 
 # Graphs of metrics -------------------------------------------------------
 load("data/metrics_indiv.Rda")
@@ -547,3 +648,58 @@ metrics_net %>%
   #geom_hline(aes(yintercept = 0.5), col = "black", linetype = 2)+
   NULL # something is WRONG HERE. Feeding and roosting seem to be exact inverses of each other. Why?
 
+
+# Daily behaviors ---------------------------------------------------------
+metr <- metrics_indiv %>%
+  filter(type %in% c("flight", "feeding"), ndays == 1) %>% 
+  filter(lubridate::ymd(int) %in% seq(from = lubridate::ymd("2023-05-15"), 
+                                      to = lubridate::ymd("2023-06-15"), by = 1)) %>%
+  group_by(type, int) %>%
+  mutate(normDegree_prop = normDegree/max(normDegree),
+         normDegree_scl = (normDegree - mean(normDegree))/sd(normDegree), # looks like this is the one we want. Distributions are still pretty right-skewed, but that's okay.
+         normDegree_scl_log = log(normDegree_scl),
+         normDegree_log = log(normDegree),
+         normStrength_prop = normStrength/max(normStrength),
+         normStrength_scl = (normStrength - mean(normStrength))/sd(normStrength),
+         normStrength_scl_log = log(normStrength_scl),
+         normStrength_log = log(normStrength))
+  
+metr %>%
+  ggplot(aes(x = as.factor(lubridate::ymd(int)), y = normDegree_scl, col = type, fill = type))+
+  geom_boxplot(outlier.size = 1,
+               position = position_dodge(width = 0), # so we get them on top of each other
+               alpha = 0.7)+
+  theme_classic()+
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        NULL)+
+  stat_summary(
+    fun = ~quantile(.x, 0.75),
+    geom = 'line',
+    linewidth = 1,
+    aes(group = type, colour = type),
+    position = position_dodge(width = 0) # this has to match the position_dodge for the boxplot
+  )+
+  ylab("Normalized degree (scaled)")+
+  xlab("Date")+
+  scale_color_manual(name = "Situation",
+                     values = c(cc$feedingColor, cc$flightColor))+
+  scale_fill_manual(name = "Situation",
+                     values = c(cc$feedingColor, cc$flightColor))
+
+# Is there a negative relationship between the degree distributions in the two situations?
+medians <- metr %>%
+  group_by(ndays, type, int) %>%
+  summarize(normDegree_scl_med = median(normDegree_scl)) %>%
+  pivot_wider(id_cols = c(ndays, int), names_from = type, values_from = normDegree_scl_med) %>%
+  mutate(metric = "normDegree_scl") %>%
+  bind_rows(metr %>%
+              group_by(ndays, type, int) %>%
+              summarize(normStrength_scl_med = median(normStrength_scl)) %>%
+              pivot_wider(id_cols = c(ndays, int), names_from = type, values_from = normStrength_scl_med) %>% mutate(metric = "normStrength_scl"))
+
+medians %>%
+  ggplot(aes(x = feeding, y = flight))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  facet_wrap(~metric, ncol = 1) # hmm, there seems to be no relationship between the two...
