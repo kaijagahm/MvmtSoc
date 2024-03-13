@@ -21,7 +21,7 @@ rm(downsampled_10min_forSocial)
 gc()
 roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
 load("data/dataPrep/season_names.Rda")
-load("data/dataPrep/roosts.Rda") # XXX load
+load("data/dataPrep/roosts.Rda")
 load("data/derived/cc.Rda")
 
 # Social Networks ---------------------------------------------------------
