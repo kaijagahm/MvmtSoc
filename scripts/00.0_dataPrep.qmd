@@ -85,10 +85,19 @@ write_feather(ornitela, here::here("data", "dataPrep", "ornitela.feather"))
 
 length(unique(ornitela$trackId))
 
+# Also get some to test GPS jamming (for Ryan 2/28/24)
+mindate_jamming <- "2023-10-01"
+maxdate_jamming <- "2024-02-01"
+test_jamming_ornitela <- vultureUtils::downloadVultures(loginObject = MB.LoginObject, removeDup = T, dfConvert = T, quiet = T, dateTimeStartUTC = mindate_jamming, dateTimeEndUTC = maxdate_jamming)
+write_csv(test_jamming_ornitela, file = here("data/dataPrep/test_jamming_ornitela.csv"))
+
 # tidy up
 rm(ornitela)
 rm(minDate)
 rm(maxDate)
+rm(mindate_jamming)
+rm(maxdate_jamming)
+rm(test_jamming_ornitela)
 gc()
 ```
 
