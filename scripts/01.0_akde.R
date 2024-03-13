@@ -92,6 +92,9 @@ for(i in 1:length(fits_list)){
 }
 tictoc::toc()
 save(uds_w, file = "data/akde/uds_w.Rda")
+uds_w_sf <- map(uds_w, ~map(.x, ~as.sf(.x) %>% sf::st_transform("WGS84"), 
+                            .progress = T))
+save(uds_w_sf, file = "data/akde/uds_w_sf.Rda")
 
 stats_w_95 <- vector(mode = "list", length = length(uds_w))
 for(i in 1:length(stats_w_95)){
@@ -140,3 +143,68 @@ plothr <- function(season, animal, level = 0.95){
   season_name <- season_names[season]
   title(paste(stringr::str_to_title(animals[[season]][animal]), season_name))
 }
+
+# PKDE --------------------------------------------------------------------
+test_telems <- telems_list[[1]]
+test_uds <- uds_w[[1]]
+test_pkde <- pkde(data = test_telems, UD = test_uds, kernel = "individual", weights = TRUE, ref = "Gaussian")
+pkde(data = DATA, UD = uds, kernel = "individual", weights = FALSE, ref = "Gaussian")
+#DATA needs to be a list of telemetry objects (with the same length as uds) and not just one telemetry object.
+# This isn't working....
+
+# What about just some ellipses for basic visualization?
+test_season <- downsampled_10min[[5]]
+test_season_minimal <- test_season %>% ungroup() %>% sample_n(ceiling(nrow(test_season)/10)) # make it 1/10 the size
+
+test_season %>%
+  filter(Nili_id %in% unique(test_season$Nili_id)[1:10]) %>%
+  ggplot(aes(x = location_long, y = location_lat, col = Nili_id))+
+  geom_point(alpha = 0.7, size = 0.2)+
+  theme_void()+
+  theme(legend.position = "none")+
+  stat_ellipse()
+
+# What about the actual sf objects?
+load("data/akde/uds_w_sf.Rda")
+uds_w_sf_seasons <- map(uds_w_sf, ~do.call(rbind, .x))
+load("data/dataPrep/season_names.Rda")
+uds_w_sf_seasons <- map2(uds_w_sf_seasons, season_names, ~.x %>% mutate(seasonUnique = .y))
+sfs <- do.call(rbind, uds_w_sf_seasons)
+sfs <- sfs %>%
+  mutate(Nili_id = stringr::str_extract(name, "^.*(?=\\s[0-9]+)"),
+         type = stringr::str_extract(name, "(?<=95%\\s)[a-z]+(?=$)"),
+         pct = as.numeric(stringr::str_extract(name, "[0-9]+(?=%)")))
+sfs_est <- sfs %>%
+  filter(type == "est")
+
+sfs_est_centroids <- sfs_est %>%
+  sf::st_centroid()
+
+sfs_est %>%
+  ggplot(aes(col = Nili_id))+
+  geom_sf(fill = NA)+
+  #geom_sf(data = sfs_est_centroids)+
+  theme_void()+
+  theme(legend.position = "none")+
+  facet_wrap(~seasonUnique)
+
+# Overall per-season centroids
+allpointssf <- downsampled_10min %>% purrr::list_rbind() %>% sf::st_as_sf(coords = c("location_long", "location_lat"), crs = "WGS84", remove = F)
+
+seasonal_centroids <- allpointssf %>%
+  group_by(seasonUnique) %>%
+  summarize(geometry = sf::st_union(geometry)) %>%
+  sf::st_centroid()
+
+vec <- rep(NA, nrow(sfs_est_centroids))
+for(i in 1:length(vec)){
+  dat <- sfs_est_centroids[i,]
+  szn <- dat$seasonUnique
+  szn_centr <- seasonal_centroids[which(seasonal_centroids$seasonUnique == szn),]
+  out <- as.numeric(st_distance(dat, szn_centr))
+  vec[i] <- out
+}
+
+sfs_est_centroids$dist_szn_centr <- vec
+
+save(sfs_est_centroids, file = "data/akde/sfs_est_centroids.Rda")
