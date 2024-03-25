@@ -121,53 +121,52 @@ roosts <- vultureUtils::get_roosts_df(cleaned,
 
 # Load information about capture sites
 capture_sites <- read.csv(here::here("data", "raw", "capture_sites.csv"))
-load(here::here("data", "dataPrep", "roosts0.Rda"))
 AllCarmelDates <- read.csv(here::here("data", "raw", "all_captures_carmel_2010-2021.csv"))
 
-removeCaptures <- function(data, roosts, captureSites, distance = 500){
-  # Identify the period of time during which the capture sites are open (when we need to do this exclusion)
-  start.day <- 01
-  start.month <- 08
-  end.day <- 30
-  end.month <- 11
-  
-  # Get roosts that fall in the capture period
-  sub.roosts <- roosts %>%
-    mutate(start_date = lubridate::dmy(paste(start.day, start.month,
-                                      lubridate::year(date), sep = "-")),
-           end_date = lubridate::dmy(paste(end.day, end.month, 
-                                           lubridate::year(date), sep = "-"))) %>%
-    filter(date >= start_date & date <= end_date)
-  
-  if(nrow(sub.roosts) > 0){
-    # Calculate the roost distance to each of the capture cages. If it is less than 500m, keep that line.
-  crds <- matrix(c(sub.roosts$location_long, sub.roosts$location_lat),
-                 nrow = nrow(sub.roosts), ncol = 2) # roost locs as simple lat/long coords
-  distanceMat <- matrix(ncol = nrow(captureSites),
-                        nrow = nrow(crds))
-  colnames(distanceMat) <-  unique(captureSites$name)
-  
-  for(i in 1:nrow(crds)){
-    distanceMat[i,] <- round(geosphere::distm(crds[i,], 
-                                              captureSites[,c(3,2)]), 2)
-    }
-  }
-  
-  closestCaptureSite <- colnames(distanceMat)[apply(distanceMat, 1, which.min)] # ID of closest capture site
-  closestCaptureDist <- apply(distanceMat, 1, min) # distance from closest capture site
-  
-  sub.roosts <- cbind(sub.roosts, closestCaptureSite, closestCaptureDist)
-  sub.roosts$captured <- ifelse(sub.roosts$closestCaptureDist <= distance, T, F)
-  sub.captured.dates <- sub.roosts %>% 
-    filter(captured) %>%
-    select(Nili_id, date, closestCaptureSite, 
-           closestCaptureDist, captured)
-  # XXX START HERE
-  
-  
-  
-  
+# Full code as it currently exists in the data cleaning pipeline:
+# Identify the period of time during which the capture sites are open (when we need to do this exclusion)
+start.day <- 01
+start.month <- 08
+end.day <-  30
+end.month <- 11
+distance <- 500 # distance, in meters, to calculate from the cage
+
+# Subset the roost dataset with the start and end dates for the capture period
+sub.roosts <- roosts0 %>%
+  mutate(start_date = as.Date(paste(start.day, start.month, lubridate::year(date), sep="-"),
+                              format="%d-%m-%Y"),
+         end_date = as.Date(paste(end.day, end.month, lubridate::year(date), sep="-"),
+                            format="%d-%m-%Y")) %>%
+  filter(date >= start_date & date <= end_date)
+
+unique(lubridate::month(sub.roosts$date)) # now only includes the fall months, which is the capture season.
+
+# then we need to calculate the roost distance to each of the capture cages. if it is less than 500m, keep that line
+crds <- matrix(c(sub.roosts$location_long, sub.roosts$location_lat),
+               nrow = nrow(sub.roosts), ncol = 2) # get roost locations as simple lat/long coordinates
+
+DistanceMat <- matrix(ncol = nrow(capture_sites), nrow = nrow(crds))
+colnames(DistanceMat) <- unique(capture_sites$name)
+
+for(i in 1:nrow(crds)){ # for each roost point...
+  DistanceMat[i,] <- round(geosphere::distm(crds[i,], capture_sites[,c(3,2)]), 2) # calculate distance using geosphere::distm
+  #print(i)
 }
+
+ClosestCaptureSite <- colnames(DistanceMat)[apply(DistanceMat,1,which.min)] # ID of closest capture site
+ClosestCaptureDist <- apply(DistanceMat,1,min) # Distance from closest capture site
+
+sub.roosts <- cbind(sub.roosts, ClosestCaptureSite, ClosestCaptureDist)
+sub.roosts$Captured <- ifelse(sub.roosts$ClosestCaptureDist <= distance, "Yes", "No")
+
+sub.captured <- subset(sub.roosts, Captured == "Yes") # get list of dates which the bird was inside the cage
+
+sub.captured.dates <- subset(sub.captured,
+                             select = c("Nili_id",
+                                        "date",
+                                        "ClosestCaptureSite",
+                                        "ClosestCaptureDist",
+                                        "Captured"))
 
 ## For Carmel--different protocol.
 sub.captured.no.carmel <- subset(sub.captured.dates, ClosestCaptureSite != "Carmel")
