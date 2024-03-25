@@ -13,6 +13,7 @@ library(elevatr) # for getting elevation information
 library(raster) # for getting elevation information
 library(parallel) # for running long distance calculations in parallel
 library(future) # for parallel computing
+library(ctmm)
 load("data/derived/cc.Rda")
 
 distviz <- function(data, varname, seasoncol){
@@ -36,7 +37,6 @@ base::load("data/dataPrep/season_names.Rda")
 base::load("data/dataPrep/roosts.Rda")
 roosts <- map(roosts, ~.x %>% group_by(Nili_id) %>% 
                         mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
-
 roostPolygons <- sf::st_read("data/raw/roosts50_kde95_cutOffRegion.kml")
 
 durs <- map_dbl(downsampled_10min, ~{
