@@ -92,3 +92,4 @@ focals %>%
   xlab("Season")+
   scale_color_manual(values = c(cc[["feedingColor"]], cc[["flightColor"]], cc[["roostingColor"]]))+
   theme(text = element_text(size = 16))
+
