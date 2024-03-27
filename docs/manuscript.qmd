@@ -52,7 +52,7 @@ An individual's social centrality may be determined by many factors. Differences
 
 -   Females → more stable partnerships @wey2013
 
-##### Individuals' spatial phenotypes are important determinants of their social centrality
+#### Individuals' spatial phenotypes are important determinants of their social centrality
 
 Of course, how an animal uses space is also an important driver of how many conspecifics it interacts with, and how frequently. The relationship between movement, space use, and social interaction patterns has been an area of active research in recent years. Webber et al [-@webber2023] have characterized the variation in patterns of animal movement and space use as the "spatial phenotype," as part of a larger framework for understanding the relationships between social and spatial drivers of animal behavior. In this light, the "spatial phenotype" may be considered in addition to more conventional phenotypic measures to explain why some individuals are more central than others in their social networks.
 
@@ -64,7 +64,7 @@ Of course, how an animal uses space is also an important driver of how many cons
 
     -   An individual's observed spatial phenotype results from a combination of its internal tendency toward movement and the external environmental conditions through which it moves [(Nathan et al. 2008)](https://www.zotero.org/google-docs/?IyWvRB)
 
-##### Social interactions occur when individuals encounter each other, in various behavioral situations.
+#### Social interactions occur when individuals encounter each other, in various behavioral situations.
 
 -   Co-occurrence in space and time is necessary for social interaction to occur. Therefore, more movement → more social interaction, in general.
 
@@ -82,7 +82,7 @@ Of course, how an animal uses space is also an important driver of how many cons
 
 Additionally, sociality has many dimensions. Individuals interact in different social and behavioral contexts, defined by the types of activities being performed (e.g. feeding, playing, sleeping) and/or the intent and consequences of the interaction itself (e.g. agonistic vs. affiliative interactions) \[REFS\]. The overall social environment experienced by an individual is made up of its interactions in all of these different contexts [@silk2013]. Individuals differ in their centrality in these different contexts [@sharma2023]. Different types of interactions are also localized differently in space. For example, social foraging occurs, by definition, while individuals move concurrently across a landscape, so which individuals forage together and co-foraging rates are likely to be directly tied to movement behavior and spatial phenotypes of the individuals involved. By contrast, mating or fighting interactions might be more localized to specific places where these behaviors occur, such as nest or den sites, leks, territorial boundaries, or scarce food resources. An informed understanding of the relationship between the spatial and social phenotypes, then, should allow for the possibility that the spatial phenotype relates differently to an individual's position in each situation-specific social network.
 
-##### We set out to uncover whether spatial phenotypes could explain observed variation in social centrality \[should we add centroid location as a factor?\]
+#### We set out to uncover whether spatial phenotypes could explain observed variation in social centrality.
 
 -   Hypotheses/predictions from slides
 
@@ -108,81 +108,33 @@ Q2: How is the relationship between spatial phenotype and social interactions im
 
     -   P2B: The relationship between movement and social position will be stronger in the non-breeding seasons (summer and fall) than during the breeding season.
 
-Q3: How does the time scale of movement predict social interactions?
-
--   H3A: The relationship between movement and social centrality will be strongest within the time scales at which change occurs in the social network.
-
-    -   P3A: Co-flight networks will change hourly to daily, co-feeding networks will change every few days, and co-roosting networks will change over longer periods of time (weeks to months).
-
-    -   P3B: Social position in each of the social situations will be best predicted by individuals' movement patterns aggregated over the corresponding time scale.
+# Methods {data-link="methods"}
 
 ### Study system
 
-Eurasian griffon vultures (*Gyps fulvus*) provide a study system well suited to ascertaining the relationship between individuals' spatial phenotypes and their social centrality.
+This work was conducted on a population of GPS-tagged Eurasian griffon vultures in southern Israel, a study system well suited to studying the relationship between movement and sociality. Griffon vultures are large obligate scavengers that use soaring flight to locate food resources (carcasses) on the landscape. They may travel long distances without expending very much energy. Griffon vultures are locally endangered in Israel, where they have declined significantly since \[DATE\], and they face significant anthropogenic threats, most commonly through pesticide and NSAID poisonings, power line collisions, and shootings. The population in southern Israel has an unusually high GPS tracking coverage, with a high proportion of individuals (approximately 80-90%) fitted with GOS tags. The tags send a position reading ever ten minutes if battery condition is good, or less frequently otherwise. \[paper\] says that we only need \[percentage\] of individuals in order to get a good sense of the population-level social structure, and our coverage far exceeds that. We are able to get a very good sense of individuals' movement behavior and social interaction patterns.
 
--   obligate scavengers, large soaring fliers, lots of movement
+Griffon vultures interact in several social situations, each with a different biological relevance. In particular, griffons rely on social information to locate food resources. Interactions in flight (i.e. when individuals fly within each other's perceptual distance) provide an opportunity for local enhancement of carcass resources, or following to a carcass site. Therefore, they are important for information transfer [@harel2017], finding locations of thermal uplift [@sassi2023], and feeding sites [@spiegel2013; @cortés-avizanda2014]. Vultures also obtain social information about food resources at communal roosting sites. Roost sites can vary in size and density, with many vultures roosting together at once \[REF\]. These roosts also serve as breeding colonies during the breeding season (approximately December through May). Finally, vultures interact frequently at or around carcasses while eating. The free-living griffon vultures in the southern Israel population are provisioned at several feeding sites, where livestock carcasses are deposited irregularly to supplement the availability of naturally-occurring carcasses on the landscape. Vultures may co-feed, associate in close proximity near a carcass, or even fight over the food resource.
 
--   Unusual GPS tracking coverage of the population--high proportion of individuals tracked, so we can get a population-level sense of movement behavior and social interaction patterns
-
--   Three clear social situations in which they interact, each with a different significance/relevance.
-
-    -   Communal roosts: many individuals together at once, variability in size/density of roosts. Used for information exchange \[REFS\] and also important for disease transmission \[or not--cf Elvira Nili\]. Breeding/nesting also occurs at/near roost sites, on cliffs.
-
-    -   Flight: interactions in flight are important for information transfer [@harel2017], finding locations of thermal uplift [@sassi2023] and feeding sites [@spiegel2013; @cortés-avizanda2014].
-
-    -   Feeding: Communal feeding at carcasses. Also sometimes standing around the carcass site. Sometimes associate for a while before beginning to feed, e.g. waiting for critical mass to be reached (Orr Spiegel, pers. comm.) Potentially also important for disease transmission \[but not, cf. ref Elvira Nili\].
-
-While some griffon vultures make long-range forays \[REFS\], there is a mostly resident population in a relatively small area in southern Israel \[REF\]. The population is small and restricted enough that individuals' home ranges are highly overlapping, with most individuals using a large fraction of available space in the region. This makes habitat features likely to affect most individuals similarly, though age has been shown to factor into flight skill and could therefore impact movement [@harel2016]. GPS fixes are taken once every 10 minutes, frequently enough to measure flight movements with good accuracy, and most individuals are tracked for several months to several years. Individuals have previously been shown to vary in their social network positions in each of the three social situations, with centrality in one situation not necessarily predicting centrality in another and each situation contributing differently to the overall social structure of the population [@sharma2023].\
-\
-\[General introduction to the importance of time scale in social network analysis\]
-
--   [@blonder2012; @cantor2012; @hobson2013; @rasmussen2013; @holme2015; @farine2018; @fisher2021; @pasquaretta2021]
-
-Social situations occur over different time scales, and this is an important consideration when studying the causes and consequences of their structure. In defining co-roosting, co-flight, and co-feeding interactions based on proximity in each of these behavioral situations, we have created social networks in which edges already conceptually represent interactions over different amounts of time. Because individuals have one roosting location per night, edge weights in the co-roosting network are measured in units of days, while pairs of individuals can interact many times in flight or at a carcass on a given day.\
-\
-The biological processes driving the execution of these behaviors and the formation of these networks are likewise happening over different time scales. An individual must decide once per day which roost to go to [@harel2016]. But flight is a continuous process driven by many decisions resulting from individual and social information [@sassi2023], and feeding events are concentrated in time on a given day. Feeding events are driven by the temporal rhythm of the appearance of carcasses, which occur naturally or are provisioned every \[NUMBER\] days and persist for hours to a few days (Orr Spiegel, pers. comm.). Individuals may return to the same carcass on successive days. While at a carcass, individuals may fight and interact many times.
-
-## Study system
-
-To answer these questions, we analyzed data from a free-flying population of Eurasian griffon vultures (Gyps fulvus) fitted with GPS tags.
-
-\[tag specs\]
-
-Over the period \[date\] to \[date\], the dataset contained \[number\] of tagged vultures. Tags recorded GPS fixes, as well as speed and heading readings, every 10 minutes when battery conditions allowed. The GPS data are stored on Movebank [@kays2022] and were loaded into R using the `move` package\[ @kranstauber2023\].
-
-# Methods
+The southern Israel griffon vulture population is mostly resident, though some individuals (especially juveniles) occasionally make long-range forays \[REF\]. The population is small and restricted enough that individuals' home ranges are highly overlapping, with most individuals using a large fraction of available habitat in the region. This makes habitat features likely to affect many individuals similarly, though age has been shown to factor into flight skill and could therefore impact movement [@harel2016]. GPS fixes are taken frequently enough to monitor flight movements with good accuracy, and most individuals are tracked for several months to several years. Individuals have previously been shown to vary in their social network positions in each of the three social situations, with centrality in one situation not necessarily predicting centrality in another and each situation contributing differently to the overall social structure of the population [@sharma2023].
 
 ## Field methods
 
 \[Tagging methods\] For each vulture, age was determined using \[methods\]
 
-## Data cleaning
+\[tag specs\]
 
--   Download data from movebank (ornitela, inpa). Give general dates.
+## Data preparation
 
--   (Fix IDs)\--don't need to report this in the manuscript
+For this study, we began with data between September 1, 2020 and September 15, 2023 from the \[ornitela\] and \[inpa\] datasets, which we downloaded from Movebank [@kays2022]. For each vulture, we removed any periods of time spent in the capture cage or in the wildlife hospital (e.g. while recovering from an illness, injury, or poisoning), or in captivity prior to wild release (in the case of captive-born birds). We cleaned the data by filtering out GPS fixes deemed unreliable (e.g. too few satellites for triangulation, nonsensical heading readings, impossible jumps from previous fixes). Altogether, we removed \<1% of fixes this way (xxx LITERATE PROGRAMMING--PUT ACTUAL NUMBER WHEN DATA CLEANING IS FINAL). The data were divided into seasons based on biological knowledge of vultures' breeding timelines: a breeding season (December 15 through May 14 of the following year); a summer or post-breeding season (May 15th through September 14th), and a transient or pre-breeding season (September 15th through December 14th). For simplicity, we refer to each breeding season by the calendar year in which it ends (e.g. the 2021 breeding season lasts from December 15, 2020 through May 14, 2021). We analyzed data from the 2020 pre-breeding/transient season through the 2023 post-breeding/summer season, for a total of nine seasons across four calendar years (three of each type of season).
 
--   Remove invalid periods in the hospital and capture cages (1 sentence)
+For each season, we included only vultures that registered at least 30% of their GPS fixes within the general area of Israel (to exclude, for instance, any birds that were hardly detected in the area before leaving for a long-range foray). The vulture population in Israel is geographically separated, with most individuals in the south but a small and relatively isolated population at the Hai Bar Carmel Nature Reserve and in the Golan Heights. While vultures occasionally move between the northern and southern population, such movements are rare, and northern vultures behave differently than southern vultures due to more consistent feeding and a more restricted range in the north. Therefore, for each season, we restricted our analysis to individuals whose spatial centroid (including all GPS points after data cleaning) lay south of UTM Northing 3550000 (Zone 36N), equivalent to approximately 32.086238 North latitude. This threshold was determined by visual examination of a histogram of centroid latitudes, which was bimodal and disjoint.
 
-    -   We subsetted the dataset to exclude periods of time that vultures spent in capture cages, in the wildlife hospital following poisonings or injuries, or in captivity prior to wild release (in the case of captive-born birds).
+#### Determining roost locations
 
--   Data cleaning
+We used GPS fixes to determine vultures' nightly roost locations. The solar-powered GPS tags are set to record very few fixes overnight, and cell reception (needed for data transmission) is often very poor on the cliffs where roosting sites are located. Therefore, we combined information from individuals' last locations of the evening and first locations of the morning to assign a roost site for each individual on each night. Full details about the data cleaning and roost assignment procedure can be found in the supplementary material.
 
-    -   Basic data quality filters
-
-        -   We cleaned the data to remove invalid GPS fixes.
-
-    -   Remove spiky speeds
-
--   Double-masking process
-
--   Split into seasons
-
-    -   Then we split data from each into three seasons. The fall, or "pre-breeding," season includes dates from 15 September through 14 December; the breeding season lasts from 15 December through 14 May of the following year; and the summer lasts from 15 May through 14 September. These season boundaries were chosen based on biological knowledge of the vultures' breeding timelines (see more details in the Study System section). Therefore, the analysis contained a total of 8 seasons, from the fall of 2020 through the 2023 breeding season (Table X).
-
--   Further cleaning for movement data
-
-Then we split data from each into three seasons. The fall, or "pre-breeding," season includes dates from 15 September through 14 December; the breeding season lasts from 15 December through 14 May of the following year; and the summer lasts from 15 May through 14 September. These season boundaries were chosen based on biological knowledge of the vultures' breeding timelines (see more details in the Study System section). Therefore, the analysis contained a total of 8 seasons, from the fall of 2020 through the 2023 breeding season (Table X). All of these data was reserved for use in proximity-based social network analysis. Since the GPS tags give few to no fixes overnight, and since reception is often very poor on the cliffs where vultures roost, we combined information from individuals' last locations of the evening and first locations of the morning to assign a roost site for each individual on each night \[more details\]. Full details about the data cleaning and roost assignment procedure can be found in the supplementary material.
+### Measuring spatial phenotype
 
 To characterize individual movement behavior and spatial phenotype, we cleaned the data further. We restricted movement points to the period between sunrise and sunset (calculated for each day with respect to a point at the centroid of Israel using the R package suncalc [@thieurmel2022]. We restricted movement calculations to a set of focal individuals with activity regions centered in the Negev region of Israel, the site of most of our tagging effort. For each vulture, we also removed days with too few GPS fixes. Fixes were ideally collected every 10 minutes, but sometimes they were less frequent due to bad cellular reception in the cliff areas where vultures often sit or due to low battery charge. For each individual, only days with 10 or more GPS fixes per day were retained, unless the battery charge never dipped below 50% during that day. In those cases, the low number of points was attributed to the vultures spending most of their time sitting on a cliff without much movement, rather than to missed points due to low battery. Since these sedentary days represent an important component of vulture movement behavior, we retained this information (Orr Spiegel, pers. obs.).
 
