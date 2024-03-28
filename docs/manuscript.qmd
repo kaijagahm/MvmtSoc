@@ -7,7 +7,6 @@ editor: visual
 date: last-modified
 author: Kaija Gahm, [others]
 bibliography: references.bib
-csl: the-american-naturalist.csl
 ---
 
 # Introduction
@@ -28,37 +27,37 @@ An individual's social centrality may be determined by many factors. Differences
 
 ##### Individual traits
 
--   Multiple spatial behaviors → Social centrality @albery2021
+-   Multiple spatial behaviors → Social centrality [@albery2021]
 
--   Exploration → Weak associations with more conspecifics, more movement between flocks. @aplin2013
+-   Exploration → Weak associations with more conspecifics, more movement between flocks. [@aplin2013]
 
--   Slow-exploring → More stable relationships @aplin2013
+-   Slow-exploring → More stable relationships [@aplin2013]
 
--   Personality → Social structure @aplin2013
+-   Personality → Social structure [@aplin2013]
 
--   Stress → Weaker parental bonds, in captivity @boogert2014
+-   Stress → Weaker parental bonds, in captivity [@boogert2014]
 
--   Stress → Foraging with more others, less choosy, more central, in captivity @boogert2014
+-   Stress → Foraging with more others, less choosy, more central, in captivity [@boogert2014]
 
--   Stress → Foraging with more others, less choosy, more central, in the wild @brandl2019
+-   Stress → Foraging with more others, less choosy, more central, in the wild [@brandl2019]
 
--   More exploratory → higher degree, in finches @moyers2018
+-   More exploratory → higher degree, in finches [@moyers2018]
 
--   Quick explorers → More interactions @moyers2018
+-   Quick explorers → More interactions [@moyers2018]
 
--   Slower explorers → less central ("Yet, slower explorers overall did not travel shorter distances than faster explorers, indicating that a less central social network position was not merely a consequence of lower activity.") @snijders2014
+-   Slower explorers → less central ("Yet, slower explorers overall did not travel shorter distances than faster explorers, indicating that a less central social network position was not merely a consequence of lower activity.") [@snijders2014]
 
--   Females → higher strength, more preferred partners (only during lactation) @wey2013
+-   Females → higher strength, more preferred partners (only during lactation) [@wey2013]
 
--   Females → more stable partnerships @wey2013
+-   Females → more stable partnerships [@wey2013]
 
 #### Individuals' spatial phenotypes are important determinants of their social centrality
 
 Of course, how an animal uses space is also an important driver of how many conspecifics it interacts with, and how frequently. The relationship between movement, space use, and social interaction patterns has been an area of active research in recent years. Webber et al [-@webber2023] have characterized the variation in patterns of animal movement and space use as the "spatial phenotype," as part of a larger framework for understanding the relationships between social and spatial drivers of animal behavior. In this light, the "spatial phenotype" may be considered in addition to more conventional phenotypic measures to explain why some individuals are more central than others in their social networks.
 
--   Definition of "spatial phenotype" @webber2023
+-   Definition of "spatial phenotype" [@webber2023]
 
--   Definition of "spatial behaviour" @albery2021
+-   Definition of "spatial behaviour" [@albery2021]
 
 -   Note that explicit spatial context is also important, and we didn't consider it. (We should have! How do we justify not doing that?)
 
@@ -114,7 +113,7 @@ Q2: How is the relationship between spatial phenotype and social interactions im
 
 This work was conducted on a population of GPS-tagged Eurasian griffon vultures in southern Israel, a study system well suited to studying the relationship between movement and sociality. Griffon vultures are large obligate scavengers that use soaring flight to locate food resources (carcasses) on the landscape. They may travel long distances without expending very much energy. Griffon vultures are locally endangered in Israel, where they have declined significantly since \[DATE\], and they face significant anthropogenic threats, most commonly through pesticide and NSAID poisonings, power line collisions, and shootings. The population in southern Israel has an unusually high GPS tracking coverage, with a high proportion of individuals (approximately 80-90%) fitted with GOS tags. The tags send a position reading ever ten minutes if battery condition is good, or less frequently otherwise. \[paper\] says that we only need \[percentage\] of individuals in order to get a good sense of the population-level social structure, and our coverage far exceeds that. We are able to get a very good sense of individuals' movement behavior and social interaction patterns.
 
-Griffon vultures interact in several social situations, each with a different biological relevance. In particular, griffons rely on social information to locate food resources. Interactions in flight (i.e. when individuals fly within each other's perceptual distance) provide an opportunity for local enhancement of carcass resources, or following to a carcass site. Therefore, they are important for information transfer [@harel2017], finding locations of thermal uplift [@sassi2023], and feeding sites [@spiegel2013; @cortés-avizanda2014]. Vultures also obtain social information about food resources at communal roosting sites. Roost sites can vary in size and density, with many vultures roosting together at once \[REF\]. These roosts also serve as breeding colonies during the breeding season (approximately December through May). Finally, vultures interact frequently at or around carcasses while eating. The free-living griffon vultures in the southern Israel population are provisioned at several feeding sites, where livestock carcasses are deposited irregularly to supplement the availability of naturally-occurring carcasses on the landscape. Vultures may co-feed, associate in close proximity near a carcass, or even fight over the food resource.
+Griffon vultures interact in several social situations, each with a different biological relevance. In particular, griffons rely on social information to locate food resources. Interactions in flight (i.e. when individuals fly within each other's perceptual distance) provide an opportunity for local enhancement of carcass resources, or following to a carcass site. Therefore, they are important for information transfer [@harel2017], finding locations of thermal uplift [@sassi2023], and feeding sites [@spiegel2013; @cortés-avizanda2014]. Vultures also obtain social information about food resources at communal roosting sites. Roost sites can vary in size and density, with many vultures roosting together at once. These roosts also serve as breeding colonies during the breeding season (approximately December through May). Finally, vultures interact frequently at or around carcasses while eating. The free-living griffon vultures in the southern Israel population are provisioned at several feeding sites, where livestock carcasses are deposited irregularly to supplement the availability of naturally-occurring carcasses on the landscape. Vultures may co-feed, associate in close proximity near a carcass, or even fight over the food resource.
 
 The southern Israel griffon vulture population is mostly resident, though some individuals (especially juveniles) occasionally make long-range forays \[REF\]. The population is small and restricted enough that individuals' home ranges are highly overlapping, with most individuals using a large fraction of available habitat in the region. This makes habitat features likely to affect many individuals similarly, though age has been shown to factor into flight skill and could therefore impact movement [@harel2016]. GPS fixes are taken frequently enough to monitor flight movements with good accuracy, and most individuals are tracked for several months to several years. Individuals have previously been shown to vary in their social network positions in each of the three social situations, with centrality in one situation not necessarily predicting centrality in another and each situation contributing differently to the overall social structure of the population [@sharma2023].
 
@@ -126,33 +125,63 @@ The southern Israel griffon vulture population is mostly resident, though some i
 
 ## Data preparation
 
-For this study, we began with data between September 1, 2020 and September 15, 2023 from the \[ornitela\] and \[inpa\] datasets, which we downloaded from Movebank [@kays2022]. For each vulture, we removed any periods of time spent in the wildlife hospital (e.g. while recovering from an illness, injury, or poisoning), or in captivity prior to wild release (in the case of captive-born birds). We cleaned the data by filtering out GPS fixes deemed unreliable (e.g. too few satellites for triangulation, nonsensical heading readings, impossible jumps from previous fixes), and we removed any time that vultures spent in capture cages during the tagging season in the fall. Altogether, approximately \[PERCENT\] of fixes were removed as compared to the raw data. Next, we removed any vultures that spent fewer than 30 days, in total, within a focal region encompassing the general vicinity of Israel (to exclude, for instance, birds that were briefly detected in the area before dispersing far away). For vultures detected in the area for at least 30 days during the study period, we subsequently removed any fixes for those individuals that occurred outside of the same focal region, in order to restrict our analyses to movements that occurred near the main population locus and ensure that most social interactions would be with other tagged individuals. (We accounted for missing time periods, including removed data, by calculating association indices in the social networks).
+```{r}
+#| include: false
+load(here("data/dataPrep/dataPrep_report_stats.Rda"))
+dp <- dataPrep_report_stats
+cl <- which(dp$dataset == "data_cleaned")
+pctremovedcleaned <- round(100*(dp$nrow[[cl-1]] - dp$nrow[[cl]])/(dp$nrow[[cl-1]]), 2)
+```
+
+For this study, we began with data between September 1, 2020 and September 15, 2023 from the \[ornitela\] and \[inpa\] datasets, which we downloaded from Movebank [@kays2022]. For each vulture, we removed any periods of time spent in the wildlife hospital (e.g. while recovering from an illness, injury, or poisoning), or in captivity prior to wild release (in the case of captive-born birds). We cleaned the data by filtering out GPS fixes deemed unreliable (e.g. too few satellites for triangulation, nonsensical heading readings, impossible jumps from previous fixes), and we removed any time that vultures spent in capture cages during the tagging season in the fall. Altogether, approximately `r pctremovedcleaned`% of fixes were removed as compared to the raw data. Next, we removed any vultures that spent fewer than 30 days, in total, within a focal region encompassing the general vicinity of Israel (in order to exclude, for instance, birds that were briefly detected in the area before dispersing far away). For vultures detected in the area for at least 30 days during the study period, we subsequently removed any fixes for those individuals that occurred outside of the same focal region, in order to restrict our analyses to movements that occurred near the main population locus and ensure that most social interactions would be with other tagged individuals. (We accounted for missing time periods, including removed data, by calculating association indices in the social networks).
 
 We divided the remaining data into seasons based on biological knowledge of vultures' breeding timelines: a breeding season (December 15 through May 14 of the following year); a summer or post-breeding season (May 15th through September 14th), and a transient or pre-breeding season (September 15th through December 14th). For simplicity, we refer to each breeding season by the calendar year in which it ends (e.g. the 2021 breeding season lasts from December 15, 2020 through May 14, 2021). We analyzed data from the 2020 pre-breeding/transient season through the 2023 post-breeding/summer season, for a total of nine seasons across four calendar years (three of each type of season).
 
 The vulture population in Israel is geographically separated, with most individuals in the south but a small and relatively isolated population at the Hai Bar Carmel Nature Reserve and in the Golan Heights. While vultures occasionally move between the northern and southern population, such movements are rare, and northern vultures behave differently than southern vultures due to more consistent feeding and a more restricted range in the north. Therefore, for each season, we restricted our analysis to individuals whose spatial centroid (including all GPS points after data cleaning) lay south of UTM Northing 3550000 (Zone 36N), equivalent to approximately 32.086238 North latitude. This threshold was determined by visual examination of a histogram of centroid latitudes, which was bimodal and disjoint. Finally, to account for older GPS tags that were set to lower fix frequencies, we excluded any individuals from each season that never had their tags set to a 10-minute frequency during that season. In recent months, some tags were temporarily set to record fixes at much higher frequencies, so those individuals were downsampled to a 10-minute frequency in order to make data analysis more tractable.
 
-After this cleaning, the data used for social network analysis contained \[NUMBER\] of unique vultures in total. Table \[NUMBER\] shows the number of individuals included in the social networks for each season.
+```{r}
+#| include: false
+soc <- which(dp$dataset == "downsampled_10min_forSocial")
+vulturessoc <- unique(unlist(dp$vultures[[soc]]))
+nvulturessoc <- length(vulturessoc)
+nvulturessoc_szns <- dp$nvultures[[soc]]
+```
+
+After this cleaning, the data used for social network analysis contained `r nvulturessoc` unique vultures in total (range: `r min(nvulturessoc_szns)`-`r max(nvulturessoc_szns)`; mean = `r round(mean(nvulturessoc_szns), 2)` vultures per season, sd = `r round(sd(nvulturessoc_szns), 2)` vultures per season).
 
 #### Determining roost locations
 
 We used GPS fixes to determine vultures' nightly roost locations. The solar-powered GPS tags are set to record very few fixes overnight, and cell reception (needed for data transmission) is often very poor on the cliffs where roosting sites are located. Therefore, we combined information from individuals' last locations of the evening and first locations of the morning to assign a roost site for each individual on each night. Full details about the data cleaning and roost assignment procedure can be found in the supplementary material.
 
-### Further cleaning for movement analysis
+#### Further cleaning for movement analysis
 
-To characterize individual movement behavior and spatial phenotype, we cleaned the data further. We restricted movement points to the period between sunrise and sunset (calculated for each day with respect to a point at the centroid of Israel using the R package suncalc [@thieurmel2022]. We restricted movement calculations to a set of focal individuals with activity regions centered in the Negev region of Israel, the site of most of our tagging effort. For each vulture, we also removed days with too few GPS fixes. Fixes were ideally collected every 10 minutes, but sometimes they were less frequent due to bad cellular reception in the cliff areas where vultures often sit or due to low battery charge. For each individual, only days with 10 or more GPS fixes per day were retained, unless the battery charge remained above 50% for the entire day. In those cases, the low number of points was attributed to the vultures spending most of their time sitting on a cliff (with limited reception) without much movement, rather than to actual missing data due to low battery. Since these sedentary days represent an important component of vulture movement behavior, we retained this information (Orr Spiegel, pers. obs.).
+To characterize individual movement behavior and spatial phenotype, we cleaned the data further. We restricted movement points to the period between sunrise and sunset (calculated for each day with respect to a point at the centroid of Israel using the R package {suncalc} [@thieurmel2022]. We restricted movement calculations to a set of focal individuals with activity regions centered in the Negev region of Israel, the site of most of our tagging effort. For each vulture, we also removed days with too few GPS fixes. Fixes were ideally collected every 10 minutes, but sometimes they were less frequent due to bad cellular reception in the cliff areas where vultures often sit or due to low battery charge. For each individual, only days with 10 or more GPS fixes per day were retained, unless the battery charge remained above 50% for the entire day. In those cases, the low number of points was attributed to the vultures spending most of their time sitting on a cliff (with limited reception) without much movement, rather than to actual missing data due to low battery. Since these sedentary days represent an important component of vulture movement behavior, we retained this information (Orr Spiegel, pers. obs.).
 
-After removing days with too few fixes per day, we removed any vultures that did not have at least 30 days of valid movement data remaining in a given season, to ensure that movement estimates and averages were based on a high enough sample size of days to capture the range of the vulture's behavior. Since this was done on a per-season basis, individuals that were removed from one season's analysis due to not having enough valid days could still have movement measures calculated for a different season. Finally, we downsampled the movement data to a 10-minute interval to remove high-frequency fixes.
+```{r}
+#| include: false
+mov <- which(dp$dataset == "downsampled_10min")
+vulturesmov <- unique(unlist(dp$vultures[[mov]]))
+nvulturesmov <- length(vulturesmov)
+nvulturesmov_szns <- dp$nvultures[[mov]]
+```
 
-\[Geography\]
+After removing days with too few fixes per day, we removed any vultures that did not have at least 30 days of valid movement data remaining in a given season, to ensure that movement estimates and averages were based on a high enough sample size of days to capture the range of the vulture's behavior. Since this was done on a per-season basis, individuals that were removed from one season's analysis due to not having enough valid days could still have movement measures calculated for a different season. Finally, we downsampled the movement data to a 10-minute interval to remove high-frequency fixes. Ultimately, we calculated movement measures for a total of `r nvulturesmov` **focal individuals** in total (range: `r min(nvulturesmov_szns)`-`r max(nvulturesmov_szns)`; mean = `r round(mean(nvulturesmov_szns), 2)` vultures per season, sd = `r round(sd(nvulturesmov_szns), 2)` vultures per season).
 
-For each season, we calculated movement measures only for individuals tracked for at least 30 days (after removing low-point days as described above). We calculated flight altitude by extracting ground elevation information from elevation rasters obtained from the `elevatr` R package [@hollister2022], at a zoom level of \[level--more details about resolution?\] and subtracting those numbers from the vultures' tag-mounted altimeter readings. Finally, since some tags were occasionally set to a much higher fix rate (e.g. every 1 minute) for short periods of time, we downsampled the data to a 10 minute fix rate to make sure that all individuals had comparable fix rates.
+## Measuring spatial phenotype
 
-## Movement calculations
+For each focal individual, we characterized a pattern-based spatial phenotype (Webber et al. 2023) by calculating a variety of movement and space use measures over the course of each of the eight seasons. We used several measures to capture an individual's space use, roosting behavior, and flight movements.
 
-For each focal individual, we characterized a pattern-based spatial phenotype (Webber et al. 2023) by calculating a variety of movement and space use measures over the course of each of the eight seasons. We calculated home range as the 95% AKDE of a vulture's GPS fixes in a season \@
+### Space use
+
+We calculated seasonal home ranges and core areas for each focal vulture, using autocorrelated kernel density estimates (AKDEs) via the {ctmm} R package [@fleming2023]. We defined the home range as the 95% AKDE and the core area as the 50% AKDE. To measure differences in how individuals used their home ranges, we calculated the ratio of the seasonal core area size to the seasonal home range size. We defined a general "space use" variable as the first principal component of a PCA containing the home range size and the core area/home range ratio. The "space use" principal component explained \[PERCENT\] of the variation in the data, with individuals low on the principal component having \[CHARACTERISTICS\] and individuals high on the principal component having \[CHARACTERISTICS\].
+
+### Roost diversification 
 
 To quantify roosting behavior, we assigned each individual's night roost site to a pre-defined roost site polygon determined from clustering of \[years\] of vulture roost locations \[more details?\]. Then, for each vulture in each season, we calculated the number of unique roosts used, the proportion of nights switching roosts (versus returning to the same roost as the previous night), and the diversity of roosts used (Shannon diversity index).
+
+### Movement
+
+We calculated flight altitude by extracting ground elevation information from elevation rasters obtained from the {elevatr} package [@hollister2022], at a zoom level of \[level--more details about resolution?\] and subtracting those numbers from the vultures' tag-mounted altimeter readings. Finally, since some tags were occasionally set to a much higher fix rate (e.g. every 1 minute) for short periods of time, we downsampled the data to a 10 minute fix rate to make sure that all individuals had comparable fix rates.
 
 We identified in-flight fixes (ground speed \>= 5 m/s) and calculated measures of daily flight behavior, including maximum and median daily flight altitude and daily flight time (the sum of time intervals between adjacent in-flight fixes). Finally, we used all fixes to calculate daily distance traveled (the sum of all distances between successive fixes); daily maximum displacement (the straight-line distance between the beginning of the daily movement track and the farthest point reached on that day); and movement tortuosity (cumulative distance to the point of maximum displacement divided by the straight-line distance to the point of maximum displacement [@benhamou2004]). We took seasonal means of each of these individual daily measures to get a single value per individual vulture, per season.
 
@@ -180,41 +209,41 @@ Vultures that were not flying (ground speed \< 5 m/s, [@spiegel2013]) who came w
 
 \[Explain the reasons for choosing the social network measures in the earlier hypotheses/predictions/introduction section\]
 
-We used the R package `igraph` [@csardi2005] to calculate each individual's degree and strength for each social situation in each season. Degree is defined as the number of other individuals that a vulture is connected to (i.e. ever interacted with). Strength measures how much an individual interacts, and is calculated as the sum of the weights of all edges that the focal vulture is involved in.
+We used the R package {igraph} [@csardi2005] to calculate each individual's degree and strength for each social situation in each season. Degree is defined as the number of other individuals that a vulture is connected to (i.e. ever interacted with). Strength measures how much an individual interacts, and is calculated as the sum of the weights of all edges that the focal vulture is involved in.
 
 ## Model fitting and selection
 
-We modeled the relationship between the spatial phenotype variables and the network measures using linear mixed-effects regression models, fitted using the lme4 and lmerTest packages [@bates2015; @kuznetsova2017]. We fit separate models for each response variable (degree and strength). The predictors included were movement (PC1), exploration (PC2), situation (feeding, flight, roosting), age group (juvenile/subadult, adult), and season (breeding, summer, fall). To account for the different numbers of individuals in the network in each unique season, we included a random effect for the interaction of season and year, e.g. "2022_fall" (8 levels). To account for consistent individual differences in network position or behavior, and because individuals varied in how many seasons they were included in, we also included an individual-level random effect.
+We modeled the relationship between the spatial phenotype variables and the network measures using linear mixed-effects regression models, fitted using the {lme4} and {lmerTest} packages [@bates2015; @kuznetsova2017]. We fit separate models for each response variable (degree and strength). The predictors included were movement (PC1), exploration (PC2), situation (feeding, flight, roosting), age group (juvenile/subadult, adult), and season (breeding, summer, fall). To account for the different numbers of individuals in the network in each unique season, we included a random effect for the interaction of season and year, e.g. "2022_fall" (8 levels). To account for consistent individual differences in network position or behavior, and because individuals varied in how many seasons they were included in, we also included an individual-level random effect.
 
 Degree values were scaled and standardized before modeling. Because the distribution of strength values was extremely right-skewed, the strength values were incremented by one-half the minimum non-zero strength value (0.018) and then log-transformed.
 
-For each response variable, we began by fitting a model without any interaction terms to check for multicollinearity between the predictors and check model assumptions, using the performance and DHARMa packages [@lüdecke2021; @hartig2022]. Next, we fitted a model containing two three-way interaction terms (between season, situation, and each of the spatial phenotype variables), all of the included two-way interaction terms, age as a main effect, and the two random effects (individual ID; season by year). Examining the model summaries and p values produced by lmerTest, we then removed non-significant higher-order interaction terms, one by one, stopping when all remaining interaction terms were significant. All main and random effects were retained in the final model.
+For each response variable, we began by fitting a model without any interaction terms to check for multicollinearity between the predictors and check model assumptions, using the {performance} and {DHARMa} packages [@lüdecke2021; @hartig2022]. Next, we fitted a model containing two three-way interaction terms (between season, situation, and each of the spatial phenotype variables), all of the included two-way interaction terms, age as a main effect, and the two random effects (individual ID; season by year). Examining the model summaries and p values produced by lmerTest, we then removed non-significant higher-order interaction terms, one by one, stopping when all remaining interaction terms were significant. All main and random effects were retained in the final model.
 
-For each model, we calculated marginal effects using the emmeans package [@lenth2023] and created visualizations using ggeffects and ggplot2 [@wickham2016; @lüdecke2018].
+For each model, we calculated marginal effects using the {emmeans} package [@lenth2023] and created visualizations using {ggeffects} and {ggplot2} [@wickham2016; @lüdecke2018].
 
 # Results
 
 ```{r}
-#| include: false
+#| eval: false
 source(here("scripts/04.0_mixedModels.R"))
 ```
 
 ```{r}
-#| echo: false
+#| eval: false
 #| label: fig-d-space
 #| fig-cap: "Relationship between normalized degree and space use"
 plot_d_eff_space
 ```
 
 ```{r}
-#| echo: false
+#| eval: false
 #| label: fig-d-roost
 #| fig-cap: "Relationship between normalized degree and roost diversification"
 plot_d_eff_roost
 ```
 
 ```{r}
-#| echo: false
+#| eval: false
 #| label: fig-d-space-situ
 #| fig-cap: "Relationship between normalized degree and space use, with separate trend lines for each social situation"
 plot_d_eff_situ_space
@@ -222,14 +251,14 @@ plot_d_emt_situ_space
 ```
 
 ```{r}
-#| echo: false
+#| eval: false
 #| label: fig-s-movement
 #| fig-cap: "Relationship between normalized strength and movement"
 plot_s_eff_movement
 ```
 
 ```{r}
-#| echo: false
+#| eval: false
 #| label: fig-d-movement-situ
 #| fig-cap: "Relationship between normalized degree and movement, with separate trend lines for each social situation"
 plot_d_eff_situ_movement
@@ -237,14 +266,14 @@ plot_d_emt_situ_movement
 ```
 
 ```{r}
-#| echo: false
+#| eval: false
 #| label: fig-s-roost
 #| fig-cap: "Relationship between normalized strength and roost diversification"
 plot_s_eff_roost
 ```
 
 ```{r}
-#| echo: false
+#| eval: false
 #| label: fig-s-space
 #| fig-cap: "Relationship between normalized strength and space use"
 plot_s_eff_situ_space
