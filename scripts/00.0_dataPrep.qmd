@@ -23,7 +23,16 @@ library(readxl)
 library(elevatr)
 library(here)
 library(furrr)
-future::plan(future::multisession, workers = 10) # this will last for the whole R session.
+future::plan(future::multisession, workers = 5) # this will last for the whole R session.
+
+# function to downsample data to an arbitrary number of minutes, assuming df contains only one individual and timestamp column is called "timestamp"
+down <- function(df, mins){
+  df <- dplyr::arrange(df, timestamp)
+  howmuch <- paste(mins, "minute", sep = " ")
+  rounded <- lubridate::round_date(df$timestamp, howmuch)
+  keep <- !duplicated(rounded)
+  return(df[keep,])
+}
 ```
 
 # Processing for all data
@@ -131,6 +140,21 @@ length(nas) # yay, no more!
 write_feather(joined, here("data/dataPrep/joined.feather"))
 ```
 
+## Downsample to 5-minute frequency
+This data is just WAY too huge to handle now that we have the higher-frequency fixes from the summer/fall of 2023. Going to downsample it a bit.
+
+```{r}
+# split `joined` by `Nili_id`
+lst <- joined %>% group_split(Nili_id)
+
+# apply the function to each of the ~200 individuals
+interval_5min <- map(lst, ~down(df = .x, mins = 5), .progress = T)
+interval_5min <- purrr::list_rbind(interval_5min)
+write_feather(interval_5min, here("data/dataPrep/interval_5min.feather"))
+nrow(joined)
+nrow(interval_5min) # okay, that removed a lot!
+```
+
 ## Remove invalid periods
 
 ### Hospital/pre-determined invalid
@@ -138,13 +162,13 @@ write_feather(joined, here("data/dataPrep/joined.feather"))
 Removing known invalid periods, such as times when the vultures were in the hospital or the tags were known not to be attached to birds. These times are derived from a separate Excel sheet.
 
 ```{r load-hospital}
-joined <- read_feather(here::here("data", "dataPrep", "joined.feather"))
-periods_to_remove <- read_excel(here::here("data", "raw", "whoswho_vultures_20230920_new.xlsx"), sheet = "periods_to_remove")
+interval_5min <- read_feather(here::here("data/dataPrep/interval_5min.feather"))
+periods_to_remove <- read_excel(here::here("data/raw/whoswho_vultures_20230920_new.xlsx"), sheet = "periods_to_remove")
 ```
 
 ```{r remove-periods}
-removed_periods <- vultureUtils::removeInvalidPeriods(dataset = joined, periodsToRemove = periods_to_remove)
-save(removed_periods, file = here("data/dataPrep/removed_periods.Rda"))
+removed_periods <- vultureUtils::removeInvalidPeriods(dataset = interval_5min, periodsToRemove = periods_to_remove)
+write_feather(removed_periods, here("data/dataPrep/removed_periods.feather"))
 ```
 
 ## Clean the data based on filters for invalid data points (see `vultureUtils` package code for details)
@@ -427,25 +451,6 @@ load(here::here("data", "dataPrep", "removed_lfr.Rda"))
 
 ```{r}
 #| eval: false
-
-# Function to downsample the data
-subsample <- function(df, idCol = "Nili_id", 
-                      timestampCol = "timestamp", mins = 10){
-  sub <- df %>%
-    mutate(d = lubridate::date(.data[[timestampCol]])) %>% 
-    group_by(.data[[idCol]]) %>%
-    arrange(timestampCol, .by_group = T) %>%
-    mutate(tc = cut(.data[[timestampCol]], 
-                    breaks = paste(as.character(mins), 
-                                   "min", sep = " "))) %>%
-    ungroup() %>%
-    group_by(.data[[idCol]], d, tc) %>%
-    slice(1) %>%
-    ungroup() %>%
-    dplyr::select(-c("d", "tc"))
-  return(sub)
-}
-
 downsampled_10min_forSocial <- map(removed_lfr, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T)
 
 # Add information on # of days tracked for each individual
