@@ -24,12 +24,12 @@ library(gtsummary)
 theme_set(theme_classic())
 
 # Load network metrics and movement variables
-load("data/calcSocial/networkMetrics.Rda")
+load(here("data/calcSocial/networkMetrics.Rda"))
 networkMetrics <- networkMetrics %>% rename("seasonUnique" = "season")
-load("data/new_movement_vars.Rda")
-load("data/dataPrep/season_names.Rda")
-load("data/derived/cc.Rda")
-load("data/akde/sfs_est_centroids.Rda")
+load(here("data/new_movement_vars.Rda"))
+load(here("data/dataPrep/season_names.Rda"))
+load(here("data/derived/cc.Rda"))
+load(here("data/akde/sfs_est_centroids.Rda"))
 centrs <- sfs_est_centroids %>%
   select(seasonUnique, Nili_id, dist_szn_centr) %>%
   group_by(seasonUnique) %>%
@@ -66,7 +66,7 @@ linked <- linked %>%
                           type == "roosting" ~ "Ro"))
 table(linked$situ)
 
-save(linked, file = "data/mixedModels/linked.Rda")
+save(linked, file = here("data/mixedModels/linked.Rda"))
 
 
 # Examine response variable distributions ---------------------------------
@@ -97,18 +97,18 @@ save(linked, file = "data/mixedModels/linked.Rda")
 #   theme(legend.position = "none", text = element_text(size = 20))
 # ggsave(normDegree_years_seasons_feeding, filename = "fig/normDegree_years_seasons_feeding.png", width = 9, height = 7)
 
-normDegree_years_seasons_roosting <- linked %>%
-  filter(type == "roosting") %>%
-  mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
-  ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
-  geom_density(linewidth = 1.5)+
-  theme_classic()+
-  scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
-  ylab("Frequency")+
-  xlab("Degree (normalized)")+
-  facet_wrap(~season)+
-  theme(legend.position = "none", text = element_text(size = 20))
-ggsave(normDegree_years_seasons_roosting, filename = "fig/normDegree_years_seasons_roosting.png", width = 9, height = 7)
+# normDegree_years_seasons_roosting <- linked %>%
+#   filter(type == "roosting") %>%
+#   mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
+#   ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
+#   geom_density(linewidth = 1.5)+
+#   theme_classic()+
+#   scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
+#   ylab("Frequency")+
+#   xlab("Degree (normalized)")+
+#   facet_wrap(~season)+
+#   theme(legend.position = "none", text = element_text(size = 20))
+# ggsave(normDegree_years_seasons_roosting, filename = here("fig/normDegree_years_seasons_roosting.png"), width = 9, height = 7)
 
 # Let's examine zeroes for the social network measures. I know that when we calculate the social networks, we had a lot of zeroes for both degree and strength. But most of the individuals that didn't have network connections probably aren't our focal individuals for the movement measures.
 networkMetrics %>% filter(degree == 0 | strength == 0) # lots of rows
@@ -122,26 +122,26 @@ linked <- linked %>%
 # Modeling ----------------------------------------------------------------
 
 # Degree ------------------------------------------------------------------
-degree_base <- glmmTMB(normDegree ~ situ + movement + roost_div + space_use + age_group + season + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_model(degree_base) # the good news is that the variance inflation factor is quite low, so these predictors aren't prohibitively highly correlated (yay!!!!). The bad news is that the posterior predictive check and the residuals vs. fitted values plots look... bad.
-check_predictions(degree_base) # yeah this model is not a good fit for the data. No wonder, given the really squinched up values in the summers. I would have thought that including season and situation as predictors would fix this, but apparently not.
-simulationOutput <- DHARMa::simulateResiduals(degree_base)
-plot(simulationOutput, pch=".")
-plotQQunif(simulationOutput)
-plotResiduals(simulationOutput)
-
-# What if there are different relationships between movement and degree in different seasons and situations?
-degree_full <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) # this will almost certainly have very high VIFs
-check_model(degree_full) # now we have some high VIFs
-check_collinearity(degree_full) # the highest collinearity interaction is roost_div:season. Let's remove it, making sure that both roost_div and season stay in the model in some other capacity.
-
-degree_1 <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_collinearity(degree_1) # a couple more with moderate correlations that we should get rid of: situ:roost_div and situ:space_use. Starting with getting rid of situ:roost_div, adding roost_div back in as a main effect
-
-degree_2 <- glmmTMB(normDegree ~ situ*movement + situ*space_use + season*movement + roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_collinearity(degree_2) # this allows them all to drop below 5, which I'm happy with.
-check_model(degree_2)
-summary(degree_2) # space_use:season isn't significant; let's remove that
+# degree_base <- glmmTMB(normDegree ~ situ + movement + roost_div + space_use + age_group + season + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
+# check_model(degree_base) # the good news is that the variance inflation factor is quite low, so these predictors aren't prohibitively highly correlated (yay!!!!). The bad news is that the posterior predictive check and the residuals vs. fitted values plots look... bad.
+# check_predictions(degree_base) # yeah this model is not a good fit for the data. No wonder, given the really squinched up values in the summers. I would have thought that including season and situation as predictors would fix this, but apparently not.
+# simulationOutput <- DHARMa::simulateResiduals(degree_base)
+# plot(simulationOutput, pch=".")
+# plotQQunif(simulationOutput)
+# plotResiduals(simulationOutput)
+# 
+# # What if there are different relationships between movement and degree in different seasons and situations?
+# degree_full <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) # this will almost certainly have very high VIFs
+# check_model(degree_full) # now we have some high VIFs
+# check_collinearity(degree_full) # the highest collinearity interaction is roost_div:season. Let's remove it, making sure that both roost_div and season stay in the model in some other capacity.
+# 
+# degree_1 <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
+# check_collinearity(degree_1) # a couple more with moderate correlations that we should get rid of: situ:roost_div and situ:space_use. Starting with getting rid of situ:roost_div, adding roost_div back in as a main effect
+# 
+# degree_2 <- glmmTMB(normDegree ~ situ*movement + situ*space_use + season*movement + roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
+# check_collinearity(degree_2) # this allows them all to drop below 5, which I'm happy with.
+# check_model(degree_2)
+# summary(degree_2) # space_use:season isn't significant; let's remove that
 
 degree_3 <- glmmTMB(normDegree ~ situ*movement + situ*space_use + season*movement + roost_div + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
 summary(degree_3) # All remaining interaction effects are significant. Looks like adding `centr` as another predictor variable took out the effect of individuals being central and allowed a significant relationship to emerge between movement and season.
@@ -164,7 +164,7 @@ plot_d_eff_centr <- ggplot(d_eff_centr, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_centr
-ggsave(plot_d_eff_centr, file = "fig/mmPlots/plot_d_eff_centr.png", width = 7, height = 6)
+ggsave(plot_d_eff_centr, file = here("fig/mmPlots/plot_d_eff_centr.png"), width = 7, height = 6)
 
 ## centr:situ -------------------------------------------------------------
 d_eff_situ_centr <- as.data.frame(ggeffect(degree_mod, terms = c("centr", "situ")))
@@ -180,7 +180,7 @@ plot_d_eff_situ_centr <- ggplot(d_eff_situ_centr, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_centr
-ggsave(plot_d_eff_situ_centr, file = "fig/mmPlots/plot_d_eff_situ_centr.png", width = 7, height = 6)
+ggsave(plot_d_eff_situ_centr, file = here("fig/mmPlots/plot_d_eff_situ_centr.png"), width = 7, height = 6)
 d_emt_situ_centr <- emmeans::emtrends(degree_mod, "situ", var = "centr") %>%
   as.data.frame() %>%
   mutate(situ = case_when(situ == "Ro" ~ "Roosting",
@@ -200,7 +200,7 @@ plot_d_emt_situ_centr <- d_emt_situ_centr %>%
   xlab("Situation")+
   coord_flip()
 plot_d_emt_situ_centr
-ggsave(plot_d_emt_situ_centr, file = "fig/mmPlots/plot_d_emt_situ_centr.png", width = 5, height = 6)
+ggsave(plot_d_emt_situ_centr, file = here("fig/mmPlots/plot_d_emt_situ_centr.png"), width = 5, height = 6)
 
 ## movement (main) ---------------------------------------------------------
 d_eff_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement")))
@@ -215,7 +215,7 @@ plot_d_eff_movement <- ggplot(d_eff_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_movement
-ggsave(plot_d_eff_movement, file = "fig/mmPlots/plot_d_eff_movement.png", width = 7, height = 6)
+ggsave(plot_d_eff_movement, file = here("fig/mmPlots/plot_d_eff_movement.png"), width = 7, height = 6)
 
 ## movement:situ -----------------------------------------------------------
 d_eff_situ_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement", "situ")))
@@ -231,7 +231,7 @@ plot_d_eff_situ_movement <- ggplot(d_eff_situ_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_movement
-ggsave(plot_d_eff_situ_movement, file = "fig/mmPlots/plot_d_eff_situ_movement.png", width = 7, height = 6)
+ggsave(plot_d_eff_situ_movement, file = here("fig/mmPlots/plot_d_eff_situ_movement.png"), width = 7, height = 6)
 d_emt_situ_movement <- emmeans::emtrends(degree_mod, "situ", var = "movement") %>%
   as.data.frame() %>%
   mutate(situ = case_when(situ == "Ro" ~ "Roosting",
@@ -251,7 +251,8 @@ plot_d_emt_situ_movement <- d_emt_situ_movement %>%
   xlab("Situation")+
   coord_flip()
 plot_d_emt_situ_movement
-ggsave(plot_d_emt_situ_movement, file = "fig/mmPlots/plot_d_emt_situ_movement.png", width = 5, height = 6)
+ggsave(plot_d_emt_situ_movement, file = here("fig/mmPlots/plot_d_emt_situ_movement.png"), width = 5, height = 6)
+
 ## movement:season ---------------------------------------------------------
 d_eff_season_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement", "season")))
 plot_d_eff_season_movement <- ggplot(d_eff_season_movement, aes(x, predicted))+
@@ -266,7 +267,8 @@ plot_d_eff_season_movement <- ggplot(d_eff_season_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_season_movement
-ggsave(plot_d_eff_season_movement, file = "fig/mmPlots/plot_d_eff_season_movement.png", width = 7, height = 6)
+ggsave(plot_d_eff_season_movement, file = here("fig/mmPlots/plot_d_eff_season_movement.png"), width = 7, height = 6)
+
 d_emt_season_movement <- emmeans::emtrends(degree_mod, "season", var = "movement") %>%
   as.data.frame()
 d_emt_season_movement 
@@ -283,7 +285,23 @@ plot_d_emt_season_movement <- d_emt_season_movement %>%
   xlab("Season")+
   coord_flip()
 plot_d_emt_season_movement
-ggsave(plot_d_emt_season_movement, file = "fig/mmPlots/plot_d_emt_season_movement.png", width = 5, height = 6)
+ggsave(plot_d_emt_season_movement, file = here("fig/mmPlots/plot_d_emt_season_movement.png"), width = 5, height = 6)
+
+d_emt_situ_movement_season <- emmeans::emtrends(degree_mod, c("situ", "season"), var = "movement") %>%
+  as.data.frame()
+plot_d_emt_situ_movement_season <- d_emt_situ_movement_season %>%
+  as.data.frame() %>%
+  ggplot(aes(x = season, y = movement.trend, col = situ, group = interaction(situ, season)))+
+  geom_point(size = 6, position = position_dodge(width = 0.3))+
+  geom_errorbar(aes(x = season, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2, position = position_dodge(width = 0.3))+
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme(text = element_text(size = 20))+
+  ylab("Movement effect")+
+  xlab("Season")+
+  coord_flip()
+ggsave(plot_d_emt_situ_movement_season, file = here("fig/mmPlots/plot_d_emt_situ_movement_season.png"), width = 5, height = 6)
 
 ## space_use (main) --------------------------------------------------------
 d_eff_space <- as.data.frame(ggeffect(degree_mod, terms = c("space_use")))
@@ -298,7 +316,7 @@ plot_d_eff_space <- ggplot(d_eff_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_space
-ggsave(plot_d_eff_space, file = "fig/mmPlots/plot_d_eff_space.png", width = 7, height = 6)
+ggsave(plot_d_eff_space, file = here("fig/mmPlots/plot_d_eff_space.png"), width = 7, height = 6)
 
 ## space_use:situ ----------------------------------------------------------
 d_eff_situ_space <- as.data.frame(ggeffect(degree_mod, terms = c("space_use", "situ")))
@@ -314,7 +332,7 @@ plot_d_eff_situ_space <- ggplot(d_eff_situ_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_space
-ggsave(plot_d_eff_situ_space, file = "fig/mmPlots/plot_d_eff_situ_space.png", width = 7, height = 6)
+ggsave(plot_d_eff_situ_space, file = here("fig/mmPlots/plot_d_eff_situ_space.png"), width = 7, height = 6)
 
 d_emt_situ_space <- emmeans::emtrends(degree_mod, "situ", var = "space_use") %>%
   as.data.frame() %>%
@@ -335,7 +353,7 @@ plot_d_emt_situ_space <- d_emt_situ_space %>%
   xlab("Situation")+
   coord_flip()
 plot_d_emt_situ_space
-ggsave(plot_d_emt_situ_space, file = "fig/mmPlots/plot_d_emt_situ_space.png", width = 5, height = 6)
+ggsave(plot_d_emt_situ_space, file = here("fig/mmPlots/plot_d_emt_situ_space.png"), width = 5, height = 6)
 
 ## roost_div (main) --------------------------------------------------------
 d_eff_roost <- as.data.frame(ggeffect(degree_mod, terms = "roost_div"))
@@ -350,36 +368,36 @@ plot_d_eff_roost <- ggplot(d_eff_roost, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_roost
-ggsave(plot_d_eff_roost, file = "fig/mmPlots/plot_d_eff_roost.png", width = 7, height = 6)
+ggsave(plot_d_eff_roost, file = here("fig/mmPlots/plot_d_eff_roost.png"), width = 7, height = 6)
 
 #@@@@@@@@@@@@@@@@@@@@@
 
 # Strength ----------------------------------------------------------------
-strength_base <- glmmTMB(normStrength ~ situ + movement + roost_div + space_use + age_group + season + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
-check_model(strength_base) # this actually looks pretty good, shockingly! And I only had to exclude one individual for having a 0 for strength.
-simulationOutput <- DHARMa::simulateResiduals(strength_base)
-plot(simulationOutput, pch=".") # this is kinda bad but still better than the degree model!
-
-# Let's see if we want any interactions
-strength_full <- glmmTMB(normStrength ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
-check_model(strength_full) # now we have some high VIFs
-check_collinearity(strength_full) # highest vif is roost_div:season
-
-strength_1 <- glmmTMB(normStrength ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
-check_collinearity(strength_1) #wow, that lowered the other VIFs a lot too! Let's now remove situ*roost_div. Have to remember to introduce a main effect term for roost_div so it doesn't go away.
-
-strength_2 <- glmmTMB(normStrength ~ situ*movement + situ*space_use + season*movement + season*space_use + roost_div + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
-check_collinearity(strength_2) # now these are all under 5 and most are under 4
-summary(strength_2)# buuuut we see that a lot of our remaining interactions are not significant. Start by removing situ*centr
-
-strength_3 <- glmmTMB(normStrength ~ situ*movement + situ*space_use + season*movement + season*space_use + roost_div + age_group + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
-summary(strength_3) # next remove space use*season
-
-strength_4 <- glmmTMB(normStrength ~ situ*movement + situ*space_use + season*movement +  roost_div + age_group + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
-summary(strength_4) # now movement*season is not significant
-
-strength_5 <- glmmTMB(normStrength ~ situ*movement + situ*space_use + season + roost_div + age_group + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
-summary(strength_5) # can remove situ*movement too
+# strength_base <- glmmTMB(normStrength ~ situ + movement + roost_div + space_use + age_group + season + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+# check_model(strength_base) # this actually looks pretty good, shockingly! And I only had to exclude one individual for having a 0 for strength.
+# simulationOutput <- DHARMa::simulateResiduals(strength_base)
+# plot(simulationOutput, pch=".") # this is kinda bad but still better than the degree model!
+# 
+# # Let's see if we want any interactions
+# strength_full <- glmmTMB(normStrength ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+# check_model(strength_full) # now we have some high VIFs
+# check_collinearity(strength_full) # highest vif is roost_div:season
+# 
+# strength_1 <- glmmTMB(normStrength ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+# check_collinearity(strength_1) #wow, that lowered the other VIFs a lot too! Let's now remove situ*roost_div. Have to remember to introduce a main effect term for roost_div so it doesn't go away.
+# 
+# strength_2 <- glmmTMB(normStrength ~ situ*movement + situ*space_use + season*movement + season*space_use + roost_div + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+# check_collinearity(strength_2) # now these are all under 5 and most are under 4
+# summary(strength_2)# buuuut we see that a lot of our remaining interactions are not significant. Start by removing situ*centr
+# 
+# strength_3 <- glmmTMB(normStrength ~ situ*movement + situ*space_use + season*movement + season*space_use + roost_div + age_group + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+# summary(strength_3) # next remove space use*season
+# 
+# strength_4 <- glmmTMB(normStrength ~ situ*movement + situ*space_use + season*movement +  roost_div + age_group + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+# summary(strength_4) # now movement*season is not significant
+# 
+# strength_5 <- glmmTMB(normStrength ~ situ*movement + situ*space_use + season + roost_div + age_group + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
+# summary(strength_5) # can remove situ*movement too
 
 strength_6 <- glmmTMB(normStrength ~ situ*space_use + season + roost_div + movement + age_group + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = beta_family())
 summary(strength_6) # we have non-significant trends for movement, season, and space use, but I'm not removing those because they're main effects. 
@@ -401,7 +419,7 @@ plot_s_eff_space <- ggplot(s_eff_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_space
-ggsave(plot_s_eff_space, file = "fig/mmPlots/plot_s_eff_space.png", width = 7, height = 6)
+ggsave(plot_s_eff_space, file = here("fig/mmPlots/plot_s_eff_space.png"), width = 7, height = 6)
 ## space_use:situ ----------------------------------------------------------
 s_eff_situ_space <- as.data.frame(ggeffect(strength_mod, terms = c("space_use", "situ")))
 plot_s_eff_situ_space <- ggplot(s_eff_situ_space, aes(x, predicted))+
@@ -416,7 +434,7 @@ plot_s_eff_situ_space <- ggplot(s_eff_situ_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_situ_space
-ggsave(plot_s_eff_situ_space, file = "fig/mmPlots/plot_s_eff_situ_space.png", width = 7, height = 6)
+ggsave(plot_s_eff_situ_space, file = here("fig/mmPlots/plot_s_eff_situ_space.png"), width = 7, height = 6)
 
 s_emt_situ_space <- emmeans::emtrends(strength_mod, "situ", var = "space_use") %>%
   as.data.frame() %>%
@@ -437,7 +455,7 @@ plot_s_emt_situ_space <- s_emt_situ_space %>%
   xlab("Situation")+
   coord_flip()
 plot_s_emt_situ_space
-ggsave(plot_s_emt_situ_space, file = "fig/mmPlots/plot_s_emt_situ_space.png", width = 5, height = 6)
+ggsave(plot_s_emt_situ_space, file = here("fig/mmPlots/plot_s_emt_situ_space.png"), width = 5, height = 6)
 
 ## centr (main) -----------------------------------------------------------
 s_eff_centr <- as.data.frame(ggeffect(strength_mod, terms = "centr"))
@@ -452,7 +470,7 @@ plot_s_eff_centr <- ggplot(s_eff_centr, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_centr
-ggsave(plot_s_eff_centr, file = "fig/mmPlots/plot_s_eff_centr.png", width = 7, height = 6)
+ggsave(plot_s_eff_centr, file = here("fig/mmPlots/plot_s_eff_centr.png"), width = 7, height = 6)
 
 ## movement (main) ---------------------------------------------------------
 s_eff_movement <- as.data.frame(ggeffect(strength_mod, terms = "movement"))
@@ -467,7 +485,7 @@ plot_s_eff_movement <- ggplot(s_eff_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_movement
-ggsave(plot_s_eff_movement, file = "fig/mmPlots/plot_s_eff_movement.png", width = 7, height = 6)
+ggsave(plot_s_eff_movement, file = here("fig/mmPlots/plot_s_eff_movement.png"), width = 7, height = 6)
 
 ## roost_div (main) --------------------------------------------------------
 s_eff_roost <- as.data.frame(ggeffect(strength_mod, terms = "roost_div"))
@@ -482,7 +500,7 @@ plot_s_eff_roost <- ggplot(s_eff_roost, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_roost
-ggsave(plot_s_eff_roost, file = "fig/mmPlots/plot_s_eff_roost.png", width = 7, height = 6)
+ggsave(plot_s_eff_roost, file = here("fig/mmPlots/plot_s_eff_roost.png"), width = 7, height = 6)
 
 # Correlations between predictors -----------------------------------------
 
@@ -513,6 +531,6 @@ centr_roost_div <- linked %>%
   theme(axis.title = element_text(size = 16))+
   labs(color = "Season")
 
-ggsave(centr_movement, file = "fig/centr_movement.png", width = 7, height = 4)
-ggsave(centr_space_use, file = "fig/centr_space_use.png", width = 7, height = 4)
-ggsave(centr_roost_div, file = "fig/centr_roost_div.png", width = 7, height = 4)
+ggsave(centr_movement, file = here("fig/centr_movement.png"), width = 7, height = 4)
+ggsave(centr_space_use, file = here("fig/centr_space_use.png"), width = 7, height = 4)
+ggsave(centr_roost_div, file = here("fig/centr_roost_div.png"), width = 7, height = 4)
