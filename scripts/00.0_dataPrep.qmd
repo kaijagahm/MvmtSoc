@@ -141,6 +141,7 @@ write_feather(joined, here("data/dataPrep/joined.feather"))
 ```
 
 ## Downsample to 5-minute frequency
+
 This data is just WAY too huge to handle now that we have the higher-frequency fixes from the summer/fall of 2023. Going to downsample it a bit.
 
 ```{r}
@@ -168,36 +169,37 @@ periods_to_remove <- read_excel(here::here("data/raw/whoswho_vultures_20230920_n
 
 ```{r remove-periods}
 removed_periods <- vultureUtils::removeInvalidPeriods(dataset = interval_5min, periodsToRemove = periods_to_remove)
-write_feather(removed_periods, here("data/dataPrep/removed_periods.feather"))
+save(removed_periods, file = here("data/dataPrep/removed_periods.Rda"))
 ```
 
 ## Clean the data based on filters for invalid data points (see `vultureUtils` package code for details)
 
 ```{r}
 # warning: this takes a long time and uses a lot of memory!
-data_cleaned <- vultureUtils::cleanData(dataset = removed_periods,
+cleaned <- vultureUtils::cleanData(dataset = removed_periods,
                      precise = F,
                      longCol = "location_long",
                      latCol = "location_lat",
                      idCol = "Nili_id",
                      report = F)
-rm(joined)
+rm(interval_5min)
 gc()
-save(data_cleaned, file = here("data/dataPrep/data_cleaned.Rda"))
+save(cleaned, file = here("data/dataPrep/cleaned.Rda"))
 
-(nrow(removed_periods)-nrow(data_cleaned))/nrow(removed_periods) # removed less than 1% of the points.
+(nrow(removed_periods)-nrow(cleaned))/nrow(removed_periods) # removed less than 1% of the points.
 ```
 
 ## Remove time spent in capture cages
+
 ```{r}
 capture_sites <- read.csv(here("data/raw/capture_sites.csv"))
 carmel <- read.csv(here("data/raw/all_captures_carmel_2010-2021.csv"))
-removed_captures <- removeCaptures(data = data_cleaned, 
+removed_captures <- removeCaptures(data = cleaned, 
                                        captureSites = capture_sites, 
                                        AllCarmelDates = carmel, 
                                        distance = 500, idCol = "Nili_id")
 
-(nrow(removed_captures)-nrow(data_cleaned))/nrow(data_cleaned) # did not remove any data. Should probably check on this...
+(nrow(removed_captures)-nrow(cleaned))/nrow(cleaned) # did not remove any data. Should probably check on this...
 save(removed_captures, file = here("data/dataPrep/removed_captures.Rda"))
 ```
 
@@ -219,6 +221,10 @@ with_age_sex <- removed_captures %>%
 nrow(with_age_sex) == nrow(removed_captures) # should be TRUE
 length(unique(with_age_sex$Nili_id)) #200
 
+mutate(age = year - birth_year, #XXX consider moving this up to the age/sex section. Why is it happening here?
+         sex = case_when(sex == "f/m" ~ "u",
+                         TRUE ~ sex)) %>%
+
 # tidy up
 rm(removed_captures)
 rm(age_sex)
@@ -239,20 +245,16 @@ masked_test <- vultureUtils::inMaskFilter(dataset = test, mask = mask, inMaskThr
 # XXX END TEST
 
 # Region masking
-data_masked <- vultureUtils::inMaskFilter(dataset = with_age_sex, mask = mask, inMaskThreshold = 0.33, crs = "WGS84") # this takes a long time!!
-save(data_masked, file = here("data/dataPrep/data_masked.Rda")) # note that this saves a 3-element list. Need to get Ryan to fix this.#XXX
-load(here("data/dataPrep/data_masked.Rda"))
-length(data_masked$Nili_id)
-data_masked_2 <- data_masked$dataset
+data_masked <- vultureUtils::inMaskFilter(dataset = with_age_sex, mask = mask, inMaskThreshold = 0.33, crs = "WGS84")$dataset # this takes a long time!!
 
 # Fix time zone so dates make sense ---------------------------------------
 ## Overwrite the dateOnly column from the new times
-data_masked_2 <- data_masked_2 %>%
+data_masked <- data_masked %>%
   mutate(timestampIsrael = lubridate::with_tz(timestamp, tzone = "Israel"),
          dateOnly = lubridate::date(timestampIsrael),
          month = lubridate::month(dateOnly),
          year = lubridate::year(dateOnly))
-save(data_masked_2, file = here("data/dataPrep/data_masked_2.Rda")) # just the df #XXX fix
+save(data_masked, file = here("data/dataPrep/data_masked.Rda")) # just the df #XXX fix
 
 
 # tidy up
@@ -266,42 +268,38 @@ gc()
 Season definitions, and code to split the data into seasons, come from Marta.
 
 ```{r split-seasons}
-load(here("data/dataPrep/data_masked_2.Rda")) # XXX fix
+load(here("data/dataPrep/data_masked.Rda")) # XXX fix
+data_masked <- sf::st_drop_geometry(data_masked) # to make it faster to work on
 
 # Split into Marta's 3 seasons --------------------------------------------
-split <- data_masked_2 %>%
-  mutate(start_breeding = ifelse(month %in% c(1:5),
-                                 paste(as.character(year-1), "-", "12", "-", "15", sep = ""),
-                                 paste(as.character(year), "-", "12", "-", "15", sep = "")),
-         start_summer = ifelse(month == 12,
-                               paste(as.character(year + 1), "-", "05", "-", "15", sep = ""),
-                               paste(as.character(year), "-", "05", "-", "15", sep = "")),
-         start_fall = as.Date(paste(as.character(year), "-", "09", "-", "15", sep = "")),
-         start_breeding = as.Date(start_breeding),
-         start_summer = as.Date(start_summer),
-         season = case_when(
-           dateOnly >= start_breeding & dateOnly < start_summer ~ "breeding",
-           dateOnly >= start_summer & dateOnly <= start_fall ~ "summer",
-           dateOnly >= start_fall & dateOnly < start_breeding ~ "fall")) %>%
-  filter(dateOnly != "2023-09-15") # remove September 15 2023, because it turns out the season boundaries are supposed to be non-inclusive and this is the latest one.
+with_seasons <- data_masked %>% mutate(month = lubridate::month(timestampIsrael),
+                day = lubridate::day(timestampIsrael),
+                year = lubridate::year(timestampIsrael)) %>%
+  mutate(season = case_when(((month == 12 & day >= 15) | 
+                              (month %in% 1:4) | 
+                              (month == 5 & day < 15)) ~ "breeding",
+                            ((month == 5 & day >= 15) | 
+                               (month %in% 6:8) | 
+                               (month == 9 & day < 15)) ~ "summer",
+                            .default = "fall")) %>%
+  filter(dateOnly != "2023-09-15") %>% # remove September 15 2023, because it turns out the season boundaries are supposed to be non-inclusive and this is the latest one.
+  mutate(seasonUnique = case_when(season == "breeding" & month == 12 ~
+                                    paste(as.character(year + 1), season, sep = "_"),
+                                  .default = paste(as.character(year), season, sep = "_"))) %>%
+  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding", "2023_summer")),
+         season = factor(season, levels = c("breeding", "summer", "fall")))
 
-with_seasons <- split %>%
-  mutate(age = year - birth_year, #XXX consider moving this up to the age/sex section. Why is it happening here?
-         sex = case_when(sex == "f/m" ~ "u",
-                         TRUE ~ sex)) %>%
+# Add ages (based on season, which is why this goes here rather than above)
+with_seasons <- with_seasons %>%
+  mutate(age = year - birth_year) %>%
   mutate(age = ifelse(season == "breeding" & month %in% c(1, 12), age + 1, age)) %>%
   group_by(Nili_id, year, month) %>%
   mutate(age = ifelse(month == 2, min(age) + 1, age)) %>%
   mutate(age_group = case_when(age == 0 ~ "juv",
                                age >= 1 & age <= 4 ~ "sub",
                                age >= 5 ~ "adult",
-                               TRUE ~ NA)) %>%
-  mutate(seasonUnique = case_when(season %in% c("fall", "summer") ~ paste(year, season, sep = "_"),
-                                  season == "breeding" & month == 12 ~ paste(year + 1, season, sep = "_"),
-                                  season == "breeding" & month != 12 ~ paste(year, season, sep = "_"))) %>%
-  # explicitly set the factor levels in temporal order
-  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding", "2023_summer")),
-         season = factor(season, levels = c("breeding", "summer", "fall")))
+                               .default = NA)) %>%
+  ungroup()
 
 # REMOVE SUMMER 2020--we don't need to use it
 with_seasons <- with_seasons %>%
@@ -384,8 +382,8 @@ Therefore, we have to identify **low fix rate (lfr) individuals**, which are tho
 Because tags can be put on and off and the fix rate can change, I'm calculating the fix rate on a per-season basis (which is why I didn't put this step earlier in the pipeline–it had to come after the season splitting).
 
 ```{r}
-load(here::here("data", "dataPrep", "removed_northern.Rda"))
-load(here::here("data", "dataPrep", "season_names.Rda"))
+load(here::here("data/dataPrep/removed_northern.Rda"))
+load(here::here("data/dataPrep/season_names.Rda"))
 ```
 
 ```{r}
@@ -434,36 +432,34 @@ load(here::here("data", "dataPrep", "low_fix_rate_indivs.Rda"))
 ```
 
 ```{r}
-removed_lfr <- map2(removed_northern, low_fix_rate_indivs,                     ~.x %>% filter(!(Nili_id %in% .y))) 
+removed_lfr <- map2(removed_northern, low_fix_rate_indivs,                     
+                    ~.x %>% filter(!(Nili_id %in% .y))) 
 save(removed_lfr, file = here::here("data", "dataPrep", "removed_lfr.Rda"))  
 # tidy up 
 rm(removed_northern) 
 rm(low_fix_rate_indivs) 
-rm(removed_lfr) 
 gc()
 ```
 
-## Remove high-frequency fixes
+## Remove high-frequency fixes (downsample for social)
 
 ```{r}
 load(here::here("data", "dataPrep", "removed_lfr.Rda"))
 ```
 
 ```{r}
-#| eval: false
-downsampled_10min_forSocial <- map(removed_lfr, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T)
+lst <- map(removed_lfr, ~.x %>% group_split(Nili_id))
+downsampled_10min_forSocial <- map(lst, ~{
+  purrr::list_rbind(map(.x, ~down(df = .x, mins = 10), .progress = T))
+}, .progress = T)
 
 # Add information on # of days tracked for each individual
 downsampled_10min_forSocial <- map(downsampled_10min_forSocial, ~.x %>% group_by(Nili_id) %>% 
                        mutate(daysTracked = length(unique(dateOnly))))
-save(downsampled_10min_forSocial, file = here::here("data", "dataPrep", "downsampled_10min_forSocial.Rda"))
-
-map_dbl(removed_lfr, nrow) %>% setNames(season_names)
-map_dbl(downsampled_10min_forSocial, nrow) %>% setNames(season_names)
+save(downsampled_10min_forSocial, file = here::here("data/dataPrep/downsampled_10min_forSocial.Rda"))
 
 # tidying
 rm(removed_lfr)
-rm(downsampled_10min_forSocial)
 gc()
 ```
 
@@ -476,7 +472,7 @@ The next step will be to remove individuals with too few points per day or too f
 We are going to need to get nightly roost locations for all of the vultures. We have to do this now because getting roost locations requires using points that occur at night, which we will eventually want to remove in order to do the movement analysis.
 
 ```{r}
-load(here::here("data", "dataPrep", "downsampled_10min_forSocial.Rda"))
+load(here::here("data/dataPrep/downsampled_10min_forSocial.Rda"))
 ```
 
 ```{r}
@@ -491,7 +487,6 @@ save(roosts, file = here::here("data", "dataPrep", "roosts.Rda"))
 
 # Tidy up
 rm(downsampled_10min_forSocial)
-rm(roosts)
 gc()
 ```
 
@@ -500,8 +495,8 @@ gc()
 ## Remove nighttime points
 
 ```{r}
-load(here::here("data", "dataPrep", "removed_lfr.Rda"))
-load(here::here("data", "dataPrep", "season_names.Rda"))
+load(here::here("data/dataPrep/removed_lfr.Rda"))
+load(here::here("data/dataPrep/season_names.Rda"))
 ```
 
 ```{r}
@@ -520,10 +515,9 @@ removed_nighttime <- map(removed_lfr, ~{
     dplyr::filter(daylight == "day")
 }, .progress = T)
 
-save(removed_nighttime, file = here::here("data", "dataPrep", "removed_nighttime.Rda"))
+save(removed_nighttime, file = here::here("data/dataPrep/removed_nighttime.Rda"))
 
 # tidy up
-rm(removed_nighttime)
 rm(removed_lfr)
 rm(season_names)
 gc()
@@ -532,17 +526,19 @@ gc()
 ## Remove vulture-days with too few points per day
 
 ```{r}
-load(here::here("data", "dataPrep", "removed_nighttime.Rda"))
+load(here::here("data/dataPrep/removed_nighttime.Rda"))
 ```
 
 ```{r}
 #| eval: false
 # Calculate number of points per day for each individual
+# XXX START HERE can't find battery charge percent
 ppd <- map_dfr(removed_nighttime, ~.x %>%
                  st_drop_geometry() %>%
                  group_by(seasonUnique, season, Nili_id, dateOnly) %>%
                  summarize(n = n(),
-                           minBatt = min(battery_charge_percent, na.rm = T)), .progress = T)
+                           minBatt = min(battery_charge_percent, na.rm = T)) %>% 
+                 ungroup(), .progress = T)
 
 # Sometimes, fewer points per day is due to low battery charge percent. Let's examine the relationship between battery charge and number of points per day.
 ppd %>%
@@ -580,11 +576,11 @@ removed_lowppd <- map(removed_nighttime, ~.x %>%
 save(removed_lowppd, file = here::here("data", "dataPrep", "removed_lowppd.Rda"))
 
 # tidying up
+rm(removed_nighttime)
 rm(removed_northern)
 rm(ppd)
 rm(excl_batt)
 rm(excl_pts)
-rm(removed_lowppd)
 gc()
 ```
 
@@ -688,21 +684,15 @@ load(here::here("data", "dataPrep", "season_names.Rda"))
 ```
 
 ```{r}
-#| eval: false
-
-# defined the "subsample" function previously above
-
-# create and save downsampled datasets for later use
-downsampled_10min <- map(with_altitudes, ~subsample(df = .x, idCol = "Nili_id", timestampCol = "timestamp", mins = 10), .progress = T) # basically just trying to remove any data from the occasional bursts of more concentrated and frequent sampling.
+lst_2 <- map(with_altitudes, ~.x %>% group_split(Nili_id))
+downsampled_10min <- map(lst_2, ~{
+  purrr::list_rbind(map(.x, ~down(df = .x, mins = 10), .progress = T))
+}, .progress = T)
 
 # Add information on # of days tracked for each individual
 downsampled_10min <- map(downsampled_10min, ~.x %>% group_by(Nili_id) %>% 
                        mutate(daysTracked = length(unique(dateOnly))))
-
-save(downsampled_10min, file = here::here("data", "dataPrep", "downsampled_10min.Rda"))
-
-map_dbl(with_altitudes, nrow) %>% setNames(season_names)
-map_dbl(downsampled_10min, nrow) %>% setNames(season_names)
+save(downsampled_10min, file = here::here("data/dataPrep/downsampled_10min.Rda"))
 
 # tidying
 rm(with_altitudes)
