@@ -1,0 +1,42 @@
+---
+title: "Wrap Around"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(here)
+```
+
+## Load data
+
+```{r}
+load
+```
+
+```{r}
+sms <- seq(from = 1, to = 25, by = 1)
+
+sms_sims_conveyor <- vector(mode = "list", length = length(sms))
+for(i in 1:length(sms)){
+  shift <- sms[i]
+  cat("shiftmax = ", shift, "\n")
+  sims_conveyor <- map(sims_xy, ~{
+    realizations <- vector(mode = "list", length = n)
+    for(j in 1:n){
+      cat(".")
+      realizations[[j]] <- rotate_data_table(dataset = .x, shiftMax = shift,
+                                             idCol = "indiv", dateCol = "date",
+                                             timeCol = "time")
+    }
+    cat("\n")
+    return(realizations)
+  })
+  sms_sims_conveyor[[i]] <- sims_conveyor
+}
+save(sms_sims_conveyor, file = "data/simulations/sms_sims_conveyor.Rda")
+load("data/simulations/sms_sims_conveyor.Rda")
+```
+
+## Create wrapped data
