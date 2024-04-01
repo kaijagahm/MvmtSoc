@@ -7,36 +7,92 @@ editor: visual
 ```{r}
 library(tidyverse)
 library(here)
+library(future)
+source(here("scripts/00.0_functions.R"))
+roostPolygons <- sf::st_read(here("data/raw/roosts50_kde95_cutOffRegion.kml"))
 ```
 
 ## Load data
 
 ```{r}
-load
+load(here("data/dataPrep/downsampled_10min_forSocial.Rda"))
 ```
+
+It's completely not computationally tractable to first make the entire dataset with 100 replicates and then calculate networks on it. Instead, we're going to have to iterate through, do each one, calculate the networks on each one, calculate the metrics, and save those.
 
 ```{r}
-sms <- seq(from = 1, to = 25, by = 1)
+# for each season (map2 data, season_names)
+  # make list for metrics for each rep
+    # for each rep"
+      # rotate
+      # calc sri on the rotated data
+      # make graph from the sri
+      # calculate graph metrics
+      # save graph metrics to spot in list
+      # delete rotated data, sri, graph, and metrics
+  # Bind the metrics with the season name .y
 
-sms_sims_conveyor <- vector(mode = "list", length = length(sms))
-for(i in 1:length(sms)){
-  shift <- sms[i]
-  cat("shiftmax = ", shift, "\n")
-  sims_conveyor <- map(sims_xy, ~{
-    realizations <- vector(mode = "list", length = n)
-    for(j in 1:n){
-      cat(".")
-      realizations[[j]] <- rotate_data_table(dataset = .x, shiftMax = shift,
-                                             idCol = "indiv", dateCol = "date",
-                                             timeCol = "time")
-    }
-    cat("\n")
-    return(realizations)
-  })
-  sms_sims_conveyor[[i]] <- sims_conveyor
+test <- downsampled_10min_forSocial[[1]] %>% 
+  mutate(time = substr(as.character(timestamp), 12, 19))
+roosts <- vultureUtils::get_roosts_df(test, id = "Nili_id") %>%
+  sf::st_as_sf(., crs = "WGS84", coords = c("location_long", "location_lat"), remove = F)
+reps <- 100
+shiftMax <- 2
+fn <- function(test, iter){
+  # rotate data
+  message("rotating")
+  rotated <- rotate_data_table(dataset = test, shiftMax = shiftMax, 
+                                   idCol = "Nili_id", dateCol = "dateOnly",
+                                   timeCol = "time") %>% 
+    mutate(rep = iter,
+           timestamp = newdatetime) %>%
+    sf::st_as_sf(., coords = c("location_long", "location_lat"), remove = F, crs = "WGS84")
+  
+  tojoin_roosts <- rotated %>% st_drop_geometry() %>% 
+    select(Nili_id, "roost_date" = dateOnly, newDate) %>% distinct()
+  roosts_temp <- roosts %>%
+    left_join(tojoin_roosts, by = c("Nili_id", "roost_date")) %>%
+    mutate(roost_date = newDate)
+  
+  # calculate sri for rotated data
+  message("calculating sri")
+  fl <- vultureUtils::getFlightEdges(rotated, roostPolygons = roostPolygons,
+                        distThreshold = 1000, idCol = "Nili_id",
+                        return = "sri")
+  fe <- vultureUtils::getFeedingEdges(rotated, roostPolygons = roostPolygons,
+                        distThreshold = 50, idCol = "Nili_id",
+                        return = "sri")
+  ro <- vultureUtils::getRoostEdges(roosts_temp, mode = "distance",
+                                    distThreshold = 500, latCol = "location_lat",
+                                    longCol = "location_long", idCol = "Nili_id",
+                                    dateCol = "roost_date", return = "sri")
+    
+  # make graph from sri
+  message("making graph")
+  g_fl <- makeGraph(mode = "sri", data = fl, weighted = T)
+  g_fe <- makeGraph(mode = "sri", data = fe, weighted = T)
+  g_ro <- makeGraph(mode = "sri", data = ro, weighted = T)
+  
+  
+  # calculate graph metrics
+  message("calculating metrics")
+  graph_metrics <- data.frame(degree = degree(g_fl),
+                   strength = strength(g_fl),
+                   Nili_id = names(degree(g_fl)),
+                   situ = "flight") %>%
+    bind_rows(data.frame(degree = degree(g_fe),
+                         strength = strength(g_fe),
+                         Nili_id = names(degree(g_fe)),
+                         situ = "feeding")) %>%
+    bind_rows(data.frame(degree = degree(g_ro),
+                         strength = strength(g_ro),
+                         Nili_id = names(degree(g_ro)),
+                         situ = "roosting"))
+  row.names(graph_metrics) <- NULL
+  
+  # save graph metrics to spot in list
+  return(graph_metrics)
 }
-save(sms_sims_conveyor, file = "data/simulations/sms_sims_conveyor.Rda")
-load("data/simulations/sms_sims_conveyor.Rda")
-```
 
-## Create wrapped data
+metrics <- map(1:reps, ~fn(test, iter = .x), .progress = T)
+```
