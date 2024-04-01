@@ -69,9 +69,10 @@ fn <- function(test, iter){
     
   # make graph from sri
   message("making graph")
-  g_fl <- makeGraph(mode = "sri", data = fl, weighted = T)
-  g_fe <- makeGraph(mode = "sri", data = fe, weighted = T)
-  g_ro <- makeGraph(mode = "sri", data = ro, weighted = T)
+  verts <- unique(rotated$Nili_id)
+  g_fl <- makeGraph(mode = "sri", data = fl, weighted = T, vertices = verts)
+  g_fe <- makeGraph(mode = "sri", data = fe, weighted = T, vertices = verts)
+  g_ro <- makeGraph(mode = "sri", data = ro, weighted = T, vertices = verts)
   
   
   # calculate graph metrics
