@@ -24,12 +24,12 @@ library(gtsummary)
 theme_set(theme_classic())
 
 # Load network metrics and movement variables
-load("data/calcSocial/networkMetrics.Rda")
+load(here("data/calcSocial/networkMetrics.Rda"))
 networkMetrics <- networkMetrics %>% rename("seasonUnique" = "season")
-load("data/new_movement_vars.Rda")
-load("data/dataPrep/season_names.Rda")
-load("data/derived/cc.Rda")
-load("data/akde/sfs_est_centroids.Rda")
+load(here("data/new_movement_vars.Rda"))
+load(here("data/dataPrep/season_names.Rda"))
+load(here("data/derived/cc.Rda"))
+load(here("data/akde/sfs_est_centroids.Rda"))
 centrs <- sfs_est_centroids %>%
   select(seasonUnique, Nili_id, dist_szn_centr) %>%
   group_by(seasonUnique) %>%
@@ -66,7 +66,7 @@ linked <- linked %>%
                           type == "roosting" ~ "Ro"))
 table(linked$situ)
 
-save(linked, file = "data/mixedModels/linked.Rda")
+save(linked, file = here("data/mixedModels/linked.Rda"))
 
 
 # Examine response variable distributions ---------------------------------
@@ -83,7 +83,7 @@ save(linked, file = "data/mixedModels/linked.Rda")
 #   theme(legend.position = "none", text = element_text(size = 20))
 # normDegree_years_seasons_flight
 # ggsave(normDegree_years_seasons_flight, filename = "fig/normDegree_years_seasons_flight.png", width = 9, height = 7)
-# 
+
 # normDegree_years_seasons_feeding <- linked %>%
 #   filter(type == "feeding") %>%
 #   mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
@@ -96,7 +96,7 @@ save(linked, file = "data/mixedModels/linked.Rda")
 #   facet_wrap(~season)+
 #   theme(legend.position = "none", text = element_text(size = 20))
 # ggsave(normDegree_years_seasons_feeding, filename = "fig/normDegree_years_seasons_feeding.png", width = 9, height = 7)
-# 
+
 # normDegree_years_seasons_roosting <- linked %>%
 #   filter(type == "roosting") %>%
 #   mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
@@ -108,7 +108,7 @@ save(linked, file = "data/mixedModels/linked.Rda")
 #   xlab("Degree (normalized)")+
 #   facet_wrap(~season)+
 #   theme(legend.position = "none", text = element_text(size = 20))
-# ggsave(normDegree_years_seasons_roosting, filename = "fig/normDegree_years_seasons_roosting.png", width = 9, height = 7)
+# ggsave(normDegree_years_seasons_roosting, filename = here("fig/normDegree_years_seasons_roosting.png"), width = 9, height = 7)
 
 # Let's examine zeroes for the social network measures. I know that when we calculate the social networks, we had a lot of zeroes for both degree and strength. But most of the individuals that didn't have network connections probably aren't our focal individuals for the movement measures.
 networkMetrics %>% filter(degree == 0 | strength == 0) # lots of rows
@@ -145,7 +145,7 @@ linked <- linked %>%
 
 degree_3 <- glmmTMB(normDegree ~ situ*movement + situ*space_use + season*movement + roost_div + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
 summary(degree_3) # All remaining interaction effects are significant. Looks like adding `centr` as another predictor variable took out the effect of individuals being central and allowed a significant relationship to emerge between movement and season.
-check_collinearity(degree_3) # All are below 5, though we do have one over 4 and several over 3.
+check_collinearity(degree_3) # All are below 5, though we do have several over 3.
 
 degree_mod <- degree_3
 
@@ -164,7 +164,7 @@ plot_d_eff_centr <- ggplot(d_eff_centr, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_centr
-ggsave(plot_d_eff_centr, file = "fig/mmPlots/plot_d_eff_centr.png", width = 7, height = 6)
+ggsave(plot_d_eff_centr, file = here("fig/mmPlots/plot_d_eff_centr.png"), width = 7, height = 6)
 
 ## centr:situ -------------------------------------------------------------
 d_eff_situ_centr <- as.data.frame(ggeffect(degree_mod, terms = c("centr", "situ")))
@@ -180,7 +180,7 @@ plot_d_eff_situ_centr <- ggplot(d_eff_situ_centr, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_centr
-ggsave(plot_d_eff_situ_centr, file = "fig/mmPlots/plot_d_eff_situ_centr.png", width = 7, height = 6)
+ggsave(plot_d_eff_situ_centr, file = here("fig/mmPlots/plot_d_eff_situ_centr.png"), width = 7, height = 6)
 d_emt_situ_centr <- emmeans::emtrends(degree_mod, "situ", var = "centr") %>%
   as.data.frame() %>%
   mutate(situ = case_when(situ == "Ro" ~ "Roosting",
@@ -200,7 +200,7 @@ plot_d_emt_situ_centr <- d_emt_situ_centr %>%
   xlab("Situation")+
   coord_flip()
 plot_d_emt_situ_centr
-ggsave(plot_d_emt_situ_centr, file = "fig/mmPlots/plot_d_emt_situ_centr.png", width = 5, height = 6)
+ggsave(plot_d_emt_situ_centr, file = here("fig/mmPlots/plot_d_emt_situ_centr.png"), width = 5, height = 6)
 
 ## movement (main) ---------------------------------------------------------
 d_eff_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement")))
@@ -215,7 +215,7 @@ plot_d_eff_movement <- ggplot(d_eff_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_movement
-ggsave(plot_d_eff_movement, file = "fig/mmPlots/plot_d_eff_movement.png", width = 7, height = 6)
+ggsave(plot_d_eff_movement, file = here("fig/mmPlots/plot_d_eff_movement.png"), width = 7, height = 6)
 
 ## movement:situ -----------------------------------------------------------
 d_eff_situ_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement", "situ")))
@@ -231,7 +231,7 @@ plot_d_eff_situ_movement <- ggplot(d_eff_situ_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_movement
-ggsave(plot_d_eff_situ_movement, file = "fig/mmPlots/plot_d_eff_situ_movement.png", width = 7, height = 6)
+ggsave(plot_d_eff_situ_movement, file = here("fig/mmPlots/plot_d_eff_situ_movement.png"), width = 7, height = 6)
 d_emt_situ_movement <- emmeans::emtrends(degree_mod, "situ", var = "movement") %>%
   as.data.frame() %>%
   mutate(situ = case_when(situ == "Ro" ~ "Roosting",
@@ -251,7 +251,8 @@ plot_d_emt_situ_movement <- d_emt_situ_movement %>%
   xlab("Situation")+
   coord_flip()
 plot_d_emt_situ_movement
-ggsave(plot_d_emt_situ_movement, file = "fig/mmPlots/plot_d_emt_situ_movement.png", width = 5, height = 6)
+ggsave(plot_d_emt_situ_movement, file = here("fig/mmPlots/plot_d_emt_situ_movement.png"), width = 5, height = 6)
+
 ## movement:season ---------------------------------------------------------
 d_eff_season_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement", "season")))
 plot_d_eff_season_movement <- ggplot(d_eff_season_movement, aes(x, predicted))+
@@ -266,7 +267,8 @@ plot_d_eff_season_movement <- ggplot(d_eff_season_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_season_movement
-ggsave(plot_d_eff_season_movement, file = "fig/mmPlots/plot_d_eff_season_movement.png", width = 7, height = 6)
+ggsave(plot_d_eff_season_movement, file = here("fig/mmPlots/plot_d_eff_season_movement.png"), width = 7, height = 6)
+
 d_emt_season_movement <- emmeans::emtrends(degree_mod, "season", var = "movement") %>%
   as.data.frame()
 d_emt_season_movement 
@@ -283,7 +285,23 @@ plot_d_emt_season_movement <- d_emt_season_movement %>%
   xlab("Season")+
   coord_flip()
 plot_d_emt_season_movement
-ggsave(plot_d_emt_season_movement, file = "fig/mmPlots/plot_d_emt_season_movement.png", width = 5, height = 6)
+ggsave(plot_d_emt_season_movement, file = here("fig/mmPlots/plot_d_emt_season_movement.png"), width = 5, height = 6)
+
+d_emt_situ_movement_season <- emmeans::emtrends(degree_mod, c("situ", "season"), var = "movement") %>%
+  as.data.frame()
+plot_d_emt_situ_movement_season <- d_emt_situ_movement_season %>%
+  as.data.frame() %>%
+  ggplot(aes(x = season, y = movement.trend, col = situ, group = interaction(situ, season)))+
+  geom_point(size = 6, position = position_dodge(width = 0.3))+
+  geom_errorbar(aes(x = season, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2, position = position_dodge(width = 0.3))+
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme(text = element_text(size = 20))+
+  ylab("Movement effect")+
+  xlab("Season")+
+  coord_flip()
+ggsave(plot_d_emt_situ_movement_season, file = here("fig/mmPlots/plot_d_emt_situ_movement_season.png"), width = 5, height = 6)
 
 ## space_use (main) --------------------------------------------------------
 d_eff_space <- as.data.frame(ggeffect(degree_mod, terms = c("space_use")))
@@ -298,7 +316,7 @@ plot_d_eff_space <- ggplot(d_eff_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_space
-ggsave(plot_d_eff_space, file = "fig/mmPlots/plot_d_eff_space.png", width = 7, height = 6)
+ggsave(plot_d_eff_space, file = here("fig/mmPlots/plot_d_eff_space.png"), width = 7, height = 6)
 
 ## space_use:situ ----------------------------------------------------------
 d_eff_situ_space <- as.data.frame(ggeffect(degree_mod, terms = c("space_use", "situ")))
@@ -314,7 +332,7 @@ plot_d_eff_situ_space <- ggplot(d_eff_situ_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_situ_space
-ggsave(plot_d_eff_situ_space, file = "fig/mmPlots/plot_d_eff_situ_space.png", width = 7, height = 6)
+ggsave(plot_d_eff_situ_space, file = here("fig/mmPlots/plot_d_eff_situ_space.png"), width = 7, height = 6)
 
 d_emt_situ_space <- emmeans::emtrends(degree_mod, "situ", var = "space_use") %>%
   as.data.frame() %>%
@@ -335,7 +353,7 @@ plot_d_emt_situ_space <- d_emt_situ_space %>%
   xlab("Situation")+
   coord_flip()
 plot_d_emt_situ_space
-ggsave(plot_d_emt_situ_space, file = "fig/mmPlots/plot_d_emt_situ_space.png", width = 5, height = 6)
+ggsave(plot_d_emt_situ_space, file = here("fig/mmPlots/plot_d_emt_situ_space.png"), width = 5, height = 6)
 
 ## roost_div (main) --------------------------------------------------------
 d_eff_roost <- as.data.frame(ggeffect(degree_mod, terms = "roost_div"))
@@ -350,7 +368,7 @@ plot_d_eff_roost <- ggplot(d_eff_roost, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_d_eff_roost
-ggsave(plot_d_eff_roost, file = "fig/mmPlots/plot_d_eff_roost.png", width = 7, height = 6)
+ggsave(plot_d_eff_roost, file = here("fig/mmPlots/plot_d_eff_roost.png"), width = 7, height = 6)
 
 #@@@@@@@@@@@@@@@@@@@@@
 
@@ -401,7 +419,7 @@ plot_s_eff_space <- ggplot(s_eff_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_space
-ggsave(plot_s_eff_space, file = "fig/mmPlots/plot_s_eff_space.png", width = 7, height = 6)
+ggsave(plot_s_eff_space, file = here("fig/mmPlots/plot_s_eff_space.png"), width = 7, height = 6)
 ## space_use:situ ----------------------------------------------------------
 s_eff_situ_space <- as.data.frame(ggeffect(strength_mod, terms = c("space_use", "situ")))
 plot_s_eff_situ_space <- ggplot(s_eff_situ_space, aes(x, predicted))+
@@ -416,7 +434,7 @@ plot_s_eff_situ_space <- ggplot(s_eff_situ_space, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_situ_space
-ggsave(plot_s_eff_situ_space, file = "fig/mmPlots/plot_s_eff_situ_space.png", width = 7, height = 6)
+ggsave(plot_s_eff_situ_space, file = here("fig/mmPlots/plot_s_eff_situ_space.png"), width = 7, height = 6)
 
 s_emt_situ_space <- emmeans::emtrends(strength_mod, "situ", var = "space_use") %>%
   as.data.frame() %>%
@@ -437,7 +455,7 @@ plot_s_emt_situ_space <- s_emt_situ_space %>%
   xlab("Situation")+
   coord_flip()
 plot_s_emt_situ_space
-ggsave(plot_s_emt_situ_space, file = "fig/mmPlots/plot_s_emt_situ_space.png", width = 5, height = 6)
+ggsave(plot_s_emt_situ_space, file = here("fig/mmPlots/plot_s_emt_situ_space.png"), width = 5, height = 6)
 
 ## centr (main) -----------------------------------------------------------
 s_eff_centr <- as.data.frame(ggeffect(strength_mod, terms = "centr"))
@@ -452,7 +470,7 @@ plot_s_eff_centr <- ggplot(s_eff_centr, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_centr
-ggsave(plot_s_eff_centr, file = "fig/mmPlots/plot_s_eff_centr.png", width = 7, height = 6)
+ggsave(plot_s_eff_centr, file = here("fig/mmPlots/plot_s_eff_centr.png"), width = 7, height = 6)
 
 ## movement (main) ---------------------------------------------------------
 s_eff_movement <- as.data.frame(ggeffect(strength_mod, terms = "movement"))
@@ -467,7 +485,7 @@ plot_s_eff_movement <- ggplot(s_eff_movement, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_movement
-ggsave(plot_s_eff_movement, file = "fig/mmPlots/plot_s_eff_movement.png", width = 7, height = 6)
+ggsave(plot_s_eff_movement, file = here("fig/mmPlots/plot_s_eff_movement.png"), width = 7, height = 6)
 
 ## roost_div (main) --------------------------------------------------------
 s_eff_roost <- as.data.frame(ggeffect(strength_mod, terms = "roost_div"))
@@ -482,7 +500,7 @@ plot_s_eff_roost <- ggplot(s_eff_roost, aes(x, predicted))+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
 plot_s_eff_roost
-ggsave(plot_s_eff_roost, file = "fig/mmPlots/plot_s_eff_roost.png", width = 7, height = 6)
+ggsave(plot_s_eff_roost, file = here("fig/mmPlots/plot_s_eff_roost.png"), width = 7, height = 6)
 
 # Correlations between predictors -----------------------------------------
 
@@ -513,6 +531,6 @@ centr_roost_div <- linked %>%
   theme(axis.title = element_text(size = 16))+
   labs(color = "Season")
 
-ggsave(centr_movement, file = "fig/centr_movement.png", width = 7, height = 4)
-ggsave(centr_space_use, file = "fig/centr_space_use.png", width = 7, height = 4)
-ggsave(centr_roost_div, file = "fig/centr_roost_div.png", width = 7, height = 4)
+ggsave(centr_movement, file = here("fig/centr_movement.png"), width = 7, height = 4)
+ggsave(centr_space_use, file = here("fig/centr_space_use.png"), width = 7, height = 4)
+ggsave(centr_roost_div, file = here("fig/centr_roost_div.png"), width = 7, height = 4)

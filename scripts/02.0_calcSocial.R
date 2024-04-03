@@ -73,8 +73,8 @@ rm(feedingSRI)
 gc()
 
 roosting <- map(roosts, ~{
-  vultureUtils::getRoostEdges(.x, mode = "polygon", 
-                              roostPolygons = roostPolygons, 
+  vultureUtils::getRoostEdges(.x, mode = "distance", 
+                              distThreshold = 500,
                               return = "both", 
                               latCol = "location_lat", 
                               longCol = "location_long", 
