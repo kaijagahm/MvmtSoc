@@ -26,11 +26,6 @@ load("data/derived/cc.Rda")
 
 # Social Networks ---------------------------------------------------------
 flight <- vector(mode = "list", length = length(sfdata))
-future::plan(future::multisession(), workers = 10)
-flight <- furrr::future_map(sfdata, ~vultureUtils::getFlightEdges(.x, roostPolygons = roostPolygons,
-                                                                  distThreshold = 1000, idCol = "Nili_id",
-                                                                  return = "both", getLocs = T), .progress = T)
-
 for(i in 1:length(sfdata)){
   cat("Working on iteration", i, "\n")
   dat <- sfdata[[i]]
