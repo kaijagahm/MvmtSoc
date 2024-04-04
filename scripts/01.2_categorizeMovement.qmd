@@ -158,18 +158,13 @@ fviz_pca_biplot(pca_space, axes = c(1,2),
                 repel = T)+
   theme_classic()
 fviz_screeplot(pca_space, addLabels = T) # This is also strongly loaded on one principal component, so I feel quite comfortable taking it as a measure of roost diversification/routine
-contrib_space <- round(pca_space$rotation[,1:3]*-100, 2) %>%
+contrib_space <- round(pca_space$rotation[,1:2]*-100, 2) %>%
   as.data.frame()
 contrib_space
 # Multiply by -1 to flip these around, because right now `pca_space` shows these both being negatively loaded.
 space_use <- space_use %>%
   mutate(space_pc1 = pca_space$x[,1]*-1)
 save(pca_space, file = here("data/calcMovement/pca_space.Rda"))
-
-# Plots of the extremes
-high <- space_use %>% filter(space_pc1 == max(space_pc1, na.rm = T))
-low <- space_use %>% filter(space_pc1 == min(space_pc1, na.rm = T))
-
 ```
 
 ```{r}
