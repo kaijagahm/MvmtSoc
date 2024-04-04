@@ -221,10 +221,6 @@ with_age_sex <- removed_captures %>%
 nrow(with_age_sex) == nrow(removed_captures) # should be TRUE
 length(unique(with_age_sex$Nili_id)) #200
 
-mutate(age = year - birth_year, #XXX consider moving this up to the age/sex section. Why is it happening here?
-         sex = case_when(sex == "f/m" ~ "u",
-                         TRUE ~ sex)) %>%
-
 # tidy up
 rm(removed_captures)
 rm(age_sex)
