@@ -178,6 +178,7 @@ To quantify roosting behavior, we assigned each individual's night roost site to
 We identified in-flight fixes (ground speed \>= 5 m/s) and calculated measures of daily flight behavior, including maximum and median daily flight altitude and daily flight time (the sum of time intervals between adjacent in-flight fixes). We calculated flight altitude by extracting ground elevation information from elevation rasters obtained from the {elevatr} package at a ground resolution of approximately 250 meters [@hollister2022] and subtracting those numbers from the vultures' tag-mounted altimeter readings. Finally, we used all fixes to calculate daily distance traveled (the sum of all distances between successive fixes); daily maximum displacement (the straight-line distance between the beginning of the daily movement track and the farthest point reached on that day); and movement tortuosity (cumulative distance to the point of maximum displacement divided by the straight-line distance to the point of maximum displacement [@benhamou2004]). We took seasonal means of each of these individual daily measures to get a single value per individual, per season.
 
 ## Summarizing movement measures
+
 ```{r}
 #| include: false
 load(here("data/calcMovement/pca_space.Rda"))
@@ -208,16 +209,23 @@ Vultures were considered to be flying if their ground speed (collected by a sens
 
 ### Co-feeding
 
-Vultures that were not flying (ground speed \< 5 m/s, [@spiegel2013]) who came within 50m of each other for at least two consecutive 10-minute time periods, were considered to be having a ground interaction [@sharma2023]. Any ground interactions that occurred at night or within the boundaries of a known roost site were excluded. Therefore, the remaining diurnal ground interactions should represent vultures' interactions while feeding or while present at feeding sites (Orr Spiegel and Nili Anglister, pers. comm.). 
+Vultures that were not flying (ground speed \< 5 m/s, [@spiegel2013]) who came within 50m of each other for at least two consecutive 10-minute time periods, were considered to be having a ground interaction [@sharma2023]. Any ground interactions that occurred at night or within the boundaries of a known roost site were excluded. Therefore, the remaining diurnal ground interactions should represent vultures' interactions while feeding or while present at feeding sites (Orr Spiegel and Nili Anglister, pers. comm.).
 
-### Co-roosting 
+### Co-roosting
+
 Vultures were considered to be co-roosting if they roosted within 500m of each other on a given night. Unlike interactions in the co-feeding and co-flight networks, co-roosting interactions could occur at a maximum frequency of once per night. Therefore, edge weights in the co-roosting network represented the number of nights on which two individuals co-roosted divided by the number of nights when both individuals had a valid roost location (i.e. they theoretically could have co-roosted), regardless of proximity.
 
 ## Calculation of social network measures
 
 \[Explain the reasons for choosing the social network measures in the earlier hypotheses/predictions/introduction section\]
 
-We used the R package {igraph} [@csardi2005] to calculate each individual's degree and strength for each social situation in each season. Degree is defined as the number of other individuals that a vulture is connected to (i.e. ever interacted with). Strength measures how much an individual interacts, and is calculated as the sum of the weights of all edges that the focal vulture is involved in.
+We used the R package {igraph} [@csardi2005] to calculate each individual's degree and strength for each social situation in each season. Degree is defined as the number of other individuals that a vulture is connected to (i.e. ever interacted with). Strength measures how much an individual interacts, and is calculated as the sum of the weights of all edges that the focal vulture is involved in. We normalized degree by dividing it by the number of individuals present in the network in the current season minus one. We normalized strength by dividing it by the sum of all strength values in the network in the current season \[REF\].
+
+## Comparison to a reference model
+
+Since social interactions can arise from both spatial proximity and social preference (i.e. "passive" versus "active" interactions [@smith-aguilar2016]). We can use spatially explicit data-stream randomization to compare individuals' observed interaction rates to those expected to arise from chance encounters by individuals sharing space without synchronizing their movements [@gahm; @spiegel2016]. This allows us to decouple social and spatial drivers of social interactions. It also helps us account for how individuals' locations in space (e.g. the locations of their home ranges) affect how many social interactions they end up having.
+
+Using the "wrap-around" method outlined in [@gahm], we conducted 100 iterations of the wrap-around randomization for each season of data separately, using a maximum time-shift of 1 day either backward or forward. We calculated normalized degree and strength for each individual in each season in each of the 100 replicate randomizations. Then, we compared each individual's observed normalized degree and strength to the distribution of 100 normalized degree and strength values obtained from the randomization replicates and calculated a z-score for the observed value to measure the extent to which it deviated from random. These z-scores were used as the response variables in our mixed models.
 
 ## Model fitting and selection
 
@@ -254,6 +262,7 @@ plot_d_eff_space # null--no overall relationship between space use and degree
 plot_d_eff_situ_space
 plot_d_emt_situ_space
 ```
+
 There was a significant relationship between how vultures used space and how many other individuals they encountered in flight. Vultures that consistently ranged widely encountered more others in flight, while those that concentrated their movement in smaller home ranges and smaller proportional core areas flew with fewer others. There was a slight, albeit non-statistically-significant, trend toward lower degree in the co-feeding and co-roosting networks for vultures with larger ranges.
 
 ```{r}
@@ -311,6 +320,7 @@ However, individuals with more diversified roosts had lower strength (i.e. they 
 plot_s_eff_situ_space
 plot_s_emt_situ_space
 ```
+
 Vultures with greater space use had significantly more co-flight interactions (higher strength in the co-flight network). They also tended to have a higher co-roosting strength, though the trend was not statistically significant. There was no relationship between seasonal space use and co-feeding strength.
 
 # Discussion
