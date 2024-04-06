@@ -164,18 +164,6 @@ dfddf <- purrr::list_rbind(dfdSumm, names_to = "season") %>%
   mutate(meanDFD = meanDFD/60/60)
 distviz(dfddf, "meanDFD", "season")
 
-## Time spent flying in summer/fall/breeding
-dfddf <- dfddf %>%
-  mutate(szn = as.factor(str_extract(season, "summer|breeding|fall")),
-         year = str_extract(season, "[0-9]{4}"))
-
-# Do the seasons differ in mean daily flight duration?
-dfddf %>%
-  ggplot(aes(x = meanDFD, col = szn, group = factor(season)))+
-  geom_density(linewidth = 1.5, alpha = 0.7)+
-  theme_classic()+
-  scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor))
-
 ### Daily Distance Traveled/Mean Displacement -------------------------------
 
 # set up parallel backend with 4 sessions (change this to match your machine)

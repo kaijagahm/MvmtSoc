@@ -24,8 +24,8 @@ library(gtsummary)
 theme_set(theme_classic())
 
 # Load network metrics and movement variables
-load(here("data/calcSocial/networkMetrics.Rda"))
-networkMetrics <- networkMetrics %>% rename("seasonUnique" = "season")
+load(here("data/metrics_summary.Rda"))
+metrics_summary <- metrics_summary %>% rename("seasonUnique" = "season")
 load(here("data/new_movement_vars.Rda"))
 load(here("data/dataPrep/season_names.Rda"))
 load(here("data/derived/cc.Rda"))
@@ -44,7 +44,7 @@ centrs <- sfs_est_centroids %>%
 
 # Join the two datasets (there will be 3 rows per individual per season, for the 3 different situations)
 linked <- new_movement_vars %>%
-  left_join(networkMetrics, by = c("Nili_id", "seasonUnique")) %>%
+  left_join(metrics_summary, by = c("Nili_id", "seasonUnique")) %>%
   left_join(centrs)
 nrow(linked) == 3*nrow(new_movement_vars)
 
@@ -57,10 +57,11 @@ linked <- linked %>%
          season = factor(season, levels = c("breeding", "summer", "fall")))
 
 # Check for NA's (we shouldn't have any because of the direction of the join)
-colSums(is.na(linked)) # awesome
+colSums(is.na(linked)) # why do we have missing data for some of these? That's worrying.
 
 # Create a shorter version of "type" for easier interpretability
 linked <- linked %>%
+  rename("type" = situ) %>%
   mutate(situ = case_when(type == "flight" ~ "Fl", 
                           type == "feeding" ~ "Fe",
                           type == "roosting" ~ "Ro"))
@@ -70,49 +71,49 @@ save(linked, file = here("data/mixedModels/linked.Rda"))
 
 
 # Examine response variable distributions ---------------------------------
-# normDegree_years_seasons_flight <- linked %>%
-#   filter(type == "flight") %>%
-#   mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
-#   ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
-#   geom_density(linewidth = 1.5)+
-#   theme_classic()+
-#   scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
-#   ylab("Frequency")+
-#   xlab("Degree (normalized)")+
-#   facet_wrap(~season)+
-#   theme(legend.position = "none", text = element_text(size = 20))
-# normDegree_years_seasons_flight
-# ggsave(normDegree_years_seasons_flight, filename = "fig/normDegree_years_seasons_flight.png", width = 9, height = 7)
+normDegree_years_seasons_flight <- linked %>%
+  filter(type == "flight") %>%
+  mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
+  ggplot(aes(x = z_deg, col = season, group = seasonUnique))+
+  geom_density(linewidth = 1.5)+
+  theme_classic()+
+  scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
+  ylab("Frequency")+
+  xlab("Degree (normalized)--z-scores")+
+  facet_wrap(~season)+
+  theme(legend.position = "none", text = element_text(size = 20))
+normDegree_years_seasons_flight
+ggsave(normDegree_years_seasons_flight, filename = "fig/normDegree_years_seasons_flight.png", width = 9, height = 7)
 
-# normDegree_years_seasons_feeding <- linked %>%
-#   filter(type == "feeding") %>%
-#   mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
-#   ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
-#   geom_density(linewidth = 1.5)+
-#   theme_classic()+
-#   scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
-#   ylab("Frequency")+
-#   xlab("Degree (normalized)")+
-#   facet_wrap(~season)+
-#   theme(legend.position = "none", text = element_text(size = 20))
-# ggsave(normDegree_years_seasons_feeding, filename = "fig/normDegree_years_seasons_feeding.png", width = 9, height = 7)
+normDegree_years_seasons_feeding <- linked %>%
+  filter(type == "feeding") %>%
+  mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
+  ggplot(aes(x = z_deg, col = season, group = seasonUnique))+
+  geom_density(linewidth = 1.5)+
+  theme_classic()+
+  scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
+  ylab("Frequency")+
+  xlab("Degree (normalized)--z-score")+
+  facet_wrap(~season)+
+  theme(legend.position = "none", text = element_text(size = 20))
+ggsave(normDegree_years_seasons_feeding, filename = "fig/normDegree_years_seasons_feeding.png", width = 9, height = 7)
 
-# normDegree_years_seasons_roosting <- linked %>%
-#   filter(type == "roosting") %>%
-#   mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
-#   ggplot(aes(x = normDegree, col = season, group = seasonUnique))+
-#   geom_density(linewidth = 1.5)+
-#   theme_classic()+
-#   scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
-#   ylab("Frequency")+
-#   xlab("Degree (normalized)")+
-#   facet_wrap(~season)+
-#   theme(legend.position = "none", text = element_text(size = 20))
-# ggsave(normDegree_years_seasons_roosting, filename = here("fig/normDegree_years_seasons_roosting.png"), width = 9, height = 7)
+normDegree_years_seasons_roosting <- linked %>%
+  filter(type == "roosting") %>%
+  mutate(season = factor(season, levels = c("fall", "breeding", "summer"))) %>%
+  ggplot(aes(x = z_deg, col = season, group = seasonUnique))+
+  geom_density(linewidth = 1.5)+
+  theme_classic()+
+  scale_color_manual(name = "Season", values = c(cc$fallColor, cc$breedingColor, cc$summerColor))+
+  ylab("Frequency")+
+  xlab("Degree (normalized)--z-score")+
+  facet_wrap(~season)+
+  theme(legend.position = "none", text = element_text(size = 20))
+ggsave(normDegree_years_seasons_roosting, filename = here("fig/normDegree_years_seasons_roosting.png"), width = 9, height = 7)
 
 # Let's examine zeroes for the social network measures. I know that when we calculate the social networks, we had a lot of zeroes for both degree and strength. But most of the individuals that didn't have network connections probably aren't our focal individuals for the movement measures.
 networkMetrics %>% filter(degree == 0 | strength == 0) # lots of rows
-linked %>% filter(degree == 0 | strength == 0) # just one individual in one season!
+linked %>% filter(normDegree == 0 | normStrength == 0) # just one individual in one season!
 
 # # XXX It is possible this will pose a problem for modeling. I wonder if it's better to remove the zero or do some kind of other transformation?
 # I think I can just remove it for now
@@ -120,34 +121,39 @@ linked <- linked %>%
   filter(normDegree > 0, normStrength > 0)
 
 # Modeling ----------------------------------------------------------------
-
 # Degree ------------------------------------------------------------------
-# degree_base <- glmmTMB(normDegree ~ situ + movement + roost_div + space_use + age_group + season + centr + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-# check_model(degree_base) # the good news is that the variance inflation factor is quite low, so these predictors aren't prohibitively highly correlated (yay!!!!). The bad news is that the posterior predictive check and the residuals vs. fitted values plots look... bad.
-# check_predictions(degree_base) # yeah this model is not a good fit for the data. No wonder, given the really squinched up values in the summers. I would have thought that including season and situation as predictors would fix this, but apparently not.
-# simulationOutput <- DHARMa::simulateResiduals(degree_base)
-# plot(simulationOutput, pch=".")
-# plotQQunif(simulationOutput)
-# plotResiduals(simulationOutput)
-# 
-# # What if there are different relationships between movement and degree in different seasons and situations?
-# degree_full <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) # this will almost certainly have very high VIFs
-# check_model(degree_full) # now we have some high VIFs
-# check_collinearity(degree_full) # the highest collinearity interaction is roost_div:season. Let's remove it, making sure that both roost_div and season stay in the model in some other capacity.
-# 
-# degree_1 <- glmmTMB(normDegree ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-# check_collinearity(degree_1) # a couple more with moderate correlations that we should get rid of: situ:roost_div and situ:space_use. Starting with getting rid of situ:roost_div, adding roost_div back in as a main effect
-# 
-# degree_2 <- glmmTMB(normDegree ~ situ*movement + situ*space_use + season*movement + roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-# check_collinearity(degree_2) # this allows them all to drop below 5, which I'm happy with.
-# check_model(degree_2)
-# summary(degree_2) # space_use:season isn't significant; let's remove that
+dat <- linked %>% filter(!is.na(z_deg), !is.infinite(z_deg))
+degree_base <- glmmTMB(z_deg ~ situ + movement + roost_div + space_use + age_group + season + centr + (1|seasonUnique)+(1|Nili_id), data = dat, family = gaussian())
+#check_model(degree_base) # 
+check_predictions(degree_base) # this is beautiful!
+simulationOutput <- DHARMa::simulateResiduals(degree_base)
+plot(simulationOutput, pch=".") # oh wow, also beautiful. Waaaaay better than anything previous.
+plotQQunif(simulationOutput)
+plotResiduals(simulationOutput)
 
-degree_3 <- glmmTMB(normDegree ~ situ*movement + situ*space_use + season*movement + roost_div + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_3) # All remaining interaction effects are significant. Looks like adding `centr` as another predictor variable took out the effect of individuals being central and allowed a significant relationship to emerge between movement and season.
-check_collinearity(degree_3) # All are below 5, though we do have several over 3.
+# What if there are different relationships between movement and degree in different seasons and situations?
+degree_full <- glmmTMB(z_deg ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = dat, family = gaussian()) # this will almost certainly have very high VIFs
+#check_model(degree_full) # now we have some high VIFs
+check_collinearity(degree_full) # the highest collinearity interaction is roost_div:season. Let's remove it, making sure that both roost_div and season stay in the model in some other capacity.
+simulationOutput <- DHARMa::simulateResiduals(degree_full)
+plot(simulationOutput, pch=".") # kinda gross but not terrible, especially compared to the old models.
 
-degree_mod <- degree_3
+degree_1 <- glmmTMB(z_deg ~ situ*movement + situ*roost_div + situ*space_use + season*movement + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = dat, family = gaussian())
+check_collinearity(degree_1) # a couple more with moderate correlations that we should get rid of: situ:roost_div and situ:space_use. Starting with getting rid of situ:roost_div, adding roost_div back in as a main effect
+
+degree_2 <- glmmTMB(z_deg ~ situ*movement + situ*space_use + season*movement + roost_div + season*space_use + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = dat, family = gaussian())
+check_collinearity(degree_2) # some of these now still have high vifs... let's see about significance of effects before removing main effects.
+summary(degree_2) # so neither space_use*season nor movement*season are significant. Let's get rid of both of them.
+
+degree_3 <- glmmTMB(z_deg ~ situ*movement + situ*space_use + roost_div + season + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = dat, family = gaussian())
+check_collinearity(degree_3) # these are all below 5 now, which is good, but I'm still skeptical of situ*space_use.
+summary(degree_3) # Hmm, though, looks like situ*space_use is highly significant, while situ*movement isn't doing much for us. Let's remove that.
+
+degree_4 <- glmmTMB(z_deg ~ movement + situ*space_use + roost_div + season + age_group + centr*situ + (1|seasonUnique)+(1|Nili_id), data = dat, family = gaussian())
+check_collinearity(degree_4) # all below 4, nice.
+summary(degree_4) # Remaining interactions are significant.
+
+degree_mod <- degree_4
 
 # Degree plots ------------------------------------------------------------
 # Interaction plots for degree model
@@ -156,10 +162,10 @@ d_eff_centr <- as.data.frame(ggeffect(degree_mod, terms = c("centr")))
 plot_d_eff_centr <- ggplot(d_eff_centr, aes(x, predicted))+
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
               alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = centr, y = normDegree, col = situ), alpha = 0.5)+
+  geom_point(data = linked, aes(x = centr, y = z_deg, col = situ), alpha = 0.5)+
   geom_line(linewidth = 1, col = "black")+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree (normalized)")+
+  ylab("Degree (normalized)--z-score")+
   xlab("Spatial centrality")+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
@@ -171,11 +177,11 @@ d_eff_situ_centr <- as.data.frame(ggeffect(degree_mod, terms = c("centr", "situ"
 plot_d_eff_situ_centr <- ggplot(d_eff_situ_centr, aes(x, predicted))+
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
               alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = centr, y = normDegree, col = situ), alpha = 0.5)+
+  geom_point(data = linked, aes(x = centr, y = z_deg, col = situ), alpha = 0.5)+
   geom_line(aes(col = group), linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
   scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree (normalized)")+
+  ylab("Degree (normalized)--z-score")+
   xlab("Spatial centrality")+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
@@ -201,16 +207,17 @@ plot_d_emt_situ_centr <- d_emt_situ_centr %>%
   coord_flip()
 plot_d_emt_situ_centr
 ggsave(plot_d_emt_situ_centr, file = here("fig/mmPlots/plot_d_emt_situ_centr.png"), width = 5, height = 6)
+ #XXX start here
 
 ## movement (main) ---------------------------------------------------------
 d_eff_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement")))
 plot_d_eff_movement <- ggplot(d_eff_movement, aes(x, predicted))+
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
               alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = movement, y = normDegree, col = situ), alpha = 0.5)+
+  geom_point(data = linked, aes(x = movement, y = z_deg, col = situ), alpha = 0.5)+
   geom_line(linewidth = 1, col = "black")+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree (normalized)")+
+  ylab("Degree (normalized)--z-score")+
   xlab("Movement")+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
@@ -222,11 +229,11 @@ d_eff_situ_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement", 
 plot_d_eff_situ_movement <- ggplot(d_eff_situ_movement, aes(x, predicted))+
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
               alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = movement, y = normDegree, col = situ), alpha = 0.5)+
+  geom_point(data = linked, aes(x = movement, y = z_deg, col = situ), alpha = 0.5)+
   geom_line(aes(col = group), linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
   scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree (normalized)")+
+  ylab("Degree (normalized)--z-score")+
   xlab("Movement")+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))

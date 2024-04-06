@@ -101,7 +101,7 @@ fn <- function(dataset, rst, iter){
 }
 
 reps <- 100
-shiftMax <- 2
+shiftMax <- 1
 ```
 
 Now actually do the thing
@@ -141,6 +141,7 @@ allMetrics <- networkMetrics %>% select(season, "situ" = type, Nili_id, normDegr
   mutate(Nili_id = factor(Nili_id))
 
 # See an example of the deviations for 10 random vultures
+set.seed(3)
 vultures <- sample(allMetrics$Nili_id, size = 15)
 allMetrics %>% filter(season == "2023_summer", Nili_id %in% vultures) %>%
   ggplot(aes(x = Nili_id, y = wrapped_normDegree))+
@@ -185,9 +186,11 @@ metrics_summary %>%
   theme_minimal()+
   facet_wrap(~season, scales = "free")
 ```
+
 Interesting that for co-roosting, the relationship between degree and z-score doesn't look the same. Maybe just because the co-roosting distributions are so incredibly left-skewed that everything gets thrown off by the few points that have a lower normDegree? Anyway, what matters is that we are now getting normal z-scores for roosting, not just 0 and 1.
 
 Let's look at the z-score distributions to see if we'll have to change our modeling method or not.
+
 ```{r}
 metrics_summary %>%
   ggplot(aes(x = z_deg, group = interaction(season, situ), col = situ))+
@@ -208,4 +211,3 @@ metrics_summary %>%
 
 # they're measuring different things. Normalized degree directly measures how many others an individual interacts with, while degree z-score models how much an individual deviates from the normalized degree it would have achieved just by change.
 ```
-
