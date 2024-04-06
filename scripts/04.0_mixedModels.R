@@ -1,21 +1,13 @@
 library(car) # for p-values in mixed models?
 library(tidyverse)
 library(sf)
-library(factoextra)
-library(ggfortify)
-library(ggpmisc) # for more details on a linear regression plot
 library(lme4) # for mixed-effects models
-library(ggpubr) # for adding p-values to boxplots
-library(rstatix) # for adding p-values to boxplots
 library(easystats) # for modeling and comparisons
 library(performance) # for modeling and comparisons
 library(lmerTest) # for p-values in mixed models?
 library(glmmTMB) # more complicated than lme4; allows for beta distributions
 library(DHARMa) # for testing glmmTMB models
 # https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
-library(sjPlot)
-library(broom.mixed)
-library(jtools) # similar to sjplot, for forest plots
 library(emmeans) # estimated marginal means/trends
 library(ggeffects)
 library(gtsummary)
@@ -23,52 +15,8 @@ library(gtsummary)
 # Set ggplot theme to classic
 theme_set(theme_classic())
 
-# Load network metrics and movement variables
-load(here("data/metrics_summary.Rda"))
-metrics_summary <- metrics_summary %>% rename("seasonUnique" = "season")
-load(here("data/new_movement_vars.Rda"))
-load(here("data/dataPrep/season_names.Rda"))
-load(here("data/derived/cc.Rda"))
-load(here("data/akde/sfs_est_centroids.Rda"))
-centrs <- sfs_est_centroids %>%
-  select(seasonUnique, Nili_id, dist_szn_centr) %>%
-  group_by(seasonUnique) %>%
-  mutate(mn = mean(dist_szn_centr),
-         sd = sd(dist_szn_centr)) %>%
-  mutate(centr = (dist_szn_centr-mn)/sd,
-         centr = -1*centr) %>%
-  sf::st_drop_geometry() %>%
-  select(seasonUnique, Nili_id, centr) %>%
-  ungroup() %>%
-  distinct()
-
-# Join the two datasets (there will be 3 rows per individual per season, for the 3 different situations)
-linked <- new_movement_vars %>%
-  left_join(metrics_summary, by = c("Nili_id", "seasonUnique")) %>%
-  left_join(centrs)
-nrow(linked) == 3*nrow(new_movement_vars)
-
-# Housekeeping
-linked <- linked %>%
-  mutate(season = stringr::str_extract(seasonUnique, "[a-z]+"),
-         year = as.numeric(stringr::str_extract(seasonUnique, "[0-9]+")),
-         seasonUnique = factor(seasonUnique, levels = season_names),
-         sex = factor(sex),
-         season = factor(season, levels = c("breeding", "summer", "fall")))
-
-# Check for NA's (we shouldn't have any because of the direction of the join)
-colSums(is.na(linked)) # why do we have missing data for some of these? That's worrying.
-
-# Create a shorter version of "type" for easier interpretability
-linked <- linked %>%
-  rename("type" = situ) %>%
-  mutate(situ = case_when(type == "flight" ~ "Fl", 
-                          type == "feeding" ~ "Fe",
-                          type == "roosting" ~ "Ro"))
-table(linked$situ)
-
-save(linked, file = here("data/mixedModels/linked.Rda"))
-
+# Load the data from the targets pipeline (wow this is so much easier!!!)
+tar_load(linked)
 
 # Examine response variable distributions ---------------------------------
 normDegree_years_seasons_flight <- linked %>%
