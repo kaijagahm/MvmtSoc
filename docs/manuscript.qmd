@@ -238,15 +238,30 @@ For each model, we calculated marginal effects using the {emmeans} package [@len
 source(here("scripts/04.0_mixedModels.R"))
 ```
 
+## Deviations from random
+
+Individual vultures interacted with significantly more unique others over the course of a season than expected by chance (i.e. observed degree values compared to the distribution of degree values obtained from networks created from the wrap-around data), across all seasons and social situations. However, individuals' strength did not differ from random.
+
+```{r}
+#| echo: false
+tar_load(linked)
+
+linked %>%
+  select(seasonUnique, situ, z_deg, z_str) %>%
+  ungroup() %>%
+  pivot_longer(cols = contains("z_"), names_to = "measure", values_to = "z") %>%
+  ggplot(aes(x = z, col = situ, group = interaction(seasonUnique, measure, situ)))+
+  geom_density(aes(linetype = measure))+
+  facet_wrap(~seasonUnique, scales = "free")+
+  geom_vline(aes(xintercept = 0)) # notably, we see that the z_scores for degree are almost entirely positive, while the ones for strength are basically centered around zero, with very few exceptions.
+```
+
 ## Degree
 
 ```{r}
-#| eval: false
-#| output: false
 #| label: fig-d-space
-#| fig-cap: "Relationship between normalized degree and space use"
-# NOT SHOW
-plot_d_eff_space # null--no overall relationship between space use and degree
+#| fig-cap: "Relationship between movement and degree deviation"
+plot_d_eff_movement
 ```
 
 ```{r}
@@ -256,64 +271,16 @@ plot_d_eff_situ_space
 plot_d_emt_situ_space
 ```
 
-There was a significant relationship between how vultures used space and how many other individuals they encountered in flight. Vultures that consistently ranged widely encountered more others in flight, while those that concentrated their movement in smaller home ranges and smaller proportional core areas flew with fewer others. There was a slight, albeit non-statistically-significant, trend toward lower degree in the co-feeding and co-roosting networks for vultures with larger ranges.
+There was a significant relationship between how vultures used space and how many other individuals they encountered in flight. Vultures that consistently ranged widely encountered more others in flight, while those that concentrated their movement in smaller home ranges and smaller proportional core areas flew with fewer others. Similarly, there was a marginally significant positive relationship between space use and degree deviation in the co-feeding network as well. By contrast, vultures with smaller home ranges/proportionally smaller core areas had a co-roosting degree that deviated more from chance than those with larger home ranges/proportionally larger core areas.
 
 ```{r}
-#| eval: false
-#| output: false
 #| label: fig-d-roost
 #| fig-cap: "Relationship between normalized degree and roost diversification"
-# NOT SHOW
-plot_d_eff_roost # null--no overall relationship between roost diversification and degree
+plot_d_eff_roost 
 ```
 
-```{r}
-#| eval: false
-#| output: false
-#| label: fig-d-movement-situ
-#| fig-cap: "Relationship between normalized degree and movement, with separate trend lines for each social situation"
-# NOT SHOW
-plot_d_eff_situ_movement
-plot_d_emt_situ_movement # going to show the plot by season instead of this one
-```
-
-```{r}
-#| label: fig-d-movement-situ-season
-#| fig-cap: "Relationship between normalized degree and movement, for each season and social situation."
-plot_d_emt_situ_movement_season
-```
-
-Movement behavior affected degree in all three social situations. Vultures with a higher movement score co-roosted with fewer conspecifics only in the transient, pre-breeding season; otherwise movement did not affect their co-roosting degree. In the breeding and post-breeding seasons, vultures that moved more encountered more conspecifics in flight and while feeding, but this relationship did not hold in the pre-breeding season.
+Vultures with greater roost diversification, had, overall, smaller degree deviations than those with smaller roost diversification, though the effect size was small.
 
 ## Strength
-
-```{r}
-#| eval: false
-#| output: false
-#| label: fig-s-movement
-#| fig-cap: "Relationship between normalized strength and movement"
-plot_s_eff_movement # null
-```
-
-There was no relationship between movement and strength, either overall or in any season or situation.
-
-```{r}
-#| eval: false
-#| label: fig-s-roost
-#| fig-cap: "Relationship between normalized strength and roost diversification"
-plot_s_eff_roost
-```
-
-However, individuals with more diversified roosts had lower strength (i.e. they interacted less) overall, considering seasons and situations together.
-
-```{r}
-#| eval: false
-#| label: fig-s-space
-#| fig-cap: "Relationship between normalized strength and space use"
-plot_s_eff_situ_space
-plot_s_emt_situ_space
-```
-
-Vultures with greater space use had significantly more co-flight interactions (higher strength in the co-flight network). They also tended to have a higher co-roosting strength, though the trend was not statistically significant. There was no relationship between seasonal space use and co-feeding strength.
 
 # Discussion

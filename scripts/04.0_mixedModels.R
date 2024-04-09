@@ -119,7 +119,7 @@ plot_d_eff_movement <- ggplot(d_eff_movement, aes(x, predicted))+
   geom_point(data = linked, aes(x = movement, y = z_deg, col = situ), alpha = 0.5)+
   geom_line(linewidth = 1, col = "black", linetype = 2)+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree (normalized)--z-score")+
+  ylab("Normalized degree (deviation from random)")+
   xlab("Movement")+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
@@ -134,7 +134,7 @@ plot_d_eff_space <- ggplot(d_eff_space, aes(x, predicted))+
   geom_point(data = linked, aes(x = space_use, y = z_deg, col = situ), alpha = 0.5)+
   geom_line(linewidth = 1, col = "black", linetype = 2)+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree (normalized)")+
+  ylab("Normalized degree (deviation from random)")+
   xlab("Space use (log-transformed)")+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
@@ -150,7 +150,7 @@ plot_d_eff_situ_space <- ggplot(d_eff_situ_space, aes(x, predicted))+
   geom_line(aes(col = group), linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
   scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree (normalized)")+
+  ylab("Normalized degree (deviation from random)")+
   xlab("Space use (log-transformed)")+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
@@ -172,7 +172,7 @@ plot_d_emt_situ_space <- d_emt_situ_space %>%
   geom_hline(aes(yintercept = 0), linetype = 2)+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
   theme(text = element_text(size = 20), legend.position = "none")+
-  ylab("Space use effect")+
+  ylab("Space use effect (normalized degree deviation from random)")+
   xlab("Situation")+
   coord_flip()
 plot_d_emt_situ_space
@@ -186,7 +186,7 @@ plot_d_eff_roost <- ggplot(d_eff_roost, aes(x, predicted))+
   geom_point(data = linked, aes(x = roost_div, y = z_deg, col = situ), alpha = 0.5)+
   geom_line(linewidth = 1)+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree (normalized)")+
+  ylab("Normalized degree (deviation from random)")+
   xlab("Roost diversification")+
   ggtitle("")+theme_classic()+
   theme(text = element_text(size = 16))
