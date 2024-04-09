@@ -16,6 +16,11 @@ theme_abs_2023 <- function(){
           axis.line = element_line(color = "#7A695A"))
 }
 
+get_cc <- function(){
+  cc <- list("breedingColor" = "#2FF8CA", "summerColor" = "#CA2FF8", "fallColor" = "#F8CA2F", flightColor = "dodgerblue", roostingColor = "olivedrab4", "feedingColor" = "gold")
+  return(cc)
+}
+
 # Data prep ---------------------------------------------------------------
 get_loginObject <- function(pw){
   load(pw)
@@ -650,7 +655,7 @@ compile_movement_behavior <- function(areas_list, dailyAltitudesSumm, roostSwitc
   
   ## Add age and sex
   ageSex <- map(downsampled_10min_sf, ~.x %>% st_drop_geometry() %>% 
-                  dplyr::select(Nili_id, birth_year, sex) %>% 
+                  dplyr::select(Nili_id, birth_year, age_group, sex) %>% 
                   distinct())
   
   movementBehavior <- map2(movementBehavior, ageSex, ~left_join(.x, .y, by = "Nili_id"))
@@ -663,14 +668,14 @@ scale_movement_behavior <- function(movementBehavior){
   movementBehaviorScaled <- allMovementBehavior %>%
     mutate(coreArea_log = log(coreArea),
            homeRange_log = log(homeRange)) %>%
-    mutate(across(-c(Nili_id, seasonUnique, birth_year, sex), 
+    mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, age_group), 
                   function(x){as.numeric(as.vector(scale(x)))}))
   return(movementBehaviorScaled)
 }
 
 get_demo <- function(movementBehaviorScaled){
   demo <- movementBehaviorScaled %>%
-    dplyr::select(Nili_id, seasonUnique, daysTracked, propDaysTracked, birth_year, sex)
+    dplyr::select(Nili_id, seasonUnique, daysTracked, propDaysTracked, birth_year, age_group, sex)
   return(demo)
 }
 
@@ -1012,7 +1017,13 @@ get_centrs <- function(sfs_est_centroids){
 
 # Pre-modeling ------------------------------------------------------------
 join_movement_soc <- function(new_movement_vars, metrics_summary, centrs, season_names){
-  linked <- new_movement_vars %>%
+  oneage <- new_movement_vars %>%
+    distinct() %>%
+    group_by(Nili_id, seasonUnique) %>%
+    arrange(age_group, .by_group = T) %>%
+    slice(1) # taking the first row of each group (the adult row)--this will remove the subadults for the breeding seasons where individuals transition ages.
+  # XXX THIS IS REALLY FRAGILE--MAKE IT MORE EXPLICIT!
+  linked <- oneage %>% 
     left_join(metrics_summary, 
               by = c("Nili_id", "seasonUnique")) %>%
     left_join(centrs)
