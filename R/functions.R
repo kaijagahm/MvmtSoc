@@ -1044,3 +1044,10 @@ join_movement_soc <- function(new_movement_vars, metrics_summary, centrs, season
                             type == "roosting" ~ "Ro"))
   return(linked)
 }
+
+report <- function(dataset, id){
+  n_points <- nrow(dataset)
+  n_vultures <- length(unique(dataset[[id]]))
+  vultures <- unique(dataset[[id]])
+  return(c("points" = n_points, "vultures" = n_vultures))
+}

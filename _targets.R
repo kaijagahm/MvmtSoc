@@ -130,7 +130,16 @@ list(
   tar_target(metrics_summary, get_metrics_summary(allMetrics)),
   # Mixed models
   tar_target(centrs, get_centrs(sfs_est_centroids)),
-  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, centrs, season_names))
+  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, centrs, season_names)),
+  # Reporting
+  tar_target(joined0_r, report(joined0, "trackId")),
+  tar_target(cleaned_r, report(cleaned, "Nili_id")),
+  tar_target(data_masked_r, report(data_masked, "Nili_id")),
+  tar_target(seasons_list_r, map(seasons_list, ~report(.x, "Nili_id"))),
+  tar_target(removed_northern_r, map(removed_northern, ~report(.x, "Nili_id"))),
+  tar_target(removed_lfr_r, map(removed_lfr, ~report(.x, "Nili_id"))),
+  tar_target(downsampled_10min_forSocial_r, map(downsampled_10min_forSocial, ~report(.x, "Nili_id"))),
+  tar_target(downsampled_10min_r, map(downsampled_10min, ~report(.x, "Nili_id")))
 )
 
 

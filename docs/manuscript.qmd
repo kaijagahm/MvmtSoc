@@ -15,6 +15,7 @@ bibliography: references.bib
 #| include: false
 library(tidyverse)
 library(here)
+tar_config_set(store = here::here('_targets'))
 ```
 
 #### Social network centrality is known to be important in animals.
@@ -126,11 +127,9 @@ The southern Israel griffon vulture population is mostly resident, though some i
 ## Data preparation
 
 ```{r}
-#| include: false
-load(here("data/dataPrep/dataPrep_report_stats.Rda"))
-dp <- dataPrep_report_stats
-cl <- which(dp$dataset == "data_cleaned")
-pctremovedcleaned <- round(100*(dp$nrow[[cl-1]] - dp$nrow[[cl]])/(dp$nrow[[cl-1]]), 2)
+tar_load(cleaned_r)
+tar_load(joined0_r)
+pctremovedcleaned <- (joined0_r[1]-cleaned_r[1])/joined0_r[1]
 ```
 
 For this study, we used data between September 1, 2020 and September 15, 2023 from the \[ornitela\] and \[inpa\] datasets, which we downloaded from Movebank [@kays2022]. For each vulture, we removed any periods of time spent in the wildlife hospital (e.g. while recovering from an illness, injury, or poisoning), or in captivity prior to wild release (in the case of captive-born birds). We cleaned the data by filtering out GPS fixes deemed unreliable (e.g. too few satellites for triangulation, nonsensical heading readings, impossible jumps from previous fixes), and we removed any time that vultures spent in capture cages during the tagging season in the fall. Altogether, approximately `r pctremovedcleaned`% of fixes were removed as compared to the raw data. Next, we removed any vultures that spent fewer than 30 days, in total, within a focal region encompassing the general vicinity of Israel (in order to exclude, for instance, birds that were briefly detected in the area before dispersing far away). For vultures detected in the area for at least 30 days during the study period, we subsequently removed any fixes for those individuals that occurred outside of the same focal region, in order to restrict our analyses to movements that occurred near the main population locus and ensure that most social interactions would be with other tagged individuals. (We accounted for missing time periods, including removed data, by calculating association indices in the social networks).
@@ -140,14 +139,11 @@ We divided the remaining data into seasons based on biological knowledge of vult
 The vulture population in Israel is geographically separated, with most individuals in the south but a small and relatively isolated population at the Hai Bar Carmel Nature Reserve and in the Golan Heights. While vultures occasionally move between the northern and southern population, such movements are rare, and northern vultures behave differently than southern vultures due to more consistent feeding and a more restricted range in the north. Therefore, for each season, we restricted our analysis to individuals whose spatial centroid (including all GPS points after data cleaning) lay south of UTM Northing 3550000 (Zone 36N), equivalent to approximately 32.086238 North latitude. This threshold was determined by visual examination of a histogram of centroid latitudes, which was bimodal and disjoint. Finally, to account for older GPS tags that were set to lower fix frequencies, we excluded any individuals from each season that never had their tags set to a 10-minute frequency during that season. In recent months, some tags were temporarily set to record fixes at much higher frequencies, so those individuals were downsampled to a 10-minute frequency in order to make data analysis more tractable.
 
 ```{r}
-#| include: false
-soc <- which(dp$dataset == "downsampled_10min_forSocial")
-vulturessoc <- unique(unlist(dp$vultures[[soc]]))
-nvulturessoc <- length(vulturessoc)
-nvulturessoc_szns <- dp$nvultures[[soc]]
+tar_load(downsampled_10min_forSocial_r)
+nvultures <- map_dbl(downsampled_10min_forSocial_r, "vultures")
 ```
 
-After this cleaning, the data used for social network analysis contained `r nvulturessoc` unique vultures in total (range: `r min(nvulturessoc_szns)`-`r max(nvulturessoc_szns)`; mean = `r round(mean(nvulturessoc_szns), 2)` vultures per season, sd = `r round(sd(nvulturessoc_szns), 2)` vultures per season).
+After this cleaning, the data used for social network analysis contained between `r min(nvultures)` and `r max(nvultures)` vultures per season (mean = `r mean(nvultures)`; sd = `r sd(nvultures)`).
 
 #### Determining roost locations
 
@@ -158,11 +154,8 @@ We used GPS fixes to determine vultures' nightly roost locations. The solar-powe
 To characterize individual movement behavior and spatial phenotype, we cleaned the data further. We restricted movement points to the period between sunrise and sunset (calculated for each day with respect to a point at the centroid of Israel using the R package {suncalc} [@thieurmel2022]. We restricted movement calculations to a set of focal individuals with activity regions centered in the Negev region of Israel, the site of most of our tagging effort. For each vulture, we also removed days with too few GPS fixes. Fixes were ideally collected every 10 minutes, but sometimes they were less frequent due to bad cellular reception in the cliff areas where vultures often sit or due to low battery charge. For each individual, only days with 10 or more GPS fixes per day were retained, unless the battery charge remained above 50% for the entire day. In those cases, the low number of points was attributed to the vultures spending most of their time sitting on a cliff (with limited reception) without much movement, rather than to actual missing data due to low battery. Since these sedentary days represent an important component of vulture movement behavior, we retained this information (Orr Spiegel, pers. obs.).
 
 ```{r}
-#| include: false
-mov <- which(dp$dataset == "downsampled_10min")
-vulturesmov <- unique(unlist(dp$vultures[[mov]]))
-nvulturesmov <- length(vulturesmov)
-nvulturesmov_szns <- dp$nvultures[[mov]]
+tar_load(downsampled_10min_r)
+nvultures <- map_dbl(downsampled_10min_r, "vultures")
 ```
 
 After removing days with too few fixes per day, we removed any vultures that did not have at least 30 days of valid movement data remaining in a given season, to ensure that movement estimates and averages were based on a high enough sample size of days to capture the range of the vulture's behavior. Since this was done on a per-season basis, individuals that were removed from one season's analysis due to not having enough valid days could still have movement measures calculated for a different season. Finally, we downsampled the movement data to a 10-minute interval to remove high-frequency fixes. Ultimately, we calculated movement measures for a total of `r nvulturesmov` **focal individuals** in total (range: `r min(nvulturesmov_szns)`-`r max(nvulturesmov_szns)`; mean = `r round(mean(nvulturesmov_szns), 2)` vultures per season, sd = `r round(sd(nvulturesmov_szns), 2)` vultures per season).
