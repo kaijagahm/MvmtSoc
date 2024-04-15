@@ -676,7 +676,7 @@ scale_movement_behavior <- function(movementBehavior){
 get_demo <- function(movementBehaviorScaled){
   demo <- movementBehaviorScaled %>%
     dplyr::select(Nili_id, seasonUnique, daysTracked, propDaysTracked, birth_year, age_group, sex)
-  return(demo)
+  return(distinct(demo))
 }
 
 get_space_use <- function(movementBehaviorScaled){
@@ -685,7 +685,7 @@ get_space_use <- function(movementBehaviorScaled){
   pca <- prcomp(space_use[,-c(1:3)])
   space_use <- space_use %>%
     mutate(space_pc1 = pca$x[,1]*-1)
-  return(space_use)
+  return(distinct(space_use))
 }
 
 get_movement <- function(movementBehaviorScaled){
@@ -694,7 +694,7 @@ get_movement <- function(movementBehaviorScaled){
     filter(!is.na(mnDailyMnAlt))
   pca <- prcomp(movement[,-c(1:2)])
   movement <- movement %>% mutate(movement_pc1 = pca$x[,1]*-1)
-  return(movement)
+  return(distinct(movement))
 }
 
 get_roost_behavior <- function(movementBehaviorScaled){
@@ -704,7 +704,7 @@ get_roost_behavior <- function(movementBehaviorScaled){
   pca <- prcomp(roost_behavior[,-c(1:2)])
   roost_behavior <- roost_behavior %>%
     mutate(roost_pc1 = pca$x[,1]*-1)
-  return(roost_behavior)
+  return(distinct(roost_behavior))
 }
 
 get_new_movement_vars <- function(demo, space_use, movement, roost_behavior){
@@ -717,6 +717,33 @@ get_new_movement_vars <- function(demo, space_use, movement, roost_behavior){
            "roost_div" = "roost_pc1") %>%
     filter(!is.na(movement))
   return(new_movement_vars)
+}
+
+get_all_movement_vars <- function(demo, space_use, movement, roost_behavior){
+  all_movement_vars <- demo %>%
+    left_join(space_use) %>%
+    left_join(movement) %>%
+    left_join(roost_behavior) %>%
+    rename("space_use" = "space_pc1",
+           "movement" = "movement_pc1",
+           "roost_div" = "roost_pc1") %>%
+    filter(!is.na(movement))
+  return(all_movement_vars)
+}
+
+get_correlation_scatterplots <- function(data, xcol, ycols, title){
+  p <- data %>%
+    pivot_longer(cols = all_of(ycols),
+                 names_to = "measure", values_to = "value") %>%
+    ggplot(aes(x = !!sym(xcol), y = value)) +
+    geom_point() + geom_smooth(method = "lm") + theme_minimal()+
+    facet_wrap(~measure)+
+    ylab("Value (scaled)")+
+    theme(legend.position = "none",
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    ggtitle(title)
+  return(p)
 }
 
 # Social networks ---------------------------------------------------------
@@ -967,7 +994,7 @@ get_metrics_wrapped <- function(with_times, roosts, season_names, roostPolygons,
 }
 
 combine_metrics <- function(networkMetrics, metrics_wrapped){
-  allMetrics <- networkMetrics %>% select(season, "situ" = type, Nili_id, normDegree, normStrength)%>% left_join(metrics_wrapped %>% select("season" = seasonUnique, situ, Nili_id, rep, "wrapped_normDegree" = normDegree, "wrapped_normStrength" = normStrength)) %>%
+  allMetrics <- networkMetrics %>% select(season, "situ" = type, Nili_id, degree, strength, normDegree, normStrength)%>% left_join(metrics_wrapped %>% select("season" = seasonUnique, situ, Nili_id, "wrapped_strength" = strength, "wrapped_degree" = degree, rep, "wrapped_normDegree" = normDegree, "wrapped_normStrength" = normStrength)) %>%
     mutate(Nili_id = factor(Nili_id))
   return(allMetrics)
 }
@@ -988,12 +1015,12 @@ get_deviations_plot <- function(allMetrics){
 get_metrics_summary <- function(allMetrics){
   metrics_summary <- allMetrics %>%
     group_by(season, situ, Nili_id) %>%
-    summarize(normDegree = normDegree[1],
-              normStrength = normStrength[1],
-              diff_deg = normDegree[1]-mean(wrapped_normDegree, na.rm = T),
-              diff_str = normStrength[1]-mean(wrapped_normStrength, na.rm = T),
-              sd_deg = sd(wrapped_normDegree, na.rm = T),
-              sd_str = sd(wrapped_normStrength, na.rm = T)) %>%
+    summarize(degree = degree[1],
+              strength = strength[1],
+              diff_deg = degree[1]-mean(wrapped_degree, na.rm = T),
+              diff_str = strength[1]-mean(wrapped_strength, na.rm = T),
+              sd_deg = sd(wrapped_degree, na.rm = T),
+              sd_str = sd(wrapped_strength, na.rm = T)) %>%
     mutate(z_deg = diff_deg/sd_deg,
            z_str = diff_str/sd_str) %>%
     rename("seasonUnique" = season)
