@@ -1,0 +1,199 @@
+---
+title: "Movement/Social"
+date: last-modified
+format:
+  revealjs:
+    embed-resources: true
+editor: visual
+---
+
+```{r}
+#| include: false
+#| output: false
+library(tidyverse)
+library(here)
+library(targets)
+theme_set(theme_minimal())
+tar_config_set(store = here::here('_targets'))
+source(here("scripts/04.0_mixedModels.R"))
+```
+
+<!-- ## Research questions (cont'd) -->
+
+<!-- Q1: What is the relationship between spatial phenotype and social interactions? -->
+
+<!-- -   H1A: Individuals that move more will have more, and stronger, encounters with other unique individuals. -->
+
+<!--     -   P1A: Vultures that move more will encounter more others (higher degree centrality in the social network) and have more interactions (higher strength in the social network) than vultures who move less. -->
+
+<!-- ## Research questions (cont'd) -->
+
+<!-- -   H1B: Individuals that are more exploratory will have more but weaker encounters with other unique individuals. -->
+
+<!--     -   P1B: Exploratory vultures will encounter more unique individuals (higher degree centrality), but will have fewer interactions (lower strength) compared to less exploratory vultures. -->
+
+<!-- ## Research questions (cont'd) -->
+
+<!-- Q2: How is the relationship between spatial phenotype and social interactions impacted by social situation and season? -->
+
+<!-- -   H2A: Social situations in which animals move more will have a greater impact on social interactions -->
+
+<!--     -   P2A: Social centrality in co-flight networks will be more strongly associated with spatial phenotype than in co-roosting and co-feeding behavioral situations. -->
+
+<!-- ## Research questions (cont'd) -->
+
+<!-- -   H2B: Seasons in which animals move more will have a stronger impact on social interactions -->
+
+<!--     -   P2B: The relationship between movement and social position will be stronger in the non-breeding seasons (summer and fall) than during the breeding season. -->
+
+## Examining response variable distributions
+
+```{r}
+tar_load(all_movement_vars)
+tar_load(cc)
+all_movement_vars %>%
+  pivot_longer(cols = c(movement, space_use, roost_div), 
+               names_to = "var", values_to = "measure") %>%
+  mutate(season = str_extract(seasonUnique, pattern = "[a-z]+")) %>%
+  ggplot(aes(x = measure, col = season, group = seasonUnique))+
+  geom_density()+
+  facet_wrap(~var)+
+  scale_color_manual(values = c(cc$breedingColor, cc$fallColor, cc$summerColor))+
+  theme(legend.position = "bottom",
+        axis.title = element_blank())
+```
+
+## Wrap-around randomizations (degree)
+
+```{r}
+#| fig-cap: "100 randomizations, shift +/- 1 day"
+tar_load(allMetrics)
+set.seed(3)
+vultures <- sample(unique(allMetrics$Nili_id), 3, replace = F)
+allMetrics %>%
+  filter(Nili_id %in% vultures) %>%
+  ggplot(aes(x = Nili_id, y = wrapped_normDegree, col = situ))+
+  geom_point(aes(y = normDegree), position = position_dodge(width = 0.4))+
+  geom_violin(position = position_dodge(width = 0.4))+
+  facet_wrap(~season, scales = "free")+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme_classic()+
+  ylab("Degree (normalized)")+
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")+
+  ggtitle("Degree (observed vs. random)")
+```
+
+## Wrap-around randomizations (strength)
+
+```{r}
+#| fig-cap: "100 randomizations, shift +/- 1 day"
+allMetrics %>%
+  filter(Nili_id %in% vultures) %>%
+  ggplot(aes(x = Nili_id, y = wrapped_normStrength, col = situ))+
+  geom_point(aes(y = normStrength), position = position_dodge(width = 0.4))+
+  geom_violin(position = position_dodge(width = 0.4))+
+  facet_wrap(~season, scales = "free")+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme_classic()+
+  ylab("Strength (normalized)")+
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")+
+  ggtitle("Strength (observed vs. random)")
+```
+
+## Degree, but not strength, was higher than random.
+
+```{r}
+tar_load(linked)
+
+linked %>%
+  select(seasonUnique, situ, z_deg, z_str) %>%
+  ungroup() %>%
+  pivot_longer(cols = contains("z_"), names_to = "measure", values_to = "z") %>%
+  ggplot(aes(x = z, col = situ, group = interaction(seasonUnique, measure, situ)))+
+  geom_density()+
+  facet_wrap(~measure, scales = "free")+
+  geom_vline(aes(xintercept = 0), col = "red")+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme_classic()+
+  theme(axis.title.y = element_blank())+
+  xlab("Z-score")
+
+linked %>%
+  select(seasonUnique, situ, z_str) %>%
+  ungroup() %>%
+  ggplot(aes(x = z_str))
+```
+
+## Movement vs. degree deviation
+
+```{r}
+#| label: fig-d-space
+#| fig-cap: "Relationship between movement and degree deviation"
+plot_d_eff_movement
+```
+
+## Movement measure
+
+```{r}
+tar_load(movement_corr)
+movement_corr
+```
+
+
+## Space use vs. degree deviation
+
+```{r}
+#| label: fig-d-space-situ
+#| fig-cap: "Relationship between normalized degree and space use, with separate trend lines for each social situation"
+plot_d_eff_situ_space
+```
+
+## Space use vs. degree deviation
+
+```{r}
+plot_d_emt_situ_space
+```
+
+## Space use measure
+
+```{r}
+tar_load(space_corr)
+space_corr
+```
+
+## Roost diversification vs. degree deviation
+
+```{r}
+#| label: fig-d-roost
+#| fig-cap: "Relationship between normalized degree and roost diversification"
+plot_d_eff_roost 
+```
+
+## Roost diversification measure
+
+```{r}
+tar_load(roost_corr)
+roost_corr
+```
+
+## Degree model summary {.smaller .scrollable}
+
+```{r}
+summary(degree_mod)
+```
+
+## The strength model did not fit well.
+
+```{r}
+simulationOutput <- DHARMa::simulateResiduals(strength_mod)
+plot(simulationOutput, pch=".")
+```
+
+## Still, here is the summary as it stands {.smaller .scrollable}
+
+```{r}
+summary(strength_mod)
+```
+
