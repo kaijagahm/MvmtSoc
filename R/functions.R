@@ -999,19 +999,6 @@ combine_metrics <- function(networkMetrics, metrics_wrapped){
   return(allMetrics)
 }
 
-get_deviations_plot <- function(allMetrics){
-  set.seed(3)
-  vultures <- sample(allMetrics$Nili_id, size = 15)
-  plt <- allMetrics %>% filter(season == "2023_summer", Nili_id %in% vultures) %>%
-    ggplot(aes(x = Nili_id, y = wrapped_normDegree))+
-    geom_violin()+
-    geom_point(aes(x = Nili_id, y = normDegree), col = "firebrick2", size = 2)+
-    facet_wrap(~situ, scales = "free")+
-    theme(axis.text.x = element_blank(), 
-          axis.ticks.x = element_blank())
-  return(plt)
-}
-
 get_metrics_summary <- function(allMetrics){
   metrics_summary <- allMetrics %>%
     group_by(season, situ, Nili_id) %>%
@@ -1027,23 +1014,8 @@ get_metrics_summary <- function(allMetrics){
   return(metrics_summary)
 }
 
-get_centrs <- function(sfs_est_centroids){
-  centrs <- sfs_est_centroids %>%
-    select(seasonUnique, Nili_id, dist_szn_centr) %>%
-    group_by(seasonUnique) %>%
-    mutate(mn = mean(dist_szn_centr),
-           sd = sd(dist_szn_centr)) %>%
-    mutate(centr = (dist_szn_centr-mn)/sd,
-           centr = -1*centr) %>%
-    sf::st_drop_geometry() %>%
-    select(seasonUnique, Nili_id, centr) %>%
-    ungroup() %>%
-    distinct()
-  return(centrs)
-}
-
 # Pre-modeling ------------------------------------------------------------
-join_movement_soc <- function(new_movement_vars, metrics_summary, centrs, season_names){
+join_movement_soc <- function(new_movement_vars, metrics_summary, season_names){
   oneage <- new_movement_vars %>%
     distinct() %>%
     group_by(Nili_id, seasonUnique) %>%
@@ -1052,8 +1024,7 @@ join_movement_soc <- function(new_movement_vars, metrics_summary, centrs, season
   # XXX THIS IS REALLY FRAGILE--MAKE IT MORE EXPLICIT!
   linked <- oneage %>% 
     left_join(metrics_summary, 
-              by = c("Nili_id", "seasonUnique")) %>%
-    left_join(centrs)
+              by = c("Nili_id", "seasonUnique"))
   
   # Housekeeping
   linked <- linked %>%

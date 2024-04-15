@@ -132,8 +132,7 @@ list(
   tar_target(allMetrics, combine_metrics(networkMetrics, metrics_wrapped)),
   tar_target(metrics_summary, get_metrics_summary(allMetrics)),
   # Mixed models
-  tar_target(centrs, get_centrs(sfs_est_centroids)),
-  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, centrs, season_names)),
+  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, season_names)),
   # Reporting
   tar_target(joined0_r, report(joined0, "trackId")),
   tar_target(cleaned_r, report(cleaned, "Nili_id")),
