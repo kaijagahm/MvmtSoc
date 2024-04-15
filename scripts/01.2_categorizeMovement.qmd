@@ -16,24 +16,24 @@ library(tidyverse)
 library(sf)
 library(factoextra)
 library(ade4)
-load(here::here("data", "calcMovement", "movementBehavior.Rda"))
-load(here::here("data", "dataPrep", "season_names.Rda"))
-load(here::here("data", "derived", "cc.Rda"))
-
+library(here)
+tar_config_set(store = here::here('_targets'))
+tar_load(movementBehavior)
+tar_load(season_names)
+tar_load(cc)
+tar_load(downsampled_10min)
 # retrieve age information, since it wasn't carried through in the movement analysis (oops)
-load(here::here("data", "dataPrep", "downsampled_10min.Rda"))
 ages <- map(downsampled_10min, ~.x %>%
               dplyr::select(Nili_id, seasonUnique, season, year, age, age_group) %>%
               distinct()) %>%
   purrr::list_rbind()
-rm(downsampled_10min) # XXX need to do this in a faster way--attach age at an earlier stage probably
 
 # Create a dataset with all seasons combined
 allMovementBehavior <- purrr::list_rbind(movementBehavior)
 movementBehaviorScaled <- allMovementBehavior %>%
   mutate(coreArea_log = log(coreArea),
          homeRange_log = log(homeRange)) %>%
-  mutate(across(-c(Nili_id, seasonUnique, birth_year, sex), 
+  mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, age_group), 
                 function(x){as.numeric(as.vector(scale(x)))}))
 ```
 
