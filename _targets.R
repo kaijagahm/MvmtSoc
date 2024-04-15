@@ -107,6 +107,10 @@ list(
   tar_target(movement, get_movement(movementBehaviorScaled)),
   tar_target(roost_behavior, get_roost_behavior(movementBehaviorScaled)),
   tar_target(new_movement_vars, get_new_movement_vars(demo, space_use, movement, roost_behavior)),
+  tar_target(all_movement_vars, get_all_movement_vars(demo, space_use, movement, roost_behavior)),
+  tar_target(space_corr, get_correlation_scatterplots(all_movement_vars, "space_use", ycols = c("homeRange_log", "coreAreaFidelity"), title = "Space use")),
+  tar_target(movement_corr, get_correlation_scatterplots(all_movement_vars, "movement", ycols = c("mnDailyMnAlt", "meanDFD", "meanDMD", "meanDDT", "mnTort"), title = "Movement")),
+  tar_target(roost_corr, get_correlation_scatterplots(all_movement_vars, "roost_div", ycols = c("propSwitch", "shannon", "uniqueRoosts"), title = "Roost diversification")),
   # Calculate social networks
   tar_target(sfdata, convertsf(downsampled_10min_forSocial)),
   tar_target(flight, get_flight(sfdata, roostPolygons)),
@@ -126,7 +130,6 @@ list(
   tar_target(with_times, prepare_times(downsampled_10min_forSocial)),
   tar_target(metrics_wrapped, get_metrics_wrapped(with_times, roosts, season_names, roostPolygons, 100, 1)),
   tar_target(allMetrics, combine_metrics(networkMetrics, metrics_wrapped)),
-  #tar_target(sample_deviations_plot, get_deviations_plot(allMetrics)),
   tar_target(metrics_summary, get_metrics_summary(allMetrics)),
   # Mixed models
   tar_target(centrs, get_centrs(sfs_est_centroids)),

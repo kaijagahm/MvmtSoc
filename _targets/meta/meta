@@ -1,5 +1,6 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-allMetrics|stem|92a50845b45b9389|3409b2bca1528de3|df80102d4989d6c0|1991307673||t19822.02637917s|95c85e598b0d38ed|965912|rds|local|vector|||0.4||
+all_movement_vars|stem|33f8077139202282|99eb32c3e10773a8|c71747dca88c7100|-1613290649||t19823.9442132996s|17010184b529b54b|50115|rds|local|vector|||0.14||
+allMetrics|stem|f4d86541e855abbc|3409b2bca1528de3|d2cab98edcabf246|1991307673||t19825.8818290404s|b420001fa80a9a46|1883246|rds|local|vector|||0.25||
 animals|stem|081a318dc1f08355|96219a58250d76eb|20b2c1e8a50a905a|-180304413||t19818.7127860357s|46cc31f774f81601|1013|rds|local|vector|||0.08||
 areas_list|stem|bb35378cb7dc0491|ad4a70d47059d71c|f33a2df19c7ac325|1176171701||t19819.4571630794s|a2f1fdf6d21a6aee|13997|rds|local|vector|||0.02||
 attach_age_sex|function|54851878732a890d|||||||||||||||
@@ -11,7 +12,7 @@ centrs|stem|8b0b7abf2f152ed9|1de19ee4f6ac60e1|844018178cf560d8|-1688523626||t198
 clean_data|function|601f3aa83d85e782|||||||||||||||
 cleaned|stem|1c808f950e1e95b0|0f585dbdfa58211f|e0eeb68700755225|-863814015||t19817.994128605s|6c4dc6307878cd6f|411615936|rds|local|vector|||540.09||
 cleaned_r|stem|296e9120da9d5cd3|5df121292c68de5f|502654895df5e6f6|191746219||t19822.9671376949s|8cbe1afa12de9337|100|rds|local|vector|||0.47||
-combine_metrics|function|d3f77005f89e8574|||||||||||||||
+combine_metrics|function|4ced9cc76ec65301|||||||||||||||
 compile_areas|function|c1aa87b774067af2|||||||||||||||
 compile_movement_behavior|function|ea50123d4a5c5fc9|||||||||||||||
 convertsf|function|62f7cf3babc39fa5|||||||||||||||
@@ -20,7 +21,7 @@ dailyMovementList_seasons|stem|6dd8075870b08b08|d0d16d968c6f812c|adaa74e66382f2b
 data_masked|stem|84b8f5a657cd165b|6093fe655684ecff|95edd5e0a7cff5f7|1486408817||t19818.0160579518s|d5bf172d7c77e70d|374910072|rds|local|vector|||956.57||
 data_masked_r|stem|b6dc57779f0a482c|fd00efa202888b6d|e37bc6a5633d1af8|-2090635613||t19822.9679770412s|8cbe1afa12de9337|100|rds|local|vector|||0.35||
 daysTracked_seasons|stem|81960c3d67b83764|a47cee8bef881ac7|bb92c553ec4b23db|1715686764||t19818.7140448449s|04c9055540e46409|3280|rds|local|vector|||6.01||
-demo|stem|711c08e9ec5d6fa9|d9d0d3082d396dde|16a8e75bb0b79ca5|92079474||t19819.7947647466s|27b66f1b4cf89ec3|5342|rds|local|vector|||0||
+demo|stem|711c08e9ec5d6fa9|d9d0d3082d396dde|69f71348aa534a62|92079474||t19823.9442076946s|27b66f1b4cf89ec3|5342|rds|local|vector|||0||
 dfdSumm|stem|3bd5a28829da8e32|e81a8bc0260c7833|33a0f8e795c6757c|895486779||t19818.7167172969s|f8fd9d10fc1c41d3|5075|rds|local|vector|||61.19||
 downsample_10min|function|4008c744f26955b4|||||||||||||||
 downsample_10min_forSocial|function|37514800d3a13284|||||||||||||||
@@ -44,13 +45,16 @@ flightSRI|stem|c5a0a4d1b656d0ae|c98de771b57c1cfc|0feeacde2e6c6e69|587389173||t19
 fn|function|103fb03350548468|||||||||||||||
 get_akde_centroids|function|07ab083218b7af2c|||||||||||||||
 get_akde_stats|function|5704164e4b5d2064|||||||||||||||
+get_all_movement_vars|function|d9044a3182d2e2b9|||||||||||||||
 get_altitude_stats|function|023a0e9328850781|||||||||||||||
 get_animals|function|57ec68f2676d482c|||||||||||||||
+get_biplot|function|78b9651805a25dae|||||||||||||||
 get_cc|function|32ae42b8651e6d1f|||||||||||||||
 get_centrs|function|066541345566bd49|||||||||||||||
+get_correlation_scatterplots|function|d369702b3a631642|||||||||||||||
 get_daily_movements|function|8cbc3c8851db5cda|||||||||||||||
 get_daystracked|function|1f1b4bd6ab053f49|||||||||||||||
-get_demo|function|eed4f7024c62f7e6|||||||||||||||
+get_demo|function|a4d528fe3189b70a|||||||||||||||
 get_deviations_plot|function|a886089e16b4c28e|||||||||||||||
 get_dfd|function|d02da8a5af26c242|||||||||||||||
 get_element|function|320b2cff89ee4d2d|||||||||||||||
@@ -63,20 +67,22 @@ get_guesses|function|9255bbd873b1c13b|||||||||||||||
 get_inpa|function|eb0e229baccd0da7|||||||||||||||
 get_list_element|function|320b2cff89ee4d2d|||||||||||||||
 get_loginObject|function|ff8577da5e02b605|||||||||||||||
-get_metrics_summary|function|2386220a1044523d|||||||||||||||
+get_metrics_summary|function|cd7d7ba028bf3d1c|||||||||||||||
 get_metrics_wrapped|function|f2d33a00188c0fdc|||||||||||||||
-get_movement|function|a572a99f6c47ca9b|||||||||||||||
+get_movement|function|1cebe404481617ce|||||||||||||||
 get_network_metrics|function|a092609938801b42|||||||||||||||
 get_new_movement_vars|function|112e3dcbfa1fce87|||||||||||||||
 get_ornitela|function|4ec803a56c7b2e14|||||||||||||||
-get_pca|function|b9c777324b9a19be|||||||||||||||
-get_roost_behavior|function|8831f1911253359c|||||||||||||||
+get_pca|function|efb4de9639aaee0e|||||||||||||||
+get_pca_scores|function|cae5d9dc62e08f92|||||||||||||||
+get_roost_behavior|function|54ac33bbfbde3306|||||||||||||||
 get_roost_switches|function|c114a6ac86c89a95|||||||||||||||
 get_roosting|function|b1e1de0ef9e0fcf2|||||||||||||||
 get_roosts|function|5c5352c32ce34acc|||||||||||||||
+get_scree|function|21c5f5ca75c7e42b|||||||||||||||
 get_season_names|function|fb5eedd9ae240aca|||||||||||||||
 get_shannon|function|c5bf80293f279f14|||||||||||||||
-get_space_use|function|d0c8adc5c289ed73|||||||||||||||
+get_space_use|function|6074a9fd431c7455|||||||||||||||
 get_telems|function|67fb3619191aaad6|||||||||||||||
 get_uds_w|function|bc52496cea9201c6|||||||||||||||
 get_variograms|function|bc04221742cc3ded|||||||||||||||
@@ -87,19 +93,20 @@ join_inpa_ornitela|function|9a6d14884f21b4cd|||||||||||||||
 join_movement_soc|function|ca8ebc7dc09ed918|||||||||||||||
 joined0|stem|92e0fc402c108c2e|fc6ce7ad21ea1cb0|fcf4a992ffb48606|589860030||t19817.9785275966s|e55bf6eb2655e7a2|359510210|rds|local|vector|||5.64||
 joined0_r|stem|ae7e181475e1e89e|d70e6f4f863f35ca|a6fec9830c6ade03|726205281||t19822.9661815038s|8cbe1afa12de9337|100|rds|local|vector|||0.21||
-linked|stem|aef05d07ab847272|ffa50dddc1542aae|8ab39507a8d693ba|-769386594||t19822.0263958562s|25a217efbfa3fca9|101175|rds|local|vector|||0.61||
+linked|stem|38e409d2f0ade6bd|ffa50dddc1542aae|609591f87ec5f3c9|-769386594||t19825.885375768s|d9a785af0324798d|95864|rds|local|vector|||0.5||
 loginObject|stem|3eba871de1887eb7|2dbacb60eb142169|3003aa8808f9919f|-1147792597||t19816.9723845024s|44cdcadae072abff|249|rds|local|vector|||0||
 mask|stem|64f5786c50487454|1bee61c83caf8956|ef46db3751d8e999|-617807291|data/CutOffRegion.kml|t18646.8897356618s|309013c7799f34e0|1809|file|local|vector|||16||
 mask_data|function|3ff17d22db7d57ef|||||||||||||||
 masked|stem|602a2e8a8d7f3a23|6093fe655684ecff|e8e0cf1eb230ac45|-2017372919||t19816.9922624839s|da086ed809ac8686|209517|rds|local|vector|||1.61||
-metrics_summary|stem|2e46be063b7ec924|d27f6527340ae7d2|d06b0274ebbfc4cf|-915763404||t19822.0263869815s|3074d365dc22893b|102706|rds|local|vector|||0.58||
+metrics_summary|stem|467a607e9c70cfd0|d27f6527340ae7d2|7f8b27b723c6c106|-915763404||t19825.8853686768s|02a4bac69d829a69|96005|rds|local|vector|||0.24||
 metrics_wrapped|stem|125964136a74c80d|0dfffb58300f5e0c|0ab1a17a2e8fedd8|-1072165871||t19822.0263686544s|92f1f5e94d74a5e4|2357094|rds|local|vector|||13980.2||
 mnMvmt|stem|d91d0a3e407eb85c|d0d16d968c6f812c|ada5f4c978d5a82c|-1066857533||t19818.750311825s|8b64f94bdca358dc|13574|rds|local|vector|||2902.51|Returning more or less than 1 row per summarise group was deprecated indplyr 1.1.0.i Please use reframe instead.i When switching from summarise to reframe, remember that reframe  always returns an ungrouped data frame and adjust accordingly.. Returning more or less than 1 row per summarise group was deprecated indplyr 1.1.0.i Please use reframe instead.i When switching from summarise to reframe, remember that reframe  always returns an ungrouped data frame and adjust accordingly.|
-movement|stem|2e9854c0023bc588|e45402b994390d74|c2cdb73b9661e39a|1963173735||t19819.7947651857s|0638712a3a201084|22147|rds|local|vector|||0||
+movement|stem|b715218232476521|e45402b994390d74|a4d33315b7bf7243|1963173735||t19823.9442087351s|4ea6a2431d620269|21973|rds|local|vector|||0.01||
+movement_corr|stem|1c104aa9e05aee3d|4c8adcae118967b2|5e2946b27d5e5454|1270175118||t19823.9567637629s|c39cd823a7dedbc3|455487|rds|local|vector|||0.05||
 movementBehavior|stem|f0569a418b10ac9f|78f372e5b00ae97e|7fbae27b09c458f7|-1544311418||t19819.7947633946s|82433894764a5ef7|42386|rds|local|vector|||0.63||
 movementBehaviorScaled|stem|60de4b158e5ab338|07cf9ccc01a8a544|93e7646c6ec5ecfc|221608164||t19819.7947641227s|6425fac5dcd1096a|51557|rds|local|vector|||0.02||
 networkMetrics|stem|c983cfb699841487|f789c08bac35fcc2|02da21343b0613c1|-246966817||t19818.71278488s|0afc2a84b6561b23|36081|rds|local|vector|||0.11||
-new_movement_vars|stem|20e0466f8c0fc414|88c616ae23215b64|d0f4bbf945b0277a|923988652||t19819.7947703857s|c6484b0bf7336e58|15562|rds|local|vector|||0.37|Detected an unexpected manytomany relationship between x and y.i Row 48 of x matches multiple rows in y.i Row 48 of y matches multiple rows in x.i If a manytomany relationship is expected, set relationship   manytomany to silence this warning.. Detected an unexpected manytomany relationship between x and y.i Row 48 of x matches multiple rows in y.i Row 48 of y matches multiple rows in x.i If a manytomany relationship is expected, set relationship   manytomany to silence this warning.. Detected an unexpected manytomany relationship between x and y.i Row 48 of x matches multiple rows in y.i Row 48 of y matches multiple rows in x.i If a manytomany relationship is expected, set relationship   manytomany to silence this warning.|
+new_movement_vars|stem|03bb65d41fc224b3|88c616ae23215b64|41819ce217fbae29|923988652||t19823.9442112652s|33f8b25285c6cc00|15298|rds|local|vector|||0.18||
 ornitela|stem|4a4a3bc90efed9f1|349904ead563c9b7|87f227c3b907722d|503979122||t19817.9757071772s|af1dd3cd412d1e58|284007219|rds|local|vector|||1244.47||
 pca_movement|stem|409152805015e64c|bcd1f3eebc6b408f|ac1c898f83f2d8d3|-2083580393||t19817.7999133869s|5497d3c31d956f38|1752|rds|local|vector|||0||
 pca_roost|stem|39ff6819f3526eac|a28ee6ad196b7dd0|443f073671895537|-1313336242||t19817.7999128553s|27a398416cc11437|1129|rds|local|vector|||0||
@@ -124,7 +131,9 @@ removed_northern_r|stem|04be5c77c62287eb|3d25327ec48cd23c|102fe155cc495916|14312
 removed_periods|stem|ae954a1e1e22185a|460f1171420ad0b0|ea28c3b280ed9166|-372046581||t19817.9850154865s|f70ac0ef7116454d|412981970|rds|local|vector|||36.78||
 removed_too_few_days|stem|c02a925241302557|1f77819309c32cd9|6fd5c66533b96c88|1391895782||t19818.7042672322s|90cfd4b638d7866c|268704841|rds|local|vector|||13.72||
 report|function|f7384716a6a09329|||||||||||||||
-roost_behavior|stem|35be0f62fe7898a8|88e723a5775e7971|1969b025aea86e45|-72155096||t19819.7947656248s|ba9d3e8baa4f2fdb|12576|rds|local|vector|||0.02||
+roost_behavior|stem|8babfa129d88c1e9|88e723a5775e7971|342b8f9faa72df52|-72155096||t19823.9442082151s|04b6349dd883644c|12445|rds|local|vector|||0.02||
+roost_corr|stem|57db19d97b350c97|a53eb7e6ab9c1ab2|5e2946b27d5e5454|-2104278459||t19823.9587346101s|6d1884db2ed0baa8|454630|rds|local|vector|||0.04||
+roost_pca|stem||4e5c5b8683932de2|da02f258004069ec|450210723||t19823.9377731784s||0|rds|local|vector|||0.05||infinite or missing values in x
 roost_switches|stem|ff1bd20937264b9f|1a675f80c4aae8d5|bfae78323959e6db|1913669755||t19817.7858695628s|75d7dbcc777571b5|560|rds|local|vector|||0.09||
 roosting|stem|1a7cf045dfbc658c|9260587e394f227d|6c7acf5738868ba1|825598663||t19818.0460329218s|8978c8accf82bd16|2794595|rds|local|vector|||201.51||
 roostingEdges|stem|d72a47ee9a86633d|44cf1a67b2e190b6|672f53b00e08255f|-1274621488||t19819.78812799s|f27a81c3fcfee2cf|2721705|rds|local|vector|||0||
@@ -143,7 +152,9 @@ seasons_list_r|stem|1fe1ed575db534a1|3166ffe8d7f3689d|49a59ee70508f731|170354291
 sfdata|stem|aa826d392932bdf3|0bc281798f1c3f60|125a767f4de93163|1969769587||t19818.0415466739s|e12b3bc29f77bf42|140637378|rds|local|vector|||1.61||
 sfs_est_centroids|stem|312675faa7a6b02a|aff31c7a3274932e|23849f4682145101|-510025618||t19819.4571623514s|e06afe7ef943d5aa|18146|rds|local|vector|||188.11|st_centroid assumes attributes are constant over geometries|
 shannon|stem|9225b317cd91e3e8|4e63665f848b2c86|39133f727d841374|1523634022||t19818.704298557s|f52bc6d08eb599a5|6786|rds|local|vector|||0.96||
-space_use|stem|e4ae090206e4bf87|dbe6edbac23878e2|06143e223c9a8d92|198738352||t19819.7947644s|c763f7d72d18a19b|17957|rds|local|vector|||0||
+space_corr|stem|ba6d58d04891cd7a|5813931e3fec7b46|5e2946b27d5e5454|1367475964||t19823.9567653807s|95aaa90c3a21b4a4|449160|rds|local|vector|||0.02||
+space_pca|stem|ce50870093e4ca9b|1cb04e4aa099c3bb|da02f258004069ec|-361203134||t19823.9377723455s|725fca9184782faa|8467|rds|local|vector|||0||
+space_use|stem|84894db1253911d9|dbe6edbac23878e2|344fa8e9012f1b48|198738352||t19823.9442071635s|a7dbb3cdc2e98038|17814|rds|local|vector|||0.07||
 split_seasons|function|339ff6afedd63452|||||||||||||||
 stats_w_50_df|stem|99403825e870443c|c5df9bb93eebc9ac|379652b2c3879574|231437819||t19819.4545336641s|a6c41b9912f52524|26084|rds|local|vector|||9.93||
 stats_w_95_df|stem|07dbabff2602d6f1|44dcd14c7348a0d2|379652b2c3879574|-1634343218||t19819.4546450671s|3e7799ffd5640265|26123|rds|local|vector|||9.59||
