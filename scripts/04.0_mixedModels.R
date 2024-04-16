@@ -14,11 +14,13 @@ library(gtsummary)
 library(here)
 
 # Set ggplot theme to classic
-theme_set(theme_classic(base_size = 6))
+theme_set(theme_classic())
 
 # Load the data from the targets pipeline (wow this is so much easier!!!)
 tar_load(linked)
 tar_load(cc)
+situcolors <- c(cc$feedingColor, cc$flightColor, cc$roostingColor)
+seasoncolors <- c(cc$breedingColor, cc$summerColor, cc$fallColor)
 
 # Examine response variable distributions ---------------------------------
 
@@ -244,194 +246,154 @@ summary(str_z_8) # nice!
 
 str_z_mod <- str_z_8
 
+# Degree models to plot -----------------------------------------------------
+### Without randomizations:
+summary(deg_mod) # situ*space, movement*season, situ*movement, roost_div
+### With randomizations:
+summary(deg_z_mod) # situ*space, roost_div
+
+# Strength models to plot ---------------------------------------------------
+### Without randomizations:
+summary(str_mod) # situ*roost, roost_div
+### With randomizations:
+summary(str_z_mod) # situ*space, roost_div
+
+# Define plotting functions -----------------------------------------------
+effplot <- function(model, terms, dataset, pointX, pointY, colvar, legendTitle, values, ylab, xlab){
+  dat <- as.data.frame(ggeffect(model, terms = terms))
+  
+  if(length(terms) > 1){
+    plt <- ggplot(dat, aes(x, predicted)) +
+      geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, linewidth = 0.6, show.legend = F)+
+      geom_point(data = dataset, aes(.data[[pointX]], .data[[pointY]], col = .data[[colvar]]), alpha = 0.5)+
+      geom_line(aes(col = group), linewidth = 1) +
+      scale_color_manual(legendTitle, values = values) + 
+      scale_fill_manual(legendTitle, values = values) + 
+      ylab(ylab) + xlab(xlab)
+  }else{
+    plt <- ggplot(dat, aes(x, predicted)) +
+      geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.2, linewidth = 0.6, show.legend = F)+
+      geom_point(data = dataset, aes(.data[[pointX]], .data[[pointY]], col = .data[[colvar]]), alpha = 0.5)+
+      geom_line(linewidth = 1) +
+      scale_color_manual(legendTitle, values = values) + 
+      ylab(ylab) + xlab(xlab)
+  }
+  return(plt)
+}
+
+emtplot <- function(model, specs, var, values, ylab, xlab){
+  dat <- as.data.frame(emmeans::emtrends(model, specs, var))
+  lower <- ifelse("lower.CL" %in% names(dat), "lower.CL", "asymp.LCL")
+  upper <- ifelse("upper.CL" %in% names(dat), "upper.CL", "asymp.UCL")
+  plt <- dat %>% ggplot(aes(.data[[specs]], 
+                            .data[[paste0(var, ".", "trend")]], 
+                            col = .data[[specs]])) + 
+    geom_point(size = 6) +
+    geom_errorbar(aes(x = .data[[specs]], 
+                      ymin = .data[[lower]], 
+                      ymax = .data[[upper]]), 
+                  width = 0, linewidth = 2)+geom_hline(aes(yintercept = 0), 
+                                                       linetype = 2)+
+    scale_color_manual(values = values)+ 
+    theme(legend.position = "none") + ylab(ylab)+ xlab(xlab) + coord_flip()
+  return(plt)
+}
+
 # Degree plots ------------------------------------------------------------
+### Without randomizations:
+#### situ*space
+deg_situ_space_P <- effplot(model = deg_mod, terms = c("space_use", "situ"), 
+                            dataset = linked, pointX = "space_use", 
+                            pointY = "normDegree", col = "situ", 
+                            legendTitle = "Situation", values = situcolors, 
+                            ylab = "normDegree", xlab = "Space use (log)")
 
-## movement (main) ---------------------------------------------------------
-d_eff_movement <- as.data.frame(ggeffect(degree_mod, terms = c("movement")))
-plot_d_eff_movement <- ggplot(d_eff_movement, aes(x, predicted))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
-              alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = movement, y = z_deg, col = situ), alpha = 0.5)+
-  geom_line(linewidth = 1, col = "black", linetype = 2)+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree deviation")+
-  xlab("Movement")+
-  ggtitle("")+theme_classic()+
-  theme(text = element_text(size = 16))
-plot_d_eff_movement
-#ggsave(plot_d_eff_movement, file = here("fig/mmPlots/plot_d_eff_movement.png"), width = 7, height = 6)
+deg_situ_space_emt_P <- emtplot(model = deg_mod, specs = "situ", 
+                                var = "space_use", values = situcolors, 
+                                ylab = "Space use effect (normDegree)", 
+                                xlab = "Situation")
 
-## space_use (main) --------------------------------------------------------
-d_eff_space <- as.data.frame(ggeffect(degree_mod, terms = c("space_use")))
-plot_d_eff_space <- ggplot(d_eff_space, aes(x, predicted))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
-              alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = space_use, y = z_deg, col = situ), alpha = 0.5)+
-  geom_line(linewidth = 1, col = "black", linetype = 2)+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree deviation")+
-  xlab("Space use (log-transformed)")+
-  ggtitle("")+theme_classic()+
-  theme(text = element_text(size = 16))
-plot_d_eff_space
-#ggsave(plot_d_eff_space, file = here("fig/mmPlots/plot_d_eff_space.png"), width = 7, height = 6)
+#### movement*season
+deg_season_movement_P <- effplot(model = deg_mod, terms = c("movement", "season"), 
+                                 dataset = linked, pointX = "movement", 
+                                 pointY = "normDegree", col = "season", 
+                                 legendTitle = "Season", values = seasoncolors, 
+                                 ylab = "normDegree", xlab = "Space use (log)")
 
-## space_use:situ ----------------------------------------------------------
-d_eff_situ_space <- as.data.frame(ggeffect(degree_mod, terms = c("space_use", "situ")))
-plot_d_eff_situ_space <- ggplot(d_eff_situ_space, aes(x, predicted))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = space_use, y = z_deg, col = situ), alpha = 0.5)+
-  geom_line(aes(col = group), linewidth = 1)+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree deviation")+
-  xlab("Space use (log-transformed)")+
-  ggtitle("")+theme_classic()+
-  theme(text = element_text(size = 16))
-plot_d_eff_situ_space
-#ggsave(plot_d_eff_situ_space, file = here("fig/mmPlots/plot_d_eff_situ_space.png"), width = 7, height = 6)
+deg_season_movement_emt_P <- emtplot(model = deg_mod, specs = "season", 
+                                     var = "movement", values = seasoncolors, 
+                                     ylab = "Movement effect (normDegree)", 
+                                     xlab = "Season")
 
-d_emt_situ_space <- emmeans::emtrends(degree_mod, "situ", var = "space_use") %>%
-  as.data.frame() %>%
-  mutate(situ = case_when(situ == "Ro" ~ "Roosting",
-                          situ == "Fl" ~ "Flight",
-                          situ == "Fe" ~ "Feeding"))
-d_emt_situ_space 
-plot_d_emt_situ_space <- d_emt_situ_space %>%
-  as.data.frame() %>%
-  ggplot(aes(x = situ, y = space_use.trend, col = situ))+
-  geom_point(size = 6)+
-  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
-                width = 0, linewidth = 2)+
-  geom_hline(aes(yintercept = 0), linetype = 2)+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  theme(text = element_text(size = 20), legend.position = "none")+
-  ylab("Space use effect (degree deviation)")+
-  xlab("Situation")+
-  coord_flip()
-plot_d_emt_situ_space
-#ggsave(plot_d_emt_situ_space, file = here("fig/mmPlots/plot_d_emt_situ_space.png"), width = 5, height = 6)
+#### movement*situ
+deg_situ_movement_P <- effplot(model = deg_mod, terms = c("movement", "situ"), 
+                               dataset = linked, pointX = "movement", 
+                               pointY = "normDegree", col = "situ", 
+                               legendTitle = "Situation", values = situcolors, 
+                               ylab = "normDegree", xlab = "Space use (log)")
 
-## roost_div (main) --------------------------------------------------------
-d_eff_roost <- as.data.frame(ggeffect(degree_mod, terms = "roost_div"))
-plot_d_eff_roost <- ggplot(d_eff_roost, aes(x, predicted))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
-              alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = roost_div, y = z_deg, col = situ), alpha = 0.5)+
-  geom_line(linewidth = 1)+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Degree deviation")+
-  xlab("Roost diversification")+
-  ggtitle("")+theme_classic()+
-  theme(text = element_text(size = 16))
-plot_d_eff_roost
-#ggsave(plot_d_eff_roost, file = here("fig/mmPlots/plot_d_eff_roost.png"), width = 7, height = 6)
+deg_situ_movement_emt_P <- emtplot(model = deg_mod, specs = "situ", 
+                                   var = "movement", values = situcolors, 
+                                   ylab = "Movement effect (normDegree)", 
+                                   xlab = "Situation")
 
-#@@@@@@@@@@@@@@@@@@@@@
+#### roost_div
+deg_roost_P <- effplot(model = deg_mod, terms = c("roost_div"), 
+                               dataset = linked, pointX = "roost_div", 
+                               pointY = "normDegree", col = "situ", 
+                               legendTitle = "Situation", values = situcolors, 
+                               ylab = "normDegree", xlab = "Roost diversification")
 
-# Strength ----------------------------------------------------------------
-tar_load(allMetrics)
-vultures <- sample(unique(allMetrics$Nili_id), 10)
-allMetrics %>% filter(Nili_id %in% vultures) %>% ggplot(aes(x = Nili_id, y = wrapped_strength, group = interaction(situ, Nili_id), col = situ))+geom_violin()+facet_wrap(~season, scales = "free")+geom_point(aes(x = Nili_id, y = strength)) # individuals don't really seem to have strengths higher than expected by chance!
+### With randomizations:
+#### situ*space
+deg_z_situ_space_P <- effplot(model = deg_z_mod, terms = c("space_use", "situ"), 
+                            dataset = linked, pointX = "space_use", 
+                            pointY = "z_deg", col = "situ", 
+                            legendTitle = "Situation", values = situcolors, 
+                            ylab = "Degree (z-score)", xlab = "Space use (log)")
 
-strength_base <- glmmTMB(z_str ~ situ + movement + roost_div + space_use + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_predictions(strength_base) # oof, that looks bad...
-simulationOutput <- DHARMa::simulateResiduals(strength_base)
-plot(simulationOutput, pch=".")
-plotQQunif(simulationOutput)
-plotResiduals(simulationOutput) # these look very bad, honestly...
+deg_z_situ_space_emt_P <- emtplot(model = deg_mod, specs = "situ", 
+                                var = "space_use", values = situcolors, 
+                                ylab = "Space use effect (Degree z-scores)", 
+                                xlab = "Situation")
 
-# What if there are different relationships between movement and degree in different seasons and situations?
-strength_full <- glmmTMB(z_str ~ situ*movement*season + situ*roost_div*season + situ*space_use*season + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) # this will almost certainly have very high VIFs
-check_collinearity(strength_full) # YIKES. Let's get rid of situ*movement*season and situ*season*roost_div for starters.
+#### roost_div
+deg_z_roost_P <- effplot(model = deg_z_mod, terms = c("roost_div"), 
+                       dataset = linked, pointX = "roost_div", 
+                       pointY = "z_deg", col = "situ", 
+                       legendTitle = "Situation", values = situcolors, 
+                       ylab = "Degree (z-score)", xlab = "Roost diversification")
 
-strength_1 <- glmmTMB(z_str ~ situ*movement + movement*season + situ*roost_div + situ*season + roost_div*season + situ*space_use*season + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_collinearity(strength_1) # remove situ*season*space now
+# Strength plots ------------------------------------------------------------
+### Without randomizations:
+#### situ*roost
+str_situ_roost_P <- effplot(model = str_mod, terms = c("roost_div", "situ"), 
+                               dataset = linked, pointX = "roost_div", 
+                               pointY = "normStrength", col = "situ", 
+                               legendTitle = "Situation", values = situcolors, 
+                               ylab = "normStrength", xlab = "Roost diversification")
 
-strength_2 <- glmmTMB(z_str ~ situ*movement + movement*season + situ*roost_div + roost_div*season + situ*space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_collinearity(strength_2) # now we can remove movement*season, assuming it's not highly significant
-summary(strength_2) # lol nope def n.s.
+str_situ_roost_emt_P <- emtplot(model = str_mod, specs = "situ", 
+                                   var = "roost_div", values = situcolors, 
+                                   ylab = "Roost diversification effect (normStrength)", 
+                                   xlab = "Situation")
 
-strength_3 <- glmmTMB(z_str ~ situ*movement + situ*roost_div + roost_div*season + situ*space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_collinearity(strength_3) # highest collinearity with situ*roost
-summary(strength_3) # but it's significant. Let's remove situ*movement instead, and/or roost*season
+#### roost_div
+str_roost_P <- effplot(model = str_mod, terms = c("roost_div"), 
+                         dataset = linked, pointX = "roost_div", 
+                         pointY = "normStrength", col = "situ", 
+                         legendTitle = "Situation", values = situcolors, 
+                         ylab = "normStrength", xlab = "Roost diversification")
 
-strength_4 <- glmmTMB(z_str ~ movement + situ*roost_div + roost_div*season + situ*space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_collinearity(strength_4)
-summary(strength_4) # can remove roost*season
+### With randomizations:
+#### situ*space
+str_z_situ_space_P <- effplot(model = str_z_mod, terms = c("space_use", "situ"), 
+                            dataset = linked, pointX = "space_use", 
+                            pointY = "z_str", col = "situ", 
+                            legendTitle = "Situation", values = situcolors, 
+                            ylab = "Strength (z-score)", xlab = "Space use (log)")
 
-strength_5 <- glmmTMB(z_str ~ movement + situ*roost_div + season + situ*space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-check_collinearity(strength_5) # once again, we're down to situ*roost and situ*space_use. Let's do the split thing again...
-summary(strength_5)
-
-strength_6a <- glmmTMB(z_str ~ movement + situ*roost_div + season + space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) 
-check_collinearity(strength_6a) # this is all better
-summary(strength_6a) # highly significant interaction between situ and roost_div
-
-# strength_6b <- glmmTMB(z_str ~ movement + situ*space_use + season + roost_div + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) 
-# check_collinearity(strength_6b) # likewise, much better
-# summary(strength_6b) # highly significant interaction between situ and roost_div
-# 
-# compare_performance(strength_6a, strength_6b) # these are basically the same in terms of fit, too.
-
-check_predictions(strength_6a) # this still looks really bad
-simulationOutput <- DHARMa::simulateResiduals(strength_6a)
-plot(simulationOutput, pch=".")
-plotQQunif(simulationOutput)
-plotResiduals(simulationOutput) # these look very bad, honestly...
-# I really don't like the fit of either of these models. Maybe the distribution is too tight for a gaussian?
-
-strength_mod <- strength_6a # choosing this arbitrarily; I'm not really happy with either one.
-
-# Strength plots ----------------------------------------------------------
-## space_use (main) --------------------------------------------------------
-s_eff_space <- as.data.frame(ggeffect(strength_mod, terms = c("space_use")))
-plot_s_eff_space <- ggplot(s_eff_space, aes(x, predicted))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
-              alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = space_use, y = z_str, col = situ), alpha = 0.5)+
-  geom_line(linewidth = 1, col = "black", linetype = 2)+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Strength (normalized)")+
-  xlab("Space use (log-transformed)")+
-  ggtitle("")+theme_classic()+
-  theme(text = element_text(size = 16))
-plot_s_eff_space
-#ggsave(plot_s_eff_space, file = here("fig/mmPlots/plot_s_eff_space.png"), width = 7, height = 6)
-## space_use:situ ----------------------------------------------------------
-s_eff_situ_space <- as.data.frame(ggeffect(strength_mod, terms = c("space_use", "situ")))
-plot_s_eff_situ_space <- ggplot(s_eff_situ_space, aes(x, predicted))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.2, linewidth = 0.6, show.legend = F)+
-  geom_point(data = linked, aes(x = space_use, y = z_str, col = situ), alpha = 0.5)+
-  geom_line(aes(col = group), linewidth = 1)+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  scale_fill_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  ylab("Strength (normalized)")+
-  xlab("Space use (log-transformed)")+
-  ggtitle("")+theme_classic()+
-  theme(text = element_text(size = 16))
-plot_s_eff_situ_space
-#ggsave(plot_s_eff_situ_space, file = here("fig/mmPlots/plot_s_eff_situ_space.png"), width = 7, height = 6)
-
-s_emt_situ_space <- emmeans::emtrends(strength_mod, "situ", var = "space_use") %>%
-  as.data.frame() %>%
-  mutate(situ = case_when(situ == "Ro" ~ "Roosting",
-                          situ == "Fl" ~ "Flight",
-                          situ == "Fe" ~ "Feeding"))
-s_emt_situ_space 
-plot_s_emt_situ_space <- s_emt_situ_space %>%
-  as.data.frame() %>%
-  ggplot(aes(x = situ, y = space_use.trend, col = situ))+
-  geom_point(size = 6)+
-  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
-                width = 0, linewidth = 2)+
-  geom_hline(aes(yintercept = 0), linetype = 2)+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  theme(text = element_text(size = 20), legend.position = "none")+
-  ylab("Space use effect")+
-  xlab("Situation")+
-  coord_flip()
-plot_s_emt_situ_space
-#ggsave(plot_s_emt_situ_space, file = here("fig/mmPlots/plot_s_emt_situ_space.png"), width = 5, height = 6)
+str_z_situ_space_emt_P <- emtplot(model = str_z_mod, specs = "situ", 
+                                var = "space_use", values = situcolors, 
+                                ylab = "Space use effect (strength z-score)", 
+                                xlab = "Situation")
