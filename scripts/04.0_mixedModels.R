@@ -14,25 +14,40 @@ library(gtsummary)
 library(here)
 
 # Set ggplot theme to classic
-theme_set(theme_classic())
+theme_set(theme_classic(base_size = 6))
 
 # Load the data from the targets pipeline (wow this is so much easier!!!)
 tar_load(linked)
 tar_load(cc)
 
 # Examine response variable distributions ---------------------------------
+
+# Normalized degree and strength ------------------------------------------
 linked %>%
-  ggplot(aes(x = z_deg, col = season))+
+  ggplot(aes(x = degree, col = season, group = seasonUnique))+
+  geom_density()+
+  facet_wrap(~type, scales = "free") # very distinct distributions, but since we will have a random effect for seasonUnique, that should cover it... 
+
+linked %>%
+  ggplot(aes(x = strength, col = season, group = seasonUnique))+
+  geom_density()+
+  facet_wrap(~type, scales = "free") 
+
+# Degree and strength z-scores (non-normalized) ---------------------------
+linked %>%
+  ggplot(aes(x = z_deg, col = season, group = seasonUnique))+
   geom_density()+
   facet_wrap(~type, scales = "free") # these are weird distributions. I wonder what model family we should use here...
 
 linked %>%
-  ggplot(aes(x = z_str, col = season))+
+  ggplot(aes(x = z_str, col = season, group = seasonUnique))+
   geom_density()+
   facet_wrap(~type, scales = "free")
 
 # Let's examine zeroes for the social network measures. I know that when we calculate the social networks, we had a lot of zeroes for both degree and strength. But most of the individuals that didn't have network connections probably aren't our focal individuals for the movement measures.
 linked %>% filter(z_deg == 0 | z_str == 0) # nobody
+linked %>% filter(degree == 0, strength == 0) # just one individual in one season
+linked %>% filter(is.na(z_deg) | is.na(z_str)) # just one individual in one season
 linked %>% filter(is.na(z_deg) | is.na(z_str)) # just one individual in one season
 
 # Let's remove that individual in case she poses a problem for modeling
@@ -40,74 +55,194 @@ linked <- linked %>%
   filter(!is.na(z_deg), !is.na(z_str))
 nrow(linked)
 
-linked %>% filter(is.infinite(z_deg) | is.infinite(z_str))
+linked %>% filter(is.infinite(z_deg) | is.infinite(z_str)) # likewise, removing the infinite individual
 linked <- linked %>%
   filter(!is.infinite(z_deg), !is.infinite(z_str))
 
-# Examine the z-score distributions ---------------------------------------
-linked %>%
-  select(seasonUnique, situ, z_deg, z_str) %>%
-  ungroup() %>%
-  pivot_longer(cols = contains("z_"), names_to = "measure", values_to = "z") %>%
-  ggplot(aes(x = z, col = situ, group = interaction(seasonUnique, measure, situ)))+
-  geom_density(aes(linetype = measure))+
-  facet_wrap(~seasonUnique, scales = "free")+
-  geom_vline(aes(xintercept = 0)) # notably, we see that the z_scores for degree are almost entirely positive, while the ones for strength are basically centered around zero, with very few exceptions.
+View(linked)
+# Modeling: not corrected for space use -----------------------------------
+tar_load(allMetrics)
+## Degree -----------------------------------------------------------------
+deg_base <- glmmTMB(normDegree ~ situ + movement + roost_div + space_use + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+check_predictions(deg_base) # bleh
+simulationOutput <- DHARMa::simulateResiduals(deg_base)
+plot(simulationOutput, pch=".") # not great but not terrible.
 
-# Modeling ----------------------------------------------------------------
-# Degree ------------------------------------------------------------------
+deg_full <- glmmTMB(normDegree ~ situ*season*movement + situ*season*roost_div + situ*season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian()) # not converging, hmmm...
+simulationOutput <- DHARMa::simulateResiduals(deg_full)
+plot(simulationOutput, pch=".") # not great but not terrible.
+check_collinearity(deg_full) # remove situ*season*roost_div first
+
+deg_1 <- glmmTMB(normDegree ~ situ*season*movement + situ*season + situ*roost_div + season*roost_div + situ*season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian()) # still not converging. hmm.. let's keep going, I guess?
+check_collinearity(deg_1) # now remove situ*season*movement
+
+deg_2 <- glmmTMB(normDegree ~ situ*movement + season*movement + situ*season + situ*roost_div + season*roost_div + situ*season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian()) # converges now!
+check_collinearity(deg_2) # now remove situ*season*space. Phew, no 3-way interactions!
+
+deg_3 <- glmmTMB(normDegree ~ situ*movement + season*movement + situ*season + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_3) # now we can remove situ*season
+
+deg_4 <- glmmTMB(normDegree ~ situ*movement + season*movement + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_4) # season*roost_div still has high collinearity
+
+deg_5 <- glmmTMB(normDegree ~ situ*movement + season*movement + situ*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_5) # now situ*roost_div
+
+deg_6 <- glmmTMB(normDegree ~ situ*movement + season*movement + roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_6) # all collinearities are small enough now. So let's take a look at the summary
+summary(deg_6) # season*space_use is clearly non-significant, so let's remove that.
+
+deg_7 <- glmmTMB(normDegree ~ situ*movement + season*movement + roost_div + situ*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(deg_7) # all other interactions are at least marginally significant.
+simulationOutput <- DHARMa::simulateResiduals(deg_7)
+plot(simulationOutput, pch=".") # bleh
+
+deg_mod <- deg_7
+
+## Strength ---------------------------------------------------------------
+str_base <- glmmTMB(normStrength ~ situ + movement + roost_div + space_use + age_group + season + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+check_predictions(str_base) # not bad, actually!
+simulationOutput <- DHARMa::simulateResiduals(str_base)
+plot(simulationOutput, pch=".") # nice, pretty good!
+
+str_full <- glmmTMB(normStrength ~ situ*season*movement + situ*season*roost_div + situ*season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+simulationOutput <- DHARMa::simulateResiduals(str_full)
+dev.off()
+plot(simulationOutput, pch=".") # oh GOD
+check_collinearity(str_full) # can start by removing situ*season*roost_div
+
+str_1 <- glmmTMB(normStrength ~ situ*season*movement + situ*season + situ*roost_div + season*roost_div + situ*season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+check_collinearity(str_1) # now we can remove situ*season*movement
+
+str_2 <- glmmTMB(normStrength ~ situ*movement + season*movement + situ*season + situ*roost_div + season*roost_div + situ*season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+check_collinearity(str_2) # now we can remove situ*season*space_use
+
+str_3 <- glmmTMB(normStrength ~ situ*movement + season*movement + situ*season + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+check_collinearity(str_3) # situ*season now has the highest collinearity
+
+str_4 <- glmmTMB(normStrength ~ situ*movement + season*movement + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+check_collinearity(str_4) # situ*season now has the highest collinearity
+
+str_5 <- glmmTMB(normStrength ~ situ*movement + season*movement + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+check_collinearity(str_5) # and now we remove season*roost_div
+
+str_6 <- glmmTMB(normStrength ~ situ*movement + season*movement + situ*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+summary(str_6) # situ*roost_div is the only interaction that's significant
+check_collinearity(str_6) # but/and it's also the one that's the most collinear. Hmm. Maybe we can remove situ*space first?
+
+str_7 <- glmmTMB(normStrength ~ situ*movement + season*movement + situ*roost_div + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+check_collinearity(str_7) # nice, now everything has dropped down to low collinearity
+summary(str_7) # a bunch of these are non-significant. Let's start by removing situ*movement
+
+str_8 <- glmmTMB(normStrength ~ season*movement + situ*roost_div + season*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+summary(str_8) # season*space and season*movement are non-significant. Remove both.
+
+str_9 <- glmmTMB(normStrength ~ movement + situ*roost_div + space_use + season + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+summary(str_9) # all remaining interactions are statistically significant
+
+str_mod <- str_9
+
+# Modeling: z-scores (corrected for space use) ----------------------------
+# This time we're using non-normalized degree and strength values, since using z-scores ends up normalizing each individual against itself.
+
+# Visualize some of the z score deviations
 tar_load(allMetrics)
 vultures <- sample(unique(allMetrics$Nili_id), 10)
 allMetrics %>% filter(Nili_id %in% vultures) %>% ggplot(aes(x = Nili_id, y = wrapped_degree, group = interaction(situ, Nili_id), col = situ))+geom_violin()+facet_wrap(~season, scales = "free")+geom_point(aes(x = Nili_id, y = degree)) # individuals generally *do* have degrees higher than expected by chance.
 
-degree_base <- glmmTMB(z_deg ~ situ + movement + roost_div + space_use + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) 
-check_predictions(degree_base)
-simulationOutput <- DHARMa::simulateResiduals(degree_base)
-plot(simulationOutput, pch=".")
-plotQQunif(simulationOutput)
-plotResiduals(simulationOutput)
+## Degree ---------------------------------------------------------------
+deg_z_base <- glmmTMB(z_deg ~ situ + movement + roost_div + space_use + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) 
+check_predictions(deg_z_base) # ick
 
-# What if there are different relationships between movement and degree in different seasons and situations?
-degree_full <- glmmTMB(z_deg ~ situ*movement*season + situ*roost_div*season + situ*space_use*season + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) # this will almost certainly have very high VIFs
-check_collinearity(degree_full) # YIKES. Okay, that was predictable. Let's get rid of situ:season:roost_div, situ:movement:season, and situ:season:space_use for starters.
-simulationOutput <- DHARMa::simulateResiduals(degree_full)
-plot(simulationOutput, pch=".") # kinda gross but not terrible, especially compared to the old models
+deg_z_full <- glmmTMB(z_deg ~ situ*season*movement + situ*season*roost_div + situ*season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_predictions(deg_z_full) # not any better
+simulationOutput <- DHARMa::simulateResiduals(deg_z_full)
+dev.off()
+plot(simulationOutput, pch=".") # actually not as terrible as I'd feared
+check_collinearity(deg_z_full) # first get rid of situ*season*roost_div
 
-degree_1 <- glmmTMB(z_deg ~ situ*movement + situ*season + movement*season + situ*roost_div + roost_div*season + situ*space_use + space_use*season + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_1)
-check_collinearity(degree_1) # getting better. Next we can remove situ*season.
+deg_z_1 <- glmmTMB(z_deg ~ situ*season*movement + situ*season + situ*roost_div + season*roost_div + situ*season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(deg_z_1) # now remove situ*season*movement
 
-degree_2 <- glmmTMB(z_deg ~ situ*movement + movement*season + situ*roost_div + roost_div*season + situ*space_use + space_use*season + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_2)
-check_collinearity(degree_2) # and now we can remove season*roost_div
+deg_z_2 <- glmmTMB(z_deg ~ situ*movement + season*movement + situ*season + situ*roost_div + season*roost_div + situ*season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(deg_z_2) # now remove situ*season*space
 
-degree_3 <- glmmTMB(z_deg ~ situ*movement + movement*season + situ*roost_div + situ*space_use + space_use*season + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_3) # season*space, movement*season, and situ*movement are all non-significant.
-check_collinearity(degree_3) # the ones with the highest collinearity have some significant effects. Maybe we can reduce the collinearity by removing non-significant ones instead? Let's start by removing season*space
+deg_z_3 <- glmmTMB(z_deg ~ situ*movement + season*movement + situ*season + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(deg_z_3) # now remove situ*season
 
-degree_4 <- glmmTMB(z_deg ~ situ*movement + movement*season + situ*roost_div + situ*space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_4) #
-check_collinearity(degree_4) # situ*space has high collinearity but also a significant effect. Maybe we could remove situ*movement instead...
+deg_z_4 <- glmmTMB(z_deg ~ situ*movement + season*movement + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(deg_z_4) # now remove season*roost_div
 
-degree_5 <- glmmTMB(z_deg ~ movement*season + situ*roost_div + situ*space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_5) #
-check_collinearity(degree_5) # it's not going to help, but we can remove movement*season last...
+deg_z_5 <- glmmTMB(z_deg ~ situ*movement + season*movement + situ*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(deg_z_5) # now that we're down to moderate correlations, let's see what the summary looks like
+summary(deg_z_5) # situ*space and situ*roost are significant
+check_collinearity(deg_z_5) # situ*roost and situ*space are the highest. Let's try removing movement*season first, I guess?
 
-degree_6 <- glmmTMB(z_deg ~ movement + season + situ*roost_div + situ*space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_6) #
-check_collinearity(degree_6) # these VIFs of 6.52 and 6.65 for situ*roost and situ*space are kind of borderline. One thing we could do is make two models and see if they agree, each removing one of the terms?
+deg_z_6 <- glmmTMB(z_deg ~ situ*movement + situ*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_z_6)
+summary(deg_z_6) # situ*movement is n.s.
 
-degree_7a <- glmmTMB(z_deg ~ movement + season + situ*roost_div + space_use + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_7a) # lo and behold, the other is now not significant at all...
-check_collinearity(degree_7a) # now all vifs are low
+deg_z_7 <- glmmTMB(z_deg ~ movement + situ*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_z_7)
+summary(deg_z_7) # space*season is n.s.
 
-degree_7b <- glmmTMB(z_deg ~ movement + season + situ*space_use + roost_div + age_group + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian())
-summary(degree_7b) # ooh, situ*space is still highly significant when we remove situ*roost
-check_collinearity(degree_7b) # and all the vifs are low.
+deg_z_8 <- glmmTMB(z_deg ~ movement + situ*roost_div + situ*space_use + season + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_z_8) # now we have two alternatives for removal: situ*roost_div or situ*space
+summary(deg_z_8) # both show up here as significant
 
-# I think based on this we should go with 7b!
+# first removing situ*roost_div
+deg_z_9a <- glmmTMB(z_deg ~ movement + roost_div + situ*space_use + season + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_z_9a) # this is fine now
+summary(deg_z_9a) # situ*space is retained as a significant effect
 
-degree_mod <- degree_7b
+# now removing situ*space
+deg_z_9b <- glmmTMB(z_deg ~ movement + space_use + situ*roost_div + season + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian())
+check_collinearity(deg_z_9b) # this is fine now
+summary(deg_z_9b) # situ*roost_div is now non-significant.
+
+# so let's go with deg_z_9a
+deg_z_mod <- deg_z_9a
+
+## Strength ---------------------------------------------------------------
+str_z_base <- glmmTMB(z_str ~ situ + movement + roost_div + space_use + age_group + season + (1|seasonUnique)+(1|Nili_id), data = linked, family = gaussian()) 
+check_predictions(str_z_base) # oh no...
+linked %>% ggplot(aes(x = z_str, col = situ, group = interaction(situ, seasonUnique)))+geom_density()
+
+str_z_full <- glmmTMB(z_str ~ situ*season*movement + situ*season*roost_div + situ*season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_predictions(str_z_full) # not any better
+simulationOutput <- DHARMa::simulateResiduals(str_z_full)
+dev.off()
+plot(simulationOutput, pch=".") # also really bad. I wonder what I should do about this...
+check_collinearity(str_z_full) # first remove situ*season*roost_div
+
+str_z_1 <- glmmTMB(z_str ~ situ*season*movement + situ*season + situ*roost_div + season*roost_div + situ*season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(str_z_1) # now remove situ*season*movement
+
+str_z_2 <- glmmTMB(z_str ~ situ*movement + season*movement + situ*season + situ*roost_div + season*roost_div + situ*season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(str_z_2) # now remove situ*season*space_use
+
+str_z_3 <- glmmTMB(z_str ~ situ*movement + season*movement + situ*season + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(str_z_3) # now remove situ*season
+
+str_z_4 <- glmmTMB(z_str ~ situ*movement + season*movement + situ*roost_div + season*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(str_z_4) # now remove season*roost_div
+
+str_z_5 <- glmmTMB(z_str ~ situ*movement + season*movement + situ*roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(str_z_5) # situ*roost_div would be the next to go, but let's check the summary
+summary(str_z_5) # sure, that one is totally non-significant, so let's remove it
+
+str_z_6 <- glmmTMB(z_str ~ situ*movement + season*movement + roost_div + situ*space_use + season*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(str_z_6) # hmm, space_use is highly collinear, but maybe we can remove some interactions involving it instead of removing the main effect term itself.
+summary(str_z_6) # season*space_use is non-significant, while situ*space_use is significant.
+
+str_z_7 <- glmmTMB(z_str ~ situ*movement + season*movement + roost_div + situ*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+check_collinearity(str_z_7) #  all collinearities are now low. Let's remove any remaining significant effects.
+summary(str_z_7) # oh man, almost nothing shows up. Get rid of situ*movement and movement*season
+
+str_z_8 <- glmmTMB(z_str ~ movement + roost_div + situ*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+summary(str_z_8) # nice! 
+
+str_z_mod <- str_z_8
 
 # Degree plots ------------------------------------------------------------
 
