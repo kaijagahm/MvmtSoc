@@ -67,7 +67,7 @@ get_guesses|function|9255bbd873b1c13b|||||||||||||||
 get_inpa|function|eb0e229baccd0da7|||||||||||||||
 get_list_element|function|320b2cff89ee4d2d|||||||||||||||
 get_loginObject|function|ff8577da5e02b605|||||||||||||||
-get_metrics_summary|function|cd7d7ba028bf3d1c|||||||||||||||
+get_metrics_summary|function|65a39858fecb4190|||||||||||||||
 get_metrics_wrapped|function|f2d33a00188c0fdc|||||||||||||||
 get_movement|function|1cebe404481617ce|||||||||||||||
 get_network_metrics|function|a092609938801b42|||||||||||||||
@@ -90,15 +90,15 @@ get_ww|function|d7eb9050dbd79c14|||||||||||||||
 guesses_list|stem|d08db27e824c61d3|dec9225cdfe15c7e|04cd344cbc98b0c7|-516816936||t19818.7521652191s|cd8f643b96b367ee|80623|rds|local|vector|||159.78||
 inpa|stem|edced04ade3faef2|7e62f1aa1870677b|c3c0c5fca19f5c9d|462496551||t19817.9592213446s|bfef1f0cc1bb49f2|95780711|rds|local|vector|||475.46|2510 locations isare removed by removeDuplicatedTimestamps|
 join_inpa_ornitela|function|9a6d14884f21b4cd|||||||||||||||
-join_movement_soc|function|ca8ebc7dc09ed918|||||||||||||||
+join_movement_soc|function|5d6c93e5ead2528d|||||||||||||||
 joined0|stem|92e0fc402c108c2e|fc6ce7ad21ea1cb0|fcf4a992ffb48606|589860030||t19817.9785275966s|e55bf6eb2655e7a2|359510210|rds|local|vector|||5.64||
 joined0_r|stem|ae7e181475e1e89e|d70e6f4f863f35ca|a6fec9830c6ade03|726205281||t19822.9661815038s|8cbe1afa12de9337|100|rds|local|vector|||0.21||
-linked|stem|38e409d2f0ade6bd|ffa50dddc1542aae|609591f87ec5f3c9|-769386594||t19825.885375768s|d9a785af0324798d|95864|rds|local|vector|||0.5||
+linked|stem|d2186f7e23117397|d3422761b7f2b1a1|4a3d09fb5deeb29a|-769386594||t19828.8361910266s|ed35a257633810cf|105504|rds|local|vector|||0.4||
 loginObject|stem|3eba871de1887eb7|2dbacb60eb142169|3003aa8808f9919f|-1147792597||t19816.9723845024s|44cdcadae072abff|249|rds|local|vector|||0||
 mask|stem|64f5786c50487454|1bee61c83caf8956|ef46db3751d8e999|-617807291|data/CutOffRegion.kml|t18646.8897356618s|309013c7799f34e0|1809|file|local|vector|||16||
 mask_data|function|3ff17d22db7d57ef|||||||||||||||
 masked|stem|602a2e8a8d7f3a23|6093fe655684ecff|e8e0cf1eb230ac45|-2017372919||t19816.9922624839s|da086ed809ac8686|209517|rds|local|vector|||1.61||
-metrics_summary|stem|467a607e9c70cfd0|d27f6527340ae7d2|7f8b27b723c6c106|-915763404||t19825.8853686768s|02a4bac69d829a69|96005|rds|local|vector|||0.24||
+metrics_summary|stem|fd66d6a6acc75ef3|d27f6527340ae7d2|b977a1df1c327e52|-915763404||t19828.8361854915s|82c1f8706aee1a01|112830|rds|local|vector|||0.29||
 metrics_wrapped|stem|125964136a74c80d|0dfffb58300f5e0c|0ab1a17a2e8fedd8|-1072165871||t19822.0263686544s|92f1f5e94d74a5e4|2357094|rds|local|vector|||13980.2||
 mnMvmt|stem|d91d0a3e407eb85c|d0d16d968c6f812c|ada5f4c978d5a82c|-1066857533||t19818.750311825s|8b64f94bdca358dc|13574|rds|local|vector|||2902.51|Returning more or less than 1 row per summarise group was deprecated indplyr 1.1.0.i Please use reframe instead.i When switching from summarise to reframe, remember that reframe  always returns an ungrouped data frame and adjust accordingly.. Returning more or less than 1 row per summarise group was deprecated indplyr 1.1.0.i Please use reframe instead.i When switching from summarise to reframe, remember that reframe  always returns an ungrouped data frame and adjust accordingly.|
 movement|stem|b715218232476521|e45402b994390d74|a4d33315b7bf7243|1963173735||t19823.9442087351s|4ea6a2431d620269|21973|rds|local|vector|||0.01||

@@ -1002,7 +1002,10 @@ combine_metrics <- function(networkMetrics, metrics_wrapped){
 get_metrics_summary <- function(allMetrics){
   metrics_summary <- allMetrics %>%
     group_by(season, situ, Nili_id) %>%
-    summarize(degree = degree[1],
+    summarize(normDegree = normDegree[1],
+              normStrength = normStrength[1],
+              # Calculate the z-scores for non-normalized values
+              degree = degree[1],
               strength = strength[1],
               diff_deg = degree[1]-mean(wrapped_degree, na.rm = T),
               diff_str = strength[1]-mean(wrapped_strength, na.rm = T),
