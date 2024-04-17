@@ -40,6 +40,50 @@ tar_load(seasoncolors)
 tar_load(movement_corr)
 tar_load(space_corr)
 tar_load(roost_corr)
+
+effplot <- function(model, terms, dataset, pointX, pointY, colvar, legendTitle, values, ylab, xlab){
+  dat <- as.data.frame(ggeffect(model, terms = terms))
+  
+  if(length(terms) > 1){
+    plt <- ggplot(dat, aes(x, predicted)) +
+      geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, linewidth = 0.6, show.legend = F)+
+      geom_point(data = dataset %>% mutate("group" = .data[[colvar]]), 
+                 aes(.data[[pointX]], .data[[pointY]], col = group), alpha = 0.5)+
+      geom_line(aes(col = group), linewidth = 1) +
+      facet_wrap(~group, scales = "free_y")+
+      scale_color_manual(legendTitle, values = values) + 
+      scale_fill_manual(legendTitle, values = values) + 
+      ylab(ylab) + xlab(xlab)
+  }else{
+    plt <- ggplot(dat, aes(x, predicted)) +
+      geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.2, linewidth = 0.6, show.legend = F)+
+      geom_point(data = dataset %>% mutate("group" = .data[[colvar]]), 
+                 aes(.data[[pointX]], .data[[pointY]], col = group), alpha = 0.5)+
+      geom_line(linewidth = 1) +
+      facet_wrap(~group, scales = "free_y")+
+      scale_color_manual(legendTitle, values = values) + 
+      ylab(ylab) + xlab(xlab)
+  }
+  return(plt)
+}
+
+emtplot <- function(model, specs, var, values, ylab, xlab){
+  dat <- as.data.frame(emmeans::emtrends(model, specs, var))
+  lower <- ifelse("lower.CL" %in% names(dat), "lower.CL", "asymp.LCL")
+  upper <- ifelse("upper.CL" %in% names(dat), "upper.CL", "asymp.UCL")
+  plt <- dat %>% ggplot(aes(.data[[specs]], 
+                            .data[[paste0(var, ".", "trend")]], 
+                            col = .data[[specs]])) + 
+    geom_point(size = 6) +
+    geom_errorbar(aes(x = .data[[specs]], 
+                      ymin = .data[[lower]], 
+                      ymax = .data[[upper]]), 
+                  width = 0, linewidth = 2)+geom_hline(aes(yintercept = 0), 
+                                                       linetype = 2)+
+    scale_color_manual(values = values)+ 
+    theme(legend.position = "none") + ylab(ylab)+ xlab(xlab) + coord_flip()
+  return(plt)
+}
 ```
 
 #### Social network centrality is known to be important in animals.
@@ -248,7 +292,7 @@ For each model, we calculated marginal effects using the {emmeans} package [@len
 
 Over the course of a season, individual vultures interacted with significantly more conspecifics, and had significantly more interactions, than expected by chance (i.e. observed degree and strength values were higher than those derived from the randomized datasets). The magnitude of the deviations from random varied by social situation.
 
-```{r message = FALSE}
+```{r message = FALSE, out.width = "100%"}
 linked %>%
   select(seasonUnique, situ, z_deg, z_str) %>%
   ungroup() %>%
@@ -265,6 +309,36 @@ linked %>%
 
 ## Degree
 
+Preferential degree (i.e. degree z-score) was significantly associated with space use and roost diversification, but not with movement. Vultures that used more space (i.e. those with larger home ranges and larger proportional core areas) had a co-flight degree that deviated more from random (i.e. more preferential degree) than those with smaller space use. By contrast, co-roosting degree deviated less, not more, from random for wide-ranging vultures. [FIGURE] (Co-roosting degree showed a similar trend to co-flight, though it was only marginally significant).
+
+```{r fig.cap = "Degree z-scores", out.width = "100%"}
+deg_z_situ_space_emt_P <- effplot(model = deg_z_mod, terms = c("space_use", "situ"), 
+                            dataset = linked, pointX = "space_use", 
+                            pointY = "z_deg", col = "situ", 
+                            legendTitle = "Situation", values = situcolors, 
+                            ylab = "Degree (z-score)", xlab = "Space use (log)")
+
+deg_z_situ_space_P <- emtplot(model = deg_z_mod, specs = "situ", 
+                                var = "space_use", values = situcolors, 
+                                ylab = "Space use effect (Degree z-scores)", 
+                                xlab = "Situation")
+
+deg_z_situ_space_emt_P + deg_z_situ_space_P + plot_layout(widths = c(4, 1), guides = "collect") & theme_classic()
+```
+
+Meanwhile, roost diversification negatively predicted preferential degree in all social situations, with no significant difference in effect magnitude between situations. Vultures with more unique roosts, more roost switching, and/or a higher diversity of roosts differed less from the degree expected by chance than those with lower roost diversification.
+
+```{r}
+deg_z_roost_P <- effplot(model = deg_z_mod, terms = c("roost_div", "situ"), 
+                       dataset = linked, pointX = "roost_div", 
+                       pointY = "z_deg", col = "situ", 
+                       legendTitle = "Situation", values = situcolors, 
+                       ylab = "Degree (z-score)", xlab = "Roost diversification")
+deg_z_roost_P & theme_classic()
+```
+
 ## Strength
+
+The relationships were very similar for strength. Preferential strength in the co-flight and co-feeding networks was positively associated with space use, with wider-ranging vultures' strength deviating the most from random. Meanwhile, the opposite was once again true for the co-roosting network. Vultures with smaller ranges deviated singificantly more from random than those with larger ranges.
 
 # Discussion
