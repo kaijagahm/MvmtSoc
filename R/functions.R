@@ -21,6 +21,16 @@ get_cc <- function(){
   return(cc)
 }
 
+get_situcolors <- function(cc){
+  situcolors <- c(cc$feedingColor, cc$flightColor, cc$roostingColor)
+  return(situcolors)
+}
+
+get_seasoncolors <- function(cc){
+  seasoncolors <- c(cc$breedingColor, cc$summerColor, cc$fallColor)
+  return(seasoncolors)
+}
+
 # Data prep ---------------------------------------------------------------
 get_loginObject <- function(pw){
   load(pw)
@@ -1043,6 +1053,22 @@ join_movement_soc <- function(new_movement_vars, metrics_summary, season_names){
     mutate(situ = case_when(type == "flight" ~ "Fl", 
                             type == "feeding" ~ "Fe",
                             type == "roosting" ~ "Ro"))
+  
+  # Let's examine zeroes for the social network measures. I know that when we calculate the social networks, we had a lot of zeroes for both degree and strength. But most of the individuals that didn't have network connections probably aren't our focal individuals for the movement measures.
+  # linked %>% filter(z_deg == 0 | z_str == 0) # nobody
+  # linked %>% filter(degree == 0, strength == 0) # just one individual in one season
+  # linked %>% filter(is.na(z_deg) | is.na(z_str)) # just one individual in one season
+  # linked %>% filter(is.na(z_deg) | is.na(z_str)) # just one individual in one season
+  
+  # Let's remove that individual in case she poses a problem for modeling
+  linked <- linked %>%
+    filter(!is.na(z_deg), !is.na(z_str))
+  #nrow(linked)
+  
+  #linked %>% filter(is.infinite(z_deg) | is.infinite(z_str)) # likewise, removing the infinite individual
+  linked <- linked %>%
+    filter(!is.infinite(z_deg), !is.infinite(z_str))
+  
   return(linked)
 }
 
@@ -1051,4 +1077,23 @@ report <- function(dataset, id){
   n_vultures <- length(unique(dataset[[id]]))
   vultures <- unique(dataset[[id]])
   return(c("points" = n_points, "vultures" = n_vultures))
+}
+
+# Models
+# Code for these is taken over from 04.0_mixedModels.R once I'm done testing them.
+get_deg_mod <- function(linked){
+  deg_mod <- glmmTMB(normDegree ~ situ*movement + season*movement + roost_div + situ*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+  return(deg_mod)
+}
+get_deg_z_mod <- function(linked){
+  deg_z_mod <- glmmTMB(z_deg ~ movement + roost_div + situ*space_use + season + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian())
+  return(deg_z_mod)
+}
+get_str_mod <- function(linked){
+  str_mod <- glmmTMB(normStrength ~ movement + situ*roost_div + space_use + season + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
+  return(str_mod)
+}
+get_str_z_mod <- function(linked){
+  str_z_mod <- glmmTMB(z_str ~ movement + roost_div + season + situ*space_use + age_group + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian()) 
+  return(str_z_mod)
 }

@@ -1,6 +1,7 @@
 ---
 title: "Movement/Social"
 date: last-modified
+date-format: long
 format:
   revealjs:
     embed-resources: true
@@ -13,45 +14,94 @@ editor: visual
 library(tidyverse)
 library(here)
 library(targets)
-theme_set(theme_minimal())
+library(patchwork)
+library(ggeffects)
+library(gtsummary)
+theme_set(theme_classic())
 tar_config_set(store = here::here('_targets'))
-source(here("scripts/04.0_mixedModels.R"))
+#source(here("scripts/04.0_mixedModels.R"))
+tar_load(cc)
+tar_load(linked)
+tar_load(deg_mod)
+tar_load(deg_z_mod)
+tar_load(str_mod)
+tar_load(str_z_mod)
+tar_load(situcolors)
+tar_load(seasoncolors)
+tar_load(movement_corr)
+tar_load(space_corr)
+tar_load(roost_corr)
 ```
 
-<!-- ## Research questions (cont'd) -->
+```{r}
+#| include: false
+effplot <- function(model, terms, dataset, pointX, pointY, colvar, legendTitle, values, ylab, xlab){
+  dat <- as.data.frame(ggeffect(model, terms = terms))
+  
+  if(length(terms) > 1){
+    plt <- ggplot(dat, aes(x, predicted)) +
+      geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, linewidth = 0.6, show.legend = F)+
+      geom_point(data = dataset %>% mutate("group" = .data[[colvar]]), 
+                 aes(.data[[pointX]], .data[[pointY]], col = group), alpha = 0.5)+
+      geom_line(aes(col = group), linewidth = 1) +
+      facet_wrap(~group, scales = "free_y")+
+      scale_color_manual(legendTitle, values = values) + 
+      scale_fill_manual(legendTitle, values = values) + 
+      ylab(ylab) + xlab(xlab)
+  }else{
+    plt <- ggplot(dat, aes(x, predicted)) +
+      geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.2, linewidth = 0.6, show.legend = F)+
+      geom_point(data = dataset %>% mutate("group" = .data[[colvar]]), 
+                 aes(.data[[pointX]], .data[[pointY]], col = group), alpha = 0.5)+
+      geom_line(linewidth = 1) +
+      facet_wrap(~group, scales = "free_y")+
+      scale_color_manual(legendTitle, values = values) + 
+      ylab(ylab) + xlab(xlab)
+  }
+  return(plt)
+}
 
-<!-- Q1: What is the relationship between spatial phenotype and social interactions? -->
+emtplot <- function(model, specs, var, values, ylab, xlab){
+  dat <- as.data.frame(emmeans::emtrends(model, specs, var))
+  lower <- ifelse("lower.CL" %in% names(dat), "lower.CL", "asymp.LCL")
+  upper <- ifelse("upper.CL" %in% names(dat), "upper.CL", "asymp.UCL")
+  plt <- dat %>% ggplot(aes(.data[[specs]], 
+                            .data[[paste0(var, ".", "trend")]], 
+                            col = .data[[specs]])) + 
+    geom_point(size = 6) +
+    geom_errorbar(aes(x = .data[[specs]], 
+                      ymin = .data[[lower]], 
+                      ymax = .data[[upper]]), 
+                  width = 0, linewidth = 2)+geom_hline(aes(yintercept = 0), 
+                                                       linetype = 2)+
+    scale_color_manual(values = values)+ 
+    theme(legend.position = "none") + ylab(ylab)+ xlab(xlab) + coord_flip()
+  return(plt)
+}
+```
 
-<!-- -   H1A: Individuals that move more will have more, and stronger, encounters with other unique individuals. -->
-
-<!--     -   P1A: Vultures that move more will encounter more others (higher degree centrality in the social network) and have more interactions (higher strength in the social network) than vultures who move less. -->
-
-<!-- ## Research questions (cont'd) -->
-
-<!-- -   H1B: Individuals that are more exploratory will have more but weaker encounters with other unique individuals. -->
-
-<!--     -   P1B: Exploratory vultures will encounter more unique individuals (higher degree centrality), but will have fewer interactions (lower strength) compared to less exploratory vultures. -->
-
-<!-- ## Research questions (cont'd) -->
-
-<!-- Q2: How is the relationship between spatial phenotype and social interactions impacted by social situation and season? -->
-
-<!-- -   H2A: Social situations in which animals move more will have a greater impact on social interactions -->
-
-<!--     -   P2A: Social centrality in co-flight networks will be more strongly associated with spatial phenotype than in co-roosting and co-feeding behavioral situations. -->
-
-<!-- ## Research questions (cont'd) -->
-
-<!-- -   H2B: Seasons in which animals move more will have a stronger impact on social interactions -->
-
-<!--     -   P2B: The relationship between movement and social position will be stronger in the non-breeding seasons (summer and fall) than during the breeding season. -->
-
-## Examining response variable distributions
+## Movement
 
 ```{r}
-tar_load(all_movement_vars)
-tar_load(cc)
-all_movement_vars %>%
+movement_corr
+```
+
+## Space use
+
+```{r}
+space_corr
+```
+
+## Roost diversification
+
+```{r}
+roost_corr
+```
+
+## Predictor variable distributions
+
+```{r}
+linked %>%
   pivot_longer(cols = c(movement, space_use, roost_div), 
                names_to = "var", values_to = "measure") %>%
   mutate(season = str_extract(seasonUnique, pattern = "[a-z]+")) %>%
@@ -63,6 +113,67 @@ all_movement_vars %>%
         axis.title = element_blank())
 ```
 
+# Predictor variable correlations
+
+## Roost \~ Movement
+
+```{r}
+linked %>%
+  select(movement, roost_div, space_use, season, seasonUnique, Nili_id) %>%
+  distinct() %>%
+  ggplot(aes(x = movement, y = roost_div, col = season, group = seasonUnique))+
+  geom_point()+
+  geom_smooth(method = "lm", alpha = 0.15)+
+  scale_color_manual("Season", values = seasoncolors)+
+  ylab("Roost diversification")+ xlab("Movement")
+```
+
+## Movement \~ Space
+
+```{r}
+linked %>%
+  select(movement, roost_div, space_use, season, seasonUnique, Nili_id) %>%
+  distinct() %>%
+  ggplot(aes(x = space_use, y = movement, col = season, group = seasonUnique))+
+  geom_point()+
+  geom_smooth(method = "lm", alpha = 0.15)+
+  scale_color_manual("Season", values = seasoncolors)+
+  ylab("Movement")+ xlab("Space use")
+```
+
+## Space \~ Roost
+
+```{r}
+linked %>%
+  select(movement, roost_div, space_use, season, seasonUnique, Nili_id) %>%
+  distinct() %>%
+  ggplot(aes(x = space_use, y = roost_div, col = season, group = seasonUnique))+
+  geom_point()+
+  geom_smooth(method = "lm", alpha = 0.15)+
+  scale_color_manual("Season", values = seasoncolors)+
+  ylab("Roost diversification")+ xlab("Space use")
+```
+
+## Response variable distributions (normalized degree)
+
+```{r}
+linked %>%
+  ggplot(aes(x = normDegree, col = situ))+
+  geom_density()+
+  facet_wrap(~seasonUnique, scales = "free_y")+
+  scale_color_manual("Situation", values = situcolors)+ylab("")
+```
+
+## Response variable distributions (normalized strength)
+
+```{r}
+linked %>%
+  ggplot(aes(x = normStrength, col = situ))+
+  geom_density()+
+  facet_wrap(~seasonUnique, scales = "free_y")+
+  scale_color_manual("Situation", values = situcolors)+ylab("")
+```
+
 ## Wrap-around randomizations (degree)
 
 ```{r}
@@ -72,15 +183,14 @@ set.seed(3)
 vultures <- sample(unique(allMetrics$Nili_id), 3, replace = F)
 allMetrics %>%
   filter(Nili_id %in% vultures) %>%
-  ggplot(aes(x = Nili_id, y = wrapped_normDegree, col = situ))+
-  geom_point(aes(y = normDegree), position = position_dodge(width = 0.4))+
+  ggplot(aes(x = Nili_id, y = wrapped_degree, col = situ))+
+  geom_point(aes(y = degree), position = position_dodge(width = 0.4))+
   geom_violin(position = position_dodge(width = 0.4))+
   facet_wrap(~season, scales = "free")+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  scale_color_manual(name = "Situation", values = situcolors)+
   theme_classic()+
-  ylab("Degree (normalized)")+
-  theme(axis.title.x = element_blank(),
-        legend.position = "bottom")+
+  ylab("Degree")+
+  theme(axis.title.x = element_blank())+
   ggtitle("Degree (observed vs. random)")
 ```
 
@@ -90,110 +200,233 @@ allMetrics %>%
 #| fig-cap: "100 randomizations, shift +/- 1 day"
 allMetrics %>%
   filter(Nili_id %in% vultures) %>%
-  ggplot(aes(x = Nili_id, y = wrapped_normStrength, col = situ))+
-  geom_point(aes(y = normStrength), position = position_dodge(width = 0.4))+
+  ggplot(aes(x = Nili_id, y = wrapped_strength, col = situ))+
+  geom_point(aes(y = strength), position = position_dodge(width = 0.4))+
   geom_violin(position = position_dodge(width = 0.4))+
   facet_wrap(~season, scales = "free")+
-  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  scale_color_manual(name = "Situation", values = situcolors)+
   theme_classic()+
-  ylab("Strength (normalized)")+
-  theme(axis.title.x = element_blank(),
-        legend.position = "bottom")+
+  ylab("Strength")+
+  theme(axis.title.x = element_blank())+
   ggtitle("Strength (observed vs. random)")
 ```
 
-## Degree, but not strength, was higher than random.
+## Response variable distributions (z-scores)
 
 ```{r}
-tar_load(linked)
-
 linked %>%
   select(seasonUnique, situ, z_deg, z_str) %>%
   ungroup() %>%
   pivot_longer(cols = contains("z_"), names_to = "measure", values_to = "z") %>%
   ggplot(aes(x = z, col = situ, group = interaction(seasonUnique, measure, situ)))+
-  geom_density()+
-  facet_wrap(~measure, scales = "free")+
+  geom_density(aes(linetype = measure))+
+  facet_wrap(~measure*situ, scales = "free")+
   geom_vline(aes(xintercept = 0), col = "red")+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
   theme_classic()+
   theme(axis.title.y = element_blank())+
   xlab("Z-score")
-
-linked %>%
-  select(seasonUnique, situ, z_str) %>%
-  ungroup() %>%
-  ggplot(aes(x = z_str))
 ```
 
-## Movement vs. degree deviation
+# Model results: Degree (z-scores, non-normalized)
+
+## Space use and situation
 
 ```{r}
-#| label: fig-d-space
-#| fig-cap: "Relationship between movement and degree deviation"
-plot_d_eff_movement
+#| fig-cap: "Degree z-scores"
+deg_z_situ_space_emt_P <- effplot(model = deg_z_mod, terms = c("space_use", "situ"), 
+                            dataset = linked, pointX = "space_use", 
+                            pointY = "z_deg", col = "situ", 
+                            legendTitle = "Situation", values = situcolors, 
+                            ylab = "Degree (z-score)", xlab = "Space use (log)")
+
+deg_z_situ_space_P <- emtplot(model = deg_z_mod, specs = "situ", 
+                                var = "space_use", values = situcolors, 
+                                ylab = "Space use effect (Degree z-scores)", 
+                                xlab = "Situation")
+
+deg_z_situ_space_emt_P + deg_z_situ_space_P + plot_layout(widths = c(12, 4), guides = "collect") & theme_classic()
 ```
 
-## Movement measure
+## 
+
+![](fig/whiteboards/deg_z_space_situ_ro.jpg)
+
+## 
+
+![](fig/whiteboards/deg_z_space_situ_fefl.jpg)
+
+## Roost diversification
 
 ```{r}
-tar_load(movement_corr)
-movement_corr
+#| fig-cap: "Degree z-scores"
+deg_z_roost_P <- effplot(model = deg_z_mod, terms = c("roost_div", "situ"), 
+                       dataset = linked, pointX = "roost_div", 
+                       pointY = "z_deg", col = "situ", 
+                       legendTitle = "Situation", values = situcolors, 
+                       ylab = "Degree (z-score)", xlab = "Roost diversification")
+deg_z_roost_P & theme_classic()
 ```
 
+## 
 
-## Space use vs. degree deviation
+![](fig/whiteboards/deg_z_roost.jpg)
+
+# Model results: Strength (z-scores, non-normalized)
+
+## Space use and situation
 
 ```{r}
-#| label: fig-d-space-situ
-#| fig-cap: "Relationship between normalized degree and space use, with separate trend lines for each social situation"
-plot_d_eff_situ_space
+#| fig-cap: "Strength z-scores"
+str_z_situ_space_emt_P <- emtplot(model = str_z_mod, specs = "situ", 
+                                var = "space_use", values = situcolors, 
+                                ylab = "Space use effect (strength z-score)", 
+                                xlab = "Situation")
+
+str_z_situ_space_P <- effplot(model = str_z_mod, terms = c("space_use", "situ"), 
+                            dataset = linked, pointX = "space_use", 
+                            pointY = "z_str", col = "situ", 
+                            legendTitle = "Situation", values = situcolors, 
+                            ylab = "Strength (z-score)", xlab = "Space use (log)")
+
+str_z_situ_space_P + str_z_situ_space_emt_P + plot_layout(widths = c(12, 4), guides = "collect") & theme_classic()
 ```
 
-## Space use vs. degree deviation
+## Roost diversification
 
 ```{r}
-plot_d_emt_situ_space
+#| fig-cap: "Strength z-scores"
+str_z_roost_P <- effplot(model = str_z_mod, terms = c("roost_div", "situ"), 
+                         dataset = linked, pointX = "roost_div", 
+                         pointY = "z_str", col = "situ", 
+                         legendTitle = "Situation", values = situcolors, 
+                         ylab = "Strength (z-score)", xlab = "Roost diversification")
+str_z_roost_P & theme_classic()
 ```
 
-## Space use measure
+# Model results: Normalized degree
+
+## Movement and situation
 
 ```{r}
-tar_load(space_corr)
-space_corr
+#| fig-cap: "Normalized degree"
+deg_situ_movement_P <- effplot(model = deg_mod, terms = c("movement", "situ"), 
+                               dataset = linked, pointX = "movement", 
+                               pointY = "normDegree", col = "situ", 
+                               legendTitle = "Situation", values = situcolors, 
+                               ylab = "normDegree", xlab = "Movement")
+
+deg_situ_movement_emt_P <- emtplot(model = deg_mod, specs = "situ", 
+                                   var = "movement", values = situcolors, 
+                                   ylab = "Movement effect (normDegree)", 
+                                   xlab = "Situation")
+
+deg_situ_movement_P + deg_situ_movement_emt_P + plot_layout(widths = c(12, 4), guides = "collect") & theme_classic()
 ```
 
-## Roost diversification vs. degree deviation
+## Movement and season
 
 ```{r}
-#| label: fig-d-roost
-#| fig-cap: "Relationship between normalized degree and roost diversification"
-plot_d_eff_roost 
+#| fig-cap: "Normalized degree"
+deg_season_movement_P <- effplot(model = deg_mod, terms = c("movement", "season"), 
+                                 dataset = linked, pointX = "movement", 
+                                 pointY = "normDegree", col = "season", 
+                                 legendTitle = "Season", values = seasoncolors, 
+                                 ylab = "normDegree", xlab = "Movement")
+
+deg_season_movement_emt_P <- emtplot(model = deg_mod, specs = "season", 
+                                     var = "movement", values = seasoncolors, 
+                                     ylab = "Movement effect (normDegree)", 
+                                     xlab = "Season")
+
+deg_season_movement_P + deg_season_movement_emt_P + plot_layout(widths = c(12, 4), guides = "collect") & theme_classic()
 ```
 
-## Roost diversification measure
+## Space use and situation
 
 ```{r}
-tar_load(roost_corr)
-roost_corr
+#| fig-cap: "Normalized degree"
+
+deg_situ_space_P <- effplot(model = deg_mod, terms = c("space_use", "situ"), 
+                            dataset = linked, pointX = "space_use", 
+                            pointY = "normDegree", col = "situ", 
+                            legendTitle = "Situation", values = situcolors, 
+                            ylab = "normDegree", xlab = "Space use (log)")
+
+deg_situ_space_emt_P <- emtplot(model = deg_mod, specs = "situ", 
+                                var = "space_use", values = situcolors, 
+                                ylab = "Space use effect (normDegree)", 
+                                xlab = "Situation")
+
+deg_situ_space_P + deg_situ_space_emt_P + plot_layout(widths = c(12, 4), guides = "collect") & theme_classic()
 ```
 
-## Degree model summary {.smaller .scrollable}
+## Roost diversification
 
 ```{r}
-summary(degree_mod)
+#| fig-cap: "Normalized degree"
+deg_roost_P <- effplot(model = deg_mod, terms = c("roost_div", "situ"), 
+                               dataset = linked, pointX = "roost_div", 
+                               pointY = "normDegree", col = "situ", 
+                               legendTitle = "Situation", values = situcolors, 
+                               ylab = "normDegree", xlab = "Roost diversification")
+deg_roost_P & theme_classic()
 ```
 
-## The strength model did not fit well.
+# Model results: Normalized strength
+
+## Roost diversification and situation
 
 ```{r}
-simulationOutput <- DHARMa::simulateResiduals(strength_mod)
-plot(simulationOutput, pch=".")
+#| fig-cap: "Normalized strength"
+str_situ_roost_P <- effplot(model = str_mod, terms = c("roost_div", "situ"), 
+                               dataset = linked, pointX = "roost_div", 
+                               pointY = "normStrength", col = "situ", 
+                               legendTitle = "Situation", values = situcolors, 
+                               ylab = "normStrength", xlab = "Roost diversification")
+
+str_situ_roost_emt_P <- emtplot(model = str_mod, specs = "situ", 
+                                   var = "roost_div", values = situcolors, 
+                                   ylab = "Roost diversification effect (normStrength)", 
+                                   xlab = "Situation")
+str_situ_roost_P + str_situ_roost_emt_P + plot_layout(widths = c(12, 4), guides = "collect") & theme_classic()
 ```
 
-## Still, here is the summary as it stands {.smaller .scrollable}
+## Takeaways
+
+1.  Movement relates to strength/degree, but much of this is incidental--effect drops away after randomizing
+2.  Differences in excess/preferential sociality relate mostly to space use
+
+# Model summaries
+
+## Normalized (not z-scores) {.scrollable}
 
 ```{r}
-summary(strength_mod)
+tbl_deg_mod <- tbl_regression(deg_mod)
+tbl_str_mod <- tbl_regression(str_mod)
+
+merged <- tbl_merge(
+  tbls <- list(tbl_deg_mod, tbl_str_mod),
+  tab_spanner = c("**Degree (normalized)**", "**Strength (normalized)**")
+)
+merged
+
+# save the table (requires the `gt` package)
+#gt::gtsave(as_gt(merged), file = file.path("fig", "mm_summary.png"))
 ```
 
+## Z-scores {.scrollable}
+
+```{r}
+tbl_deg_z_mod <- tbl_regression(deg_z_mod)
+tbl_str_z_mod <- tbl_regression(str_z_mod)
+
+merged_z <- tbl_merge(
+  tbls <- list(tbl_deg_z_mod, tbl_str_z_mod),
+  tab_spanner = c("**Degree (z-score)**", "**Strength (z-score)**")
+)
+merged_z
+
+# save the table (requires the `gt` package)
+#gt::gtsave(as_gt(merged_z), file = file.path("fig", "mm_summary_z.png"))
+```

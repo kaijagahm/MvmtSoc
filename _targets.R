@@ -52,6 +52,8 @@ lapply(list.files("R", full.names = TRUE), source) # source all scripts in the R
 list(
   # Prepare data
   tar_target(cc, get_cc()),
+  tar_target(situcolors, get_situcolors(cc)), #XXX
+  tar_target(seasoncolors, get_seasoncolors(cc)), #XXX
   tar_target(pw, "movebankCredentials/pw.Rda", format = "file"),
   tar_target(loginObject, get_loginObject(pw)),
   tar_target(inpa, get_inpa(loginObject)),
@@ -131,8 +133,6 @@ list(
   tar_target(metrics_wrapped, get_metrics_wrapped(with_times, roosts, season_names, roostPolygons, 100, 1)),
   tar_target(allMetrics, combine_metrics(networkMetrics, metrics_wrapped)),
   tar_target(metrics_summary, get_metrics_summary(allMetrics)),
-  # Mixed models
-  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, season_names)),
   # Reporting
   tar_target(joined0_r, report(joined0, "trackId")),
   tar_target(cleaned_r, report(cleaned, "Nili_id")),
@@ -141,7 +141,13 @@ list(
   tar_target(removed_northern_r, map(removed_northern, ~report(.x, "Nili_id"))),
   tar_target(removed_lfr_r, map(removed_lfr, ~report(.x, "Nili_id"))),
   tar_target(downsampled_10min_forSocial_r, map(downsampled_10min_forSocial, ~report(.x, "Nili_id"))),
-  tar_target(downsampled_10min_r, map(downsampled_10min, ~report(.x, "Nili_id")))
+  tar_target(downsampled_10min_r, map(downsampled_10min, ~report(.x, "Nili_id"))),
+  # Mixed models
+  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, season_names)),
+  tar_target(deg_mod, get_deg_mod(linked)),
+  tar_target(deg_z_mod, get_deg_z_mod(linked)),
+  tar_target(str_mod, get_str_mod(linked)),
+  tar_target(str_z_mod, get_str_z_mod(linked))
 )
 
 
