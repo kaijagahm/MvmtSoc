@@ -9,13 +9,37 @@ author: Kaija Gahm, [others]
 bibliography: references.bib
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
 # Introduction
 
-```{r}
-#| include: false
+```{r include = FALSE}
 library(tidyverse)
 library(here)
+library(targets)
+library(patchwork)
+library(ggeffects)
+library(gtsummary)
+theme_set(theme_classic())
 tar_config_set(store = here::here('_targets'))
+#source(here("scripts/04.0_mixedModels.R"))
+tar_load(cleaned_r)
+tar_load(joined0_r)
+tar_load(downsampled_10min_forSocial_r)
+tar_load(downsampled_10min_r)
+tar_load(cc)
+tar_load(linked)
+tar_load(deg_mod)
+tar_load(deg_z_mod)
+tar_load(str_mod)
+tar_load(str_z_mod)
+tar_load(situcolors)
+tar_load(seasoncolors)
+tar_load(movement_corr)
+tar_load(space_corr)
+tar_load(roost_corr)
 ```
 
 #### Social network centrality is known to be important in animals.
@@ -127,8 +151,6 @@ The southern Israel griffon vulture population is mostly resident, though some i
 ## Data preparation
 
 ```{r}
-tar_load(cleaned_r)
-tar_load(joined0_r)
 pctremovedcleaned <- (joined0_r[1]-cleaned_r[1])/joined0_r[1]
 ```
 
@@ -139,7 +161,6 @@ We divided the remaining data into seasons based on biological knowledge of vult
 The vulture population in Israel is geographically separated, with most individuals in the south but a small and relatively isolated population at the Hai Bar Carmel Nature Reserve and in the Golan Heights. While vultures occasionally move between the northern and southern population, such movements are rare, and northern vultures behave differently than southern vultures due to more consistent feeding and a more restricted range in the north. Therefore, for each season, we restricted our analysis to individuals whose spatial centroid (including all GPS points after data cleaning) lay south of UTM Northing 3550000 (Zone 36N), equivalent to approximately 32.086238 North latitude. This threshold was determined by visual examination of a histogram of centroid latitudes, which was bimodal and disjoint. Finally, to account for older GPS tags that were set to lower fix frequencies, we excluded any individuals from each season that never had their tags set to a 10-minute frequency during that season. In recent months, some tags were temporarily set to record fixes at much higher frequencies, so those individuals were downsampled to a 10-minute frequency in order to make data analysis more tractable.
 
 ```{r}
-tar_load(downsampled_10min_forSocial_r)
 nvultures <- map_dbl(downsampled_10min_forSocial_r, "vultures")
 ```
 
@@ -154,11 +175,10 @@ We used GPS fixes to determine vultures' nightly roost locations. The solar-powe
 To characterize individual movement behavior and spatial phenotype, we cleaned the data further. We restricted movement points to the period between sunrise and sunset (calculated for each day with respect to a point at the centroid of Israel using the R package {suncalc} [@thieurmel2022]. We restricted movement calculations to a set of focal individuals with activity regions centered in the Negev region of Israel, the site of most of our tagging effort. For each vulture, we also removed days with too few GPS fixes. Fixes were ideally collected every 10 minutes, but sometimes they were less frequent due to bad cellular reception in the cliff areas where vultures often sit or due to low battery charge. For each individual, only days with 10 or more GPS fixes per day were retained, unless the battery charge remained above 50% for the entire day. In those cases, the low number of points was attributed to the vultures spending most of their time sitting on a cliff (with limited reception) without much movement, rather than to actual missing data due to low battery. Since these sedentary days represent an important component of vulture movement behavior, we retained this information (Orr Spiegel, pers. obs.).
 
 ```{r}
-tar_load(downsampled_10min_r)
-nvultures <- map_dbl(downsampled_10min_r, "vultures")
+nvulturesmov <- map_dbl(downsampled_10min_r, "vultures")
 ```
 
-After removing days with too few fixes per day, we removed any vultures that did not have at least 30 days of valid movement data remaining in a given season, to ensure that movement estimates and averages were based on a high enough sample size of days to capture the range of the vulture's behavior. Since this was done on a per-season basis, individuals that were removed from one season's analysis due to not having enough valid days could still have movement measures calculated for a different season. Finally, we downsampled the movement data to a 10-minute interval to remove high-frequency fixes. Ultimately, we calculated movement measures for a total of `r nvulturesmov` **focal individuals** in total (range: `r min(nvulturesmov_szns)`-`r max(nvulturesmov_szns)`; mean = `r round(mean(nvulturesmov_szns), 2)` vultures per season, sd = `r round(sd(nvulturesmov_szns), 2)` vultures per season).
+After removing days with too few fixes per day, we removed any vultures that did not have at least 30 days of valid movement data remaining in a given season, to ensure that movement estimates and averages were based on a high enough sample size of days to capture the range of the vulture's behavior. Since this was done on a per-season basis, individuals that were removed from one season's analysis due to not having enough valid days could still have movement measures calculated for a different season. Finally, we downsampled the movement data to a 10-minute interval to remove high-frequency fixes. The data used for movement analysis contained between `r min(nvulturesmov)` and `r max(nvulturesmov)` vultures per season (mean = `r mean(nvulturesmov)`; sd = `r sd(nvulturesmov)`).
 
 ## Measuring spatial phenotype
 
@@ -172,21 +192,13 @@ We identified in-flight fixes (ground speed \>= 5 m/s) and calculated measures o
 
 ## Summarizing movement measures
 
-```{r}
-#| include: false
-load(here("data/calcMovement/pca_space.Rda"))
-propvar_space <- as.data.frame(summary(pca_space)$importance)$PC1[2]
-
-load(here("data/calcMovement/pca_roost.Rda"))
-propvar_roost <- as.data.frame(summary(pca_roost)$importance)$PC1[2]
-
-load(here("data/calcMovement/pca_movement.Rda"))
-propvar_movement <- as.data.frame(summary(pca_movement)$importance)$PC1[2]
+```{r include = FALSE}
+# INSERT VARIABLE CONTRIBUTION PLOTS HERE
 ```
 
 We characterized individuals' spatial phenotypes using three composite indices: movement, space use, and roost diversification. Each index was derived from a principal component analysis of several spatial phenotype variables, each scaled and centered over the entire date range of the study.
 
-**Movement** was defined as the first principal component of a PCA containing per-vulture seasonal means of daily mean flight altitude, daily flight duration, daily maximum displacement, and daily flight tortuosity. It explained `r 100*round(propvar_movement,2)`% of the variation in the PCA. Individuals with high movement scores traveled farther and flew longer, with straighter daily trajectories overall. **Space use** was defined as the first principal component of a PCA containing log-transformed 95% AKDE home range sizes and the ratio of the 50% AKDE to the 95% AKDE. It explained `r 100*round(propvar_space,2)`% of the variation in the PCA. Individuals low on space use had small overall home ranges with concentrated core areas (and some exploratory movements away from the core), while individuals high on space use had large home ranges consisting of space that they used frequently (i.e. the core area made up a larger proportion of the home range). **Roost diversification** was defined as the first principal component of a PCA containing a seasonal Shannon diversity index of roost sites used \[ref Shannon\], number of unique roost sites used, and the proportion of nights in a given season when a vulture switched to a new roost site (versus roosting at the same site as on the previous night). It explained `r 100*round(propvar_roost,2)`% of the variation in the PCA.
+**Movement** was defined as the first principal component of a PCA containing per-vulture seasonal means of daily mean flight altitude, daily flight duration, daily maximum displacement, and daily flight tortuosity. It explained [PERCENT]% of the variation in the PCA. Individuals with high movement scores traveled farther and flew longer, with straighter daily trajectories overall. **Space use** was defined as the first principal component of a PCA containing log-transformed 95% AKDE home range sizes and the ratio of the 50% AKDE to the 95% AKDE. It explained [PERCENT]% of the variation in the PCA. Individuals low on space use had small overall home ranges with concentrated core areas (and some exploratory movements away from the core), while individuals high on space use had large home ranges consisting of space that they used frequently (i.e. the core area made up a larger proportion of the home range). **Roost diversification** was defined as the first principal component of a PCA containing a seasonal Shannon diversity index of roost sites used \[ref Shannon\], number of unique roost sites used, and the proportion of nights in a given season when a vulture switched to a new roost site (versus roosting at the same site as on the previous night). It explained [PERCENT]% of the variation in the PCA.
 
 While the griffon vulture population in southern Israel is fairly well mixed and vultures do not have discrete, exclusive territories, there is still variability in where individuals spend their time within the landscape. Spatial position has the potential to directly affect how many other individuals a vulture encounters and which feeding and roost sites it frequents. In addition, though a high proportion of the vultures in the area are GPS-tagged, more peripheral vultures might be more likely to interact with untagged birds living farther from the population center, potentially diluting their measured measured strength or degree. To account for the influence of geographic centrality on social centrality, we calculated the geographic centroid of all GPS points for each individual in each season. Then we compared these centroids to the overall centroid of all individuals in the population in that season to obtain an index of centrality (versus peripherality). We incorporated spatial centrality as a covariate into our linear models.
 
@@ -232,54 +244,26 @@ For each model, we calculated marginal effects using the {emmeans} package [@len
 
 # Results
 
-```{r}
-#| include: false
-#| output: false
-source(here("scripts/04.0_mixedModels.R"))
-```
+## Social preference (deviations from random sociality)
 
-## Deviations from random
+Over the course of a season, individual vultures interacted with significantly more conspecifics, and had significantly more interactions, than expected by chance (i.e. observed degree and strength values were higher than those derived from the randomized datasets). The magnitude of the deviations from random varied by social situation.
 
-Individual vultures interacted with significantly more unique others over the course of a season than expected by chance (i.e. observed degree values compared to the distribution of degree values obtained from networks created from the wrap-around data), across all seasons and social situations. However, individuals' strength did not differ from random.
-
-```{r}
-#| echo: false
-tar_load(linked)
-
+```{r message = FALSE}
 linked %>%
   select(seasonUnique, situ, z_deg, z_str) %>%
   ungroup() %>%
   pivot_longer(cols = contains("z_"), names_to = "measure", values_to = "z") %>%
   ggplot(aes(x = z, col = situ, group = interaction(seasonUnique, measure, situ)))+
   geom_density(aes(linetype = measure))+
-  facet_wrap(~seasonUnique, scales = "free")+
-  geom_vline(aes(xintercept = 0)) # notably, we see that the z_scores for degree are almost entirely positive, while the ones for strength are basically centered around zero, with very few exceptions.
+  facet_wrap(~measure*situ, scales = "free")+
+  geom_vline(aes(xintercept = 0), col = "red")+
+  scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
+  theme_classic()+
+  theme(axis.title.y = element_blank())+
+  xlab("Z-score")
 ```
 
 ## Degree
-
-```{r}
-#| label: fig-d-space
-#| fig-cap: "Relationship between movement and degree deviation"
-plot_d_eff_movement
-```
-
-```{r}
-#| label: fig-d-space-situ
-#| fig-cap: "Relationship between normalized degree and space use, with separate trend lines for each social situation"
-plot_d_eff_situ_space
-plot_d_emt_situ_space
-```
-
-There was a significant relationship between how vultures used space and how many other individuals they encountered in flight. Vultures that consistently ranged widely encountered more others in flight, while those that concentrated their movement in smaller home ranges and smaller proportional core areas flew with fewer others. Similarly, there was a marginally significant positive relationship between space use and degree deviation in the co-feeding network as well. By contrast, vultures with smaller home ranges/proportionally smaller core areas had a co-roosting degree that deviated more from chance than those with larger home ranges/proportionally larger core areas.
-
-```{r}
-#| label: fig-d-roost
-#| fig-cap: "Relationship between normalized degree and roost diversification"
-plot_d_eff_roost 
-```
-
-Vultures with greater roost diversification, had, overall, smaller degree deviations than those with smaller roost diversification, though the effect size was small.
 
 ## Strength
 
