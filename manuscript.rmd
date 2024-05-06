@@ -13,7 +13,7 @@ bibliography: references.bib
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Introduction
+Introduction
 
 ```{r include = FALSE}
 library(tidyverse)
@@ -22,7 +22,9 @@ library(targets)
 library(patchwork)
 library(ggeffects)
 library(gtsummary)
-theme_set(theme_classic())
+library(extrafont)
+loadfonts(device = "win")
+theme_set(theme_classic() + theme(text = element_text(family="Verdana")))
 tar_config_set(store = here::here('_targets'))
 #source(here("scripts/04.0_mixedModels.R"))
 tar_load(cleaned_r)
@@ -86,15 +88,15 @@ emtplot <- function(model, specs, var, values, ylab, xlab){
 }
 ```
 
-#### Social network centrality is known to be important in animals.
+Social network centrality is known to be important in animals.
 
-The social structure of animal groups has consequences for disease transmission, information sharing, and population dynamics. At the population level, the density and modularity of social interaction networks can drive epidemic probability and duration [@sah2017; @silk2017], govern the flow of information about food resources \[REF\], and contribute to population persistence through Allee effects \[REF\]. Individuals differ in their encounter rates, number of contacts, and centrality in the population social network \[REF\]. For individual animals, which make up the social environment of the group. social centrality in different behavioral situations contributes to their likelihood of contracting disease, finding mates, or accessing resources \[REFS\]. For example, in networks with high levels of degree heterogeneity, the most connected individuals may function as disease superspreaders [@lloyd-smith2005]. For example, possums with higher betweenness and closeness in a social network had higher infection rates [@corner2003], and higher connectivity in lizards was associated with a greater parasite load [@godfrey2009]. In general, individuals that are more central in the social network both have a higher infection risk and transmit disease more quickly than those that are more peripheral [@romano2016; @balasubramaniam2019].
+The social structure of animal groups \[a\]has consequences for disease transmission, information sharing, and population dynamics. At the population level, the density and modularity of social interaction networks can drive epidemic probability and duration [@sah2017; @silk2017], govern the flow of information about food resources \[REF\], and contribute to population persistence through Allee effects \[REF\]. Individuals differ in their encounter rates, number of contacts, and centrality in the population social network \[REF\]. For individual animals, which make up the social environment of the group. social centrality in different behavioral situations contributes to their likelihood of contracting disease, finding mates, or accessing resources \[REFS\]. For example, in networks with high levels of degree heterogeneity, the most connected individuals may function as disease superspreaders [@lloyd-smith2005]. For example, possums with higher betweenness and closeness in a social network had higher infection rates [@corner2003], and higher connectivity in lizards was associated with a greater parasite load [@godfrey2009]. In general, individuals that are more central in the social network both have a higher infection risk and transmit disease more quickly than those that are more peripheral [@romano2016; @balasubramaniam2019].
 
-#### We observe that some individuals are more central than others in a social network. What causes this variation?
+We observe that some individuals are more central than others in a social network. What causes this variation?
 
 An individual's social centrality may be determined by many factors. Differences in social position have been attributed to individual phenotypic characteristics, such as age, sex, or personality \[REFS\].
 
-##### Individual traits
+Individual traits
 
 -   Multiple spatial behaviors → Social centrality [@albery2021]
 
@@ -120,7 +122,7 @@ An individual's social centrality may be determined by many factors. Differences
 
 -   Females → more stable partnerships [@wey2013]
 
-#### Individuals' spatial phenotypes are important determinants of their social centrality
+Individuals' spatial phenotypes are important determinants of their social centrality
 
 Of course, how an animal uses space is also an important driver of how many conspecifics it interacts with, and how frequently. The relationship between movement, space use, and social interaction patterns has been an area of active research in recent years. Webber et al [-@webber2023] have characterized the variation in patterns of animal movement and space use as the "spatial phenotype," as part of a larger framework for understanding the relationships between social and spatial drivers of animal behavior. In this light, the "spatial phenotype" may be considered in addition to more conventional phenotypic measures to explain why some individuals are more central than others in their social networks.
 
@@ -128,19 +130,17 @@ Of course, how an animal uses space is also an important driver of how many cons
 
 -   Definition of "spatial behaviour" [@albery2021]
 
--   Note that explicit spatial context is also important, and we didn't consider it. (We should have! How do we justify not doing that?)
-
     -   An individual's observed spatial phenotype results from a combination of its internal tendency toward movement and the external environmental conditions through which it moves [(Nathan et al. 2008)](https://www.zotero.org/google-docs/?IyWvRB)
 
-#### Social interactions occur when individuals encounter each other, in various behavioral situations.
+Social interactions occur when individuals encounter each other, in various behavioral situations.
 
 -   Co-occurrence in space and time is necessary for social interaction to occur. Therefore, more movement → more social interaction, in general.
 
--   However, movement is also an expression of an individual's underlying tendency to move, as well as potentially an emergent consequence of things like dominance rank or social environment. 
+-   However, movement is also an expression of an individual's underlying tendency to move, as well as potentially an emergent consequence of things like dominance rank or social environment.
 
 -   Social centrality arises from a combination of the number of interactions (strength) and unique individuals encountered. An individual can achieve high social centrality by being more geographically central in the population, versus by being more versatile.
 
--   No one has investigated the link between spatial phenotype and social centrality. We know that individuals vary in both spatial phenotype and social centrality, but we don't know how the one influences the other. 
+-   No one has investigated the link between spatial phenotype and social centrality. We know that individuals vary in both spatial phenotype and social centrality, but we don't know how the one influences the other.
 
     -   Furthermore, social networks are not monolithic. Because the biological mechanisms behind social network structure are different in different social situations, it stands to reason that spatial phenotype should be related to social centrality in different ways in the different social contexts.
 
@@ -150,11 +150,11 @@ Of course, how an animal uses space is also an important driver of how many cons
 
 Additionally, sociality has many dimensions. Individuals interact in different social and behavioral contexts, defined by the types of activities being performed (e.g. feeding, playing, sleeping) and/or the intent and consequences of the interaction itself (e.g. agonistic vs. affiliative interactions) \[REFS\]. The overall social environment experienced by an individual is made up of its interactions in all of these different contexts [@silk2013]. Individuals differ in their centrality in these different contexts [@sharma2023]. Different types of interactions are also localized differently in space. For example, social foraging occurs, by definition, while individuals move concurrently across a landscape, so which individuals forage together and co-foraging rates are likely to be directly tied to movement behavior and spatial phenotypes of the individuals involved. By contrast, mating or fighting interactions might be more localized to specific places where these behaviors occur, such as nest or den sites, leks, territorial boundaries, or scarce food resources. An informed understanding of the relationship between the spatial and social phenotypes, then, should allow for the possibility that the spatial phenotype relates differently to an individual's position in each situation-specific social network.
 
-#### We set out to uncover whether spatial phenotypes could explain observed variation in social centrality.
+We set out to uncover whether spatial phenotypes could explain observed variation in social centrality.
 
 -   Hypotheses/predictions from slides
 
-##### Research Questions
+Research Questions
 
 Q1: What is the relationship between spatial phenotype and social interactions?
 
@@ -176,9 +176,9 @@ Q2: How is the relationship between spatial phenotype and social interactions im
 
     -   P2B: The relationship between movement and social position will be stronger in the non-breeding seasons (summer and fall) than during the breeding season.
 
-# Methods {data-link="methods"}
+Methods {data-link="methods"}
 
-### Study system
+Study system
 
 This work was conducted on a population of GPS-tagged Eurasian griffon vultures in southern Israel, a study system well suited to studying the relationship between movement and sociality. Griffon vultures are large obligate scavengers that use soaring flight to locate food resources (carcasses) on the landscape. They may travel long distances without expending very much energy. Griffon vultures are locally endangered in Israel, where they have declined significantly since \[DATE\], and they face significant anthropogenic threats, most commonly through pesticide and NSAID poisonings, power line collisions, and shootings. The population in southern Israel has an unusually high GPS tracking coverage, with a high proportion of individuals (approximately 80-90%) fitted with GOS tags. The tags send a position reading ever ten minutes if battery condition is good, or less frequently otherwise. \[paper\] says that we only need \[percentage\] of individuals in order to get a good sense of the population-level social structure, and our coverage far exceeds that. We are able to get a very good sense of individuals' movement behavior and social interaction patterns.
 
@@ -186,13 +186,13 @@ Griffon vultures interact in several social situations, each with a different bi
 
 The southern Israel griffon vulture population is mostly resident, though some individuals (especially juveniles) occasionally make long-range forays \[REF\]. The population is small and restricted enough that individuals' home ranges are highly overlapping, with most individuals using a large fraction of available habitat in the region. This makes habitat features likely to affect many individuals similarly, though age has been shown to factor into flight skill and could therefore impact movement [@harel2016]. GPS fixes are taken frequently enough to monitor flight movements with good accuracy, and most individuals are tracked for several months to several years. Individuals have previously been shown to vary in their social network positions in each of the three social situations, with centrality in one situation not necessarily predicting centrality in another and each situation contributing differently to the overall social structure of the population [@sharma2023].
 
-## Field methods
+Field methods
 
 \[Tagging methods\] For each vulture, age was determined using \[methods\]
 
 \[tag specs\]
 
-## Data preparation
+Data preparation
 
 ```{r}
 pctremovedcleaned <- (joined0_r[1]-cleaned_r[1])/joined0_r[1]
@@ -210,11 +210,11 @@ nvultures <- map_dbl(downsampled_10min_forSocial_r, "vultures")
 
 After this cleaning, the data used for social network analysis contained between `r min(nvultures)` and `r max(nvultures)` vultures per season (mean = `r mean(nvultures)`; sd = `r sd(nvultures)`).
 
-#### Determining roost locations
+Determining roost locations
 
 We used GPS fixes to determine vultures' nightly roost locations. The solar-powered GPS tags are set to record very few fixes overnight, and cell reception (needed for data transmission) is often very poor on the cliffs where roosting sites are located. Therefore, we combined information from individuals' last locations of the evening and first locations of the morning to assign a roost site for each individual on each night. Full details about the data cleaning and roost assignment procedure can be found in the supplementary material.
 
-#### Further cleaning for movement analysis
+Further cleaning for movement analysis
 
 To characterize individual movement behavior and spatial phenotype, we cleaned the data further. We restricted movement points to the period between sunrise and sunset (calculated for each day with respect to a point at the centroid of Israel using the R package {suncalc} [@thieurmel2022]. We restricted movement calculations to a set of focal individuals with activity regions centered in the Negev region of Israel, the site of most of our tagging effort. For each vulture, we also removed days with too few GPS fixes. Fixes were ideally collected every 10 minutes, but sometimes they were less frequent due to bad cellular reception in the cliff areas where vultures often sit or due to low battery charge. For each individual, only days with 10 or more GPS fixes per day were retained, unless the battery charge remained above 50% for the entire day. In those cases, the low number of points was attributed to the vultures spending most of their time sitting on a cliff (with limited reception) without much movement, rather than to actual missing data due to low battery. Since these sedentary days represent an important component of vulture movement behavior, we retained this information (Orr Spiegel, pers. obs.).
 
@@ -224,7 +224,7 @@ nvulturesmov <- map_dbl(downsampled_10min_r, "vultures")
 
 After removing days with too few fixes per day, we removed any vultures that did not have at least 30 days of valid movement data remaining in a given season, to ensure that movement estimates and averages were based on a high enough sample size of days to capture the range of the vulture's behavior. Since this was done on a per-season basis, individuals that were removed from one season's analysis due to not having enough valid days could still have movement measures calculated for a different season. Finally, we downsampled the movement data to a 10-minute interval to remove high-frequency fixes. The data used for movement analysis contained between `r min(nvulturesmov)` and `r max(nvulturesmov)` vultures per season (mean = `r mean(nvulturesmov)`; sd = `r sd(nvulturesmov)`).
 
-## Measuring spatial phenotype
+Measuring spatial phenotype
 
 We characterized the pattern-based spatial phenotype [@webber2023a] of each focal individual by measuring its overall space use, use of roost sites, and movement patterns.
 
@@ -234,49 +234,49 @@ To quantify roosting behavior, we assigned each individual's night roost site to
 
 We identified in-flight fixes (ground speed \>= 5 m/s) and calculated measures of daily flight behavior, including maximum and median daily flight altitude and daily flight time (the sum of time intervals between adjacent in-flight fixes). We calculated flight altitude by extracting ground elevation information from elevation rasters obtained from the {elevatr} package at a ground resolution of approximately 250 meters [@hollister2022] and subtracting those numbers from the vultures' tag-mounted altimeter readings. Finally, we used all fixes to calculate daily distance traveled (the sum of all distances between successive fixes); daily maximum displacement (the straight-line distance between the beginning of the daily movement track and the farthest point reached on that day); and movement tortuosity (cumulative distance to the point of maximum displacement divided by the straight-line distance to the point of maximum displacement [@benhamou2004]). We took seasonal means of each of these individual daily measures to get a single value per individual, per season.
 
-## Summarizing movement measures
+Summarizing movement measures
 
-```{r include = FALSE}
-# INSERT VARIABLE CONTRIBUTION PLOTS HERE
+```{r eval = FALSE}
+ INSERT VARIABLE CONTRIBUTION PLOTS HERE
 ```
 
 We characterized individuals' spatial phenotypes using three composite indices: movement, space use, and roost diversification. Each index was derived from a principal component analysis of several spatial phenotype variables, each scaled and centered over the entire date range of the study.
 
-**Movement** was defined as the first principal component of a PCA containing per-vulture seasonal means of daily mean flight altitude, daily flight duration, daily maximum displacement, and daily flight tortuosity. It explained [PERCENT]% of the variation in the PCA. Individuals with high movement scores traveled farther and flew longer, with straighter daily trajectories overall. **Space use** was defined as the first principal component of a PCA containing log-transformed 95% AKDE home range sizes and the ratio of the 50% AKDE to the 95% AKDE. It explained [PERCENT]% of the variation in the PCA. Individuals low on space use had small overall home ranges with concentrated core areas (and some exploratory movements away from the core), while individuals high on space use had large home ranges consisting of space that they used frequently (i.e. the core area made up a larger proportion of the home range). **Roost diversification** was defined as the first principal component of a PCA containing a seasonal Shannon diversity index of roost sites used \[ref Shannon\], number of unique roost sites used, and the proportion of nights in a given season when a vulture switched to a new roost site (versus roosting at the same site as on the previous night). It explained [PERCENT]% of the variation in the PCA.
+Movement was defined as the first principal component of a PCA containing per-vulture seasonal means of daily mean flight altitude, daily flight duration, daily maximum displacement, and daily flight tortuosity. It explained \[PERCENT\]% of the variation in the PCA. Individuals with high movement scores traveled farther and flew longer, with straighter daily trajectories overall. Space use was defined as the first principal component of a PCA containing log-transformed 95% AKDE home range sizes and the ratio of the 50% AKDE to the 95% AKDE. It explained \[PERCENT\]% of the variation in the PCA. Individuals low on space use had small overall home ranges with concentrated core areas (and some exploratory movements away from the core), while individuals high on space use had large home ranges consisting of space that they used frequently (i.e. the core area made up a larger proportion of the home range). Roost diversification was defined as the first principal component of a PCA containing a seasonal Shannon diversity index of roost sites used \[ref Shannon\], number of unique roost sites used, and the proportion of nights in a given season when a vulture switched to a new roost site (versus roosting at the same site as on the previous night). It explained \[PERCENT\]% of the variation in the PCA.
 
 While the griffon vulture population in southern Israel is fairly well mixed and vultures do not have discrete, exclusive territories, there is still variability in where individuals spend their time within the landscape. Spatial position has the potential to directly affect how many other individuals a vulture encounters and which feeding and roost sites it frequents. In addition, though a high proportion of the vultures in the area are GPS-tagged, more peripheral vultures might be more likely to interact with untagged birds living farther from the population center, potentially diluting their measured measured strength or degree. To account for the influence of geographic centrality on social centrality, we calculated the geographic centroid of all GPS points for each individual in each season. Then we compared these centroids to the overall centroid of all individuals in the population in that season to obtain an index of centrality (versus peripherality). We incorporated spatial centrality as a covariate into our linear models.
 
-## Construction of proximity-based social networks
+Construction of proximity-based social networks
 
 Using GPS fixes from the tagged vultures, we created weighted, undirected proximity-based social networks in three different social situations for each of the nine seasons, following Sharma [-@sharma2023]: co-flight, co-feeding (diurnal ground interactions) and co-roosting (nocturnal ground interactions). Because not all individuals were tagged for exactly the same period of time, and to account for missing data due to low tag battery or poor reception, we calculated the simple ratio index (SRI) to quantify the strength of the association between each pair of vultures in each social situation. We calculated SRI by dividing the number of 10-minute time periods during which two vultures were observed interacting by the number of time periods during which both vultures had a recorded GPS fix (whether or not they were interacting during that period) [@ginsberg1992]. Thus, two vultures who never interacted in a given social situation would have an SRI of 0, while two individuals who were interacting in every time period during which a GPS fix was collected for both of them would have an SRI of 1.
 
 Non-focal vultures (e.g. those that did not always have enough points per day, or those that were not tracked for at least 30 days per season) were included in our calculations of social interactions. Even if an individual did not have enough data to calculate meaningful movement measures, it could still contribute to a focal individual's position in the social network. Defining edge weights with SRI ensured that missing data for these non-focal birds did not bias edge weight estimates for their social relationships.
 
-### Co-flight
+Co-flight
 
 Vultures were considered to be flying if their ground speed (collected by a sensor on the GPS tags) was \> 5 m/s [@spiegel2013] . Because vultures can see each other over long distances [@pennycuick1972; @spiegel2013a] , and in accordance with [@sharma2023], we defined a co-flight interaction as two individuals flying within 1000m of each other for at least two consecutive 10-minute time periods.
 
-### Co-feeding
+Co-feeding
 
 Vultures that were not flying (ground speed \< 5 m/s, [@spiegel2013]) who came within 50m of each other for at least two consecutive 10-minute time periods, were considered to be having a ground interaction [@sharma2023]. Any ground interactions that occurred at night or within the boundaries of a known roost site were excluded. Therefore, the remaining diurnal ground interactions should represent vultures' interactions while feeding or while present at feeding sites (Orr Spiegel and Nili Anglister, pers. comm.).
 
-### Co-roosting
+Co-roosting
 
 Vultures were considered to be co-roosting if they roosted within 500m of each other on a given night. Unlike interactions in the co-feeding and co-flight networks, co-roosting interactions could occur at a maximum frequency of once per night. Therefore, edge weights in the co-roosting network represented the number of nights on which two individuals co-roosted divided by the number of nights when both individuals had a valid roost location (i.e. they theoretically could have co-roosted), regardless of proximity.
 
-## Calculation of social network measures
+Calculation of social network measures
 
 \[Explain the reasons for choosing the social network measures in the earlier hypotheses/predictions/introduction section\]
 
 We used the R package {igraph} [@csardi2005] to calculate each individual's degree and strength for each social situation in each season. Degree is defined as the number of other individuals that a vulture is connected to (i.e. ever interacted with). Strength measures how much an individual interacts, and is calculated as the sum of the weights of all edges that the focal vulture is involved in. We normalized degree by dividing it by the number of individuals present in the network in the current season minus one. We normalized strength by dividing it by the sum of all strength values in the network in the current season \[REF\].
 
-## Comparison to a reference model
+Comparison to a reference model
 
 Since social interactions can arise from both spatial proximity and social preference (i.e. "passive" versus "active" interactions [@smith-aguilar2016]). We can use spatially explicit data-stream randomization to compare individuals' observed interaction rates to those expected to arise from chance encounters by individuals sharing space without synchronizing their movements [@gahm; @spiegel2016]. This allows us to decouple social and spatial drivers of social interactions. It also helps us account for how individuals' locations in space (e.g. the locations of their home ranges) affect how many social interactions they end up having.
 
 Using the "wrap-around" method outlined in [@gahm], we conducted 100 iterations of the wrap-around randomization for each season of data separately, using a maximum time-shift of 1 day either backward or forward. We calculated normalized degree and strength for each individual in each season in each of the 100 replicate randomizations. Then, we compared each individual's observed normalized degree and strength to the distribution of 100 normalized degree and strength values obtained from the randomization replicates and calculated a z-score for the observed value to measure the extent to which it deviated from random. These z-scores were used as the response variables in our mixed models.
 
-## Model fitting and selection
+Model fitting and selection
 
 We modeled the relationship between the spatial phenotype variables and the network measures using linear mixed-effects regression models, fitted using the {lme4} and {lmerTest} packages [@bates2015; @kuznetsova2017]. We fit separate models for each response variable (degree and strength). The predictors included were movement (PC1), exploration (PC2), situation (feeding, flight, roosting), age group (juvenile/subadult, adult), season (breeding, summer, fall), and geographic centrality. To account for the different numbers of individuals in the network in each unique season, we included a random effect for the interaction of season and year, e.g. "2022_fall" (8 levels). To account for consistent individual differences in network position or behavior, and because individuals varied in how many seasons they were included in, we also included an individual-level random effect.
 
@@ -286,9 +286,9 @@ For each response variable, we began by fitting a model without any interaction 
 
 For each model, we calculated marginal effects using the {emmeans} package [@lenth2023] and created visualizations using {ggeffects} and {ggplot2} [@wickham2016; @lüdecke2018].
 
-# Results
+Results
 
-## Social preference (deviations from random sociality)
+Social preference (deviations from random sociality)
 
 Over the course of a season, individual vultures interacted with significantly more conspecifics, and had significantly more interactions, than expected by chance (i.e. observed degree and strength values were higher than those derived from the randomized datasets). The magnitude of the deviations from random varied by social situation.
 
@@ -302,43 +302,247 @@ linked %>%
   facet_wrap(~measure*situ, scales = "free")+
   geom_vline(aes(xintercept = 0), col = "red")+
   scale_color_manual(name = "Situation", values = c(cc$feedingColor, cc$flightColor, cc$roostingColor))+
-  theme_classic()+
   theme(axis.title.y = element_blank())+
   xlab("Z-score")
 ```
 
-## Degree
+Degree
 
-Preferential degree (i.e. degree z-score) was significantly associated with space use and roost diversification, but not with movement. Vultures that used more space (i.e. those with larger home ranges and larger proportional core areas) had a co-flight degree that deviated more from random (i.e. more preferential degree) than those with smaller space use. By contrast, co-roosting degree deviated less, not more, from random for wide-ranging vultures. [FIGURE] (Co-roosting degree showed a similar trend to co-flight, though it was only marginally significant).
+Preferential degree (i.e. degree z-score) was significantly associated with space use and roost diversification, but not with movement. Vultures that used more space (i.e. those with larger home ranges and larger proportional core areas) had a co-flight degree that deviated more from random (i.e. more preferential degree) than those with smaller space use. By contrast, co-roosting degree deviated less, not more, from random for wide-ranging vultures. \[FIGURE\] (Co-roosting degree showed a similar trend to co-flight, though it was only marginally significant).
 
 ```{r fig.cap = "Degree z-scores", out.width = "100%"}
-deg_z_situ_space_emt_P <- effplot(model = deg_z_mod, terms = c("space_use", "situ"), 
-                            dataset = linked, pointX = "space_use", 
-                            pointY = "z_deg", col = "situ", 
-                            legendTitle = "Situation", values = situcolors, 
-                            ylab = "Degree (z-score)", xlab = "Space use (log)")
+# deg_z_situ_space_emt_P <- effplot(model = deg_z_mod, terms = c("space_use", "situ"), 
+#                             dataset = linked, pointX = "space_use", 
+#                             pointY = "z_deg", col = "situ", 
+#                             legendTitle = "Situation", values = situcolors, 
+#                             ylab = "Degree (z-score)", xlab = "Space use (log)")
+# 
+# deg_z_situ_space_P <- emtplot(model = deg_z_mod, specs = "situ", 
+#                                 var = "space_use", values = situcolors, 
+#                                 ylab = "Space use effect (Degree z-scores)", 
+#                                 xlab = "Situation")
+# 
+# deg_z_situ_space_emt_P + deg_z_situ_space_P + plot_layout(widths = c(4, 1), guides = "collect") & theme_classic()
+pts <- linked %>% mutate(group = case_when(situ == "Fe" ~ "Feeding",
+                                           situ == "Fl" ~ "Flight",
+                                           situ == "Ro" ~ "Roosting"))
 
-deg_z_situ_space_P <- emtplot(model = deg_z_mod, specs = "situ", 
-                                var = "space_use", values = situcolors, 
-                                ylab = "Space use effect (Degree z-scores)", 
-                                xlab = "Situation")
+dataset <- as.data.frame(ggeffect(model = deg_z_mod, terms = c("space_use", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
 
-deg_z_situ_space_emt_P + deg_z_situ_space_P + plot_layout(widths = c(4, 1), guides = "collect") & theme_classic()
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = space_use, y = z_deg, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Degree (z-score)")+ xlab("Space use (log)")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(deg_z_mod, specs = "situ", var = "space_use")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = space_use.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Space use \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/degree/sp_situ.png"), width = 12, height = 6)
 ```
 
 Meanwhile, roost diversification negatively predicted preferential degree in all social situations, with no significant difference in effect magnitude between situations. Vultures with more unique roosts, more roost switching, and/or a higher diversity of roosts differed less from the degree expected by chance than those with lower roost diversification.
 
 ```{r}
-deg_z_roost_P <- effplot(model = deg_z_mod, terms = c("roost_div", "situ"), 
-                       dataset = linked, pointX = "roost_div", 
-                       pointY = "z_deg", col = "situ", 
-                       legendTitle = "Situation", values = situcolors, 
-                       ylab = "Degree (z-score)", xlab = "Roost diversification")
-deg_z_roost_P & theme_classic()
+dataset <- as.data.frame(ggeffect(model = deg_z_mod, terms = c("roost_div", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = space_use, y = z_deg, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Degree (z-score)")+ xlab("Roost diversification")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(deg_z_mod, specs = "situ", var = "roost_div")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = roost_div.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Roost diversification \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/degree/rd_situ.png"), width = 12, height = 6)
 ```
 
-## Strength
+Strength
 
-The relationships were very similar for strength. Preferential strength in the co-flight and co-feeding networks was positively associated with space use, with wider-ranging vultures' strength deviating the most from random. Meanwhile, the opposite was once again true for the co-roosting network. Vultures with smaller ranges deviated singificantly more from random than those with larger ranges.
+The relationships were very similar for strength. Preferential strength in the co-flight and co-feeding networks was positively associated with space use, with wider-ranging vultures' strength deviating the most from random. Meanwhile, the opposite was once again true for the co-roosting network. Vultures with smaller ranges deviated significantly more from random than those with larger ranges.
 
-# Discussion
+```{r}
+dataset <- as.data.frame(ggeffect(model = str_z_mod, terms = c("space_use", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = space_use, y = z_str, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Strength (z-score)")+ xlab("Space use (log)")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(str_z_mod, specs = "situ", var = "space_use")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = space_use.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Space use \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/strength/sp_situ.png"), width = 12, height = 6)
+```
+
+Similarly, roost diversification negatively predicted preferential strength \[...\]
+
+```{r}
+dataset <- as.data.frame(ggeffect(model = str_z_mod, terms = c("roost_div", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = space_use, y = z_str, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Strength (z-score)")+ xlab("Roost diversification")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(str_z_mod, specs = "situ", var = "roost_div")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = roost_div.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Roost diversification \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/strength/rd_situ.png"), width = 12, height = 6)
+```
+
+## How much does z-score vary by individual across situations and seasons?
+
+```{r}
+ll <- linked %>%
+  select(Nili_id, seasonUnique, season, year, situ, age_group, sex, z_deg, z_str)
+
+pltfun <- function(sit){
+  dat <- ll %>%
+    filter(situ == sit) %>%
+    group_by(Nili_id) %>%
+    mutate(mn = mean(z_deg)) %>%
+    ungroup()
+  
+  highlight <- dat %>% group_by(Nili_id) %>%
+    filter(n() > 4) %>%
+    ungroup() %>%
+    filter(mn %in% c(min(mn), max(mn), median(mn))) %>%
+    pull(Nili_id) %>% unique()
+  
+  dat <- dat %>%
+    mutate(hl = ifelse(Nili_id %in% highlight, T, F))
+    
+  plt <- dat %>%
+    ggplot(aes(x = seasonUnique, y = z_deg, col = mn))+
+    geom_jitter(pch = 1, width = 0.1, alpha = 0.2)+
+    geom_line(aes(group = Nili_id, alpha = hl, linewidth = hl))+
+    scale_color_viridis_c()+
+    scale_alpha_manual(values = c(0.2, 1))+
+    scale_linewidth_manual(values = c(0.2, 1))
+  return(plt)
+}
+
+```
+
+Looks like there might be a little bit of repeatability within an individual, but there's still a lot of variation as well.
+
+What about correlation between z-score in one social situation and z-score in the others?
+
+```{r}
+llw <- ll %>%
+  select(Nili_id, seasonUnique, situ, z_deg) %>%
+  pivot_wider(id_cols = c("Nili_id", "seasonUnique"), names_from = "situ", values_from = "z_deg")
+
+llw %>%
+  ggplot(aes(x = Fe, y = Fl, col = seasonUnique))+geom_point(alpha = 0.5, pch = 1)+geom_smooth(method = "lm", se = F, linewidth = 0.5) # there is generally a positive correlation between feeding and flight
+
+llw %>%
+  ggplot(aes(x = Fl, y = Ro, col = seasonUnique))+geom_point(alpha = 0.5, pch = 1)+geom_smooth(method = "lm", se = F, linewidth = 0.5) # generally a negative correlation between flight and roosting (makes sense, given the opposite trends)
+
+llw %>%
+  ggplot(aes(x = Ro, y = Fe, col = seasonUnique))+geom_point(alpha = 0.5, pch = 1)+geom_smooth(method = "lm", se = F, linewidth = 0.5) # Also a bit of a negative relationship here.
+```
