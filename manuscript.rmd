@@ -363,7 +363,7 @@ b <- dat %>%
         axis.title.y = element_blank())
 
 plt <- a + b + plot_layout(widths = c(4, 1))
-ggsave(plot = plt, filename = here("fig/figures/degree/sp_situ.png"), width = 12, height = 6)
+ggsave(plot = plt, filename = here("fig/figures/degree/deg_sp_situ.png"), width = 12, height = 6)
 ```
 
 Meanwhile, roost diversification negatively predicted preferential degree in all social situations, with no significant difference in effect magnitude between situations. Vultures with more unique roosts, more roost switching, and/or a higher diversity of roosts differed less from the degree expected by chance than those with lower roost diversification.
@@ -405,7 +405,7 @@ b <- dat %>%
         axis.title.y = element_blank())
 
 plt <- a + b + plot_layout(widths = c(4, 1))
-ggsave(plot = plt, filename = here("fig/figures/degree/rd_situ.png"), width = 12, height = 6)
+ggsave(plot = plt, filename = here("fig/figures/degree/deg_rd_situ.png"), width = 12, height = 6)
 ```
 
 Strength
@@ -449,7 +449,7 @@ b <- dat %>%
         axis.title.y = element_blank())
 
 plt <- a + b + plot_layout(widths = c(4, 1))
-ggsave(plot = plt, filename = here("fig/figures/strength/sp_situ.png"), width = 12, height = 6)
+ggsave(plot = plt, filename = here("fig/figures/strength/str_sp_situ.png"), width = 12, height = 6)
 ```
 
 Similarly, roost diversification negatively predicted preferential strength \[...\]
@@ -491,7 +491,89 @@ b <- dat %>%
         axis.title.y = element_blank())
 
 plt <- a + b + plot_layout(widths = c(4, 1))
-ggsave(plot = plt, filename = here("fig/figures/strength/rd_situ.png"), width = 12, height = 6)
+ggsave(plot = plt, filename = here("fig/figures/strength/str_rd_situ.png"), width = 12, height = 6)
+```
+
+## Movement effects (non-significant)
+
+```{r}
+dataset <- as.data.frame(ggeffect(model = deg_z_mod, terms = c("movement", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = movement, y = z_deg, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Degree (z-score)")+ xlab("Movement")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(deg_z_mod, specs = "situ", var = "movement")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = movement.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Movement \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/degree/deg_mv_situ.png"), width = 12, height = 6)
+```
+
+```{r}
+dataset <- as.data.frame(ggeffect(model = str_z_mod, terms = c("movement", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = movement, y = z_str, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Strength (z-score)")+ xlab("Movement")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(str_z_mod, specs = "situ", var = "movement")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = movement.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Movement \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/strength/str_mv_situ.png"), width = 12, height = 6)
 ```
 
 ## How much does z-score vary by individual across situations and seasons?
@@ -545,4 +627,218 @@ llw %>%
 
 llw %>%
   ggplot(aes(x = Ro, y = Fe, col = seasonUnique))+geom_point(alpha = 0.5, pch = 1)+geom_smooth(method = "lm", se = F, linewidth = 0.5) # Also a bit of a negative relationship here.
+```
+
+## Plots for models before accounting for explicit space use
+
+```{r}
+summary(deg_mod) # space*situ, movement*season, movement*situ, roost_div
+summary(str_mod) # roost_div*situ only
+```
+
+Degree: space\*situ
+
+```{r}
+dataset <- as.data.frame(ggeffect(model = deg_mod, terms = c("space_use", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = space_use, y = normDegree, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Degree (normalized)")+ xlab("Space use")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(deg_mod, specs = "situ", var = "space_use")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = space_use.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Space use \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/degree/nonpermuted/np_deg_sp_situ.png"), width = 12, height = 6)
+```
+
+Degree: movement\*season
+
+```{r}
+pts_szn <- linked %>% mutate(group = season)
+dataset <- as.data.frame(ggeffect(model = deg_mod, terms = c("movement", "season")))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts_szn,
+             aes(x = movement, y = normDegree, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Season", values = seasoncolors)+
+  scale_fill_manual(name = "Season", values = seasoncolors)+
+  ylab("Degree (normalized)")+ xlab("Movement")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(deg_mod, specs = "season", var = "movement"))
+
+b <- dat %>%
+  ggplot(aes(x = season, y = movement.trend, col = season))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = season, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = seasoncolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Movement \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/degree/nonpermuted/np_deg_mv_season.png"), width = 12, height = 6)
+```
+
+Degree: movement\*situ
+
+```{r}
+dataset <- as.data.frame(ggeffect(model = deg_mod, terms = c("movement", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = movement, y = normDegree, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Degree (normalized)")+ xlab("Movement")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(deg_mod, specs = "situ", var = "movement")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = movement.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Movement \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/degree/nonpermuted/np_deg_mv_situ.png"), width = 12, height = 6)
+```
+
+Degree: roost_div(\*situ)
+
+```{r}
+dataset <- as.data.frame(ggeffect(model = deg_mod, terms = c("roost_div", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = roost_div, y = normDegree, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Degree (normalized)")+ xlab("Roost diversification")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(deg_mod, specs = "situ", var = "roost_div")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = roost_div.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = lower.CL, ymax = upper.CL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Roost diversification \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/degree/nonpermuted/np_deg_rd_situ.png"), width = 12, height = 6)
+```
+
+Strength: roost_div\*situ
+
+```{r}
+dataset <- as.data.frame(ggeffect(model = str_mod, terms = c("roost_div", "situ"))) %>% mutate(group = case_when(group == "Fe" ~ "Feeding",
+                                                                                                                   group == "Fl" ~ "Flight",
+                                                                                                                   group == "Ro" ~ "Roosting"))
+
+a <- ggplot(data = dataset, 
+       aes(x, predicted))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.2, linewidth = 0.6, show.legend = F)+
+  geom_point(data = pts,
+             aes(x = roost_div, y = normStrength, col = group),
+             pch = 1)+
+  geom_line(aes(col = group), linewidth = 1)+
+  facet_wrap(~group, scales = "free_y")+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  ylab("Degree (normalized)")+ xlab("Roost diversification")+
+  theme(legend.position = "none",
+        text = element_text(size = 16))
+
+dat <- as.data.frame(emmeans::emtrends(str_mod, specs = "situ", var = "roost_div")) %>% mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                                                                                                                  situ == "Fl" ~ "Flight",
+                                                                                                                  situ == "Ro" ~ "Roosting"))
+
+b <- dat %>%
+  ggplot(aes(x = situ, y = roost_div.trend, col = situ))+
+  geom_point(size = 6)+
+  geom_errorbar(aes(x = situ, ymin = asymp.LCL, ymax = asymp.UCL), 
+                width = 0, linewidth = 2) +
+  geom_hline(aes(yintercept = 0), linetype = 2)+
+  scale_color_manual(values = situcolors)+ scale_x_discrete(limits = rev, position = "top")+
+  coord_flip()+ ylab("Roost diversification \neffect")+
+  theme(legend.position = "none", 
+        text = element_text(size = 16),
+        axis.title.y = element_blank())
+
+plt <- a + b + plot_layout(widths = c(4, 1))
+ggsave(plot = plt, filename = here("fig/figures/strength/nonpermuted/np_deg_rd_situ.png"), width = 12, height = 6)
 ```
