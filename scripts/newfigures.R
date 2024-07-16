@@ -97,51 +97,19 @@ dat <- dat %>%
   mutate(mod = case_when(mod == "deg" ~ "Observed",
                          mod == "deg_z" ~ "Intentional"))
 
-mn_2d1 <- dat %>% filter(mod == "Observed") %>% pull(mn) %>% head(1)
-lims_2d1 <- c(mn_2d1-(1.6*mn_2d1), mn_2d1+(1.6*mn_2d1))
-
-fig_2d1 <- dat %>%
-  filter(mod == "Observed") %>%
-  ggplot(aes(x = x, group = group))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high,
-                  fill = group), alpha = 0.1, 
-              show.legend = F)+
-  geom_line(aes(y = predicted, col = group), linewidth = 1)+
-  facet_wrap(~group)+
-  scale_color_manual(name = "Situation", values = situcolors, guide = "none")+
-  scale_fill_manual(name = "Situation", values = situcolors, guide = "none")+
-  theme_classic()+
-  theme(text = element_text(family = "Verdana", size = 14),
-        panel.background = element_rect(fill = "transparent", colour = NA),
-        plot.background = element_rect(fill = "transparent", colour = NA))+
-  ylab("Observed degree\n(centered)")+xlab("Movement")+
-  scale_y_continuous(limits = lims_2d1)
-fig_2d1
-ggsave(filename = here("fig/2d1.png"), fig_2d1, width = 5.5, height = 4)
-
-
-mn_2d2 <- dat %>% filter(mod == "Intentional") %>% pull(mn) %>% head(1)
-lims_2d2 <- c(mn_2d2-(1.6*mn_2d2), mn_2d2+(1.6*mn_2d2))
-
-fig_2d2 <- dat %>%
-  filter(mod == "Intentional") %>%
-  ggplot(aes(x = x, group = group))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high,
-                  fill = group), alpha = 0.1, 
-              show.legend = F)+
-  geom_line(aes(y = predicted, col = group), linewidth = 1,
-            linetype = 5)+
-  facet_wrap(~group)+
-  scale_color_manual(name = "Situation", values = situcolors, guide = "none")+
-  scale_fill_manual(name = "Situation", values = situcolors, guide = "none")+
-  theme_classic()+
-  theme(text = element_text(family = "Verdana", size = 14),
-        panel.background = element_rect(fill = "transparent", colour = NA),
-        plot.background = element_rect(fill = "transparent", colour = NA))+
-  ylab("Intentional degree\n(centered)")+xlab("Movement")+
-  scale_y_continuous(position = "right", limits = lims_2d2)
-fig_2d2
-ggsave(filename = here("fig/2d2.png"), fig_2d2, width = 5.5, height = 4)
+fig_2d <- dat %>%
+  ggplot(aes(x = x, y = predicted, group = group))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL), alpha = 0.1)+
+  geom_line(linewidth = 1.5, aes(col = group))+
+  facet_wrap(~mod, scale = "free_y")+
+  scale_color_manual(name = "Situation",
+                     values = situcolors)+
+  scale_fill_manual(name = "Situation", 
+                    values = situcolors)+
+  xlab("Movement")+
+  ylab("Model prediction")+
+  theme(text = element_text(family = "Verdana", size = 14))
+fig_2d
 
 ## D. Example forest plot with both types of lines
 
