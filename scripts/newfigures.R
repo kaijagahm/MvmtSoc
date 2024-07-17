@@ -207,23 +207,29 @@ forforest <- map(forforest, ~.x %>% rename("trend" = 2))
 
 plots <- map(forforest, ~{
   p <- .x %>%
-    ggplot(aes(x = situ, y = trend, col = situ,
+    ggplot(aes(x = trend, y = situ, col = situ,
                group = interaction(mod, situ)))+
-    geom_hline(aes(yintercept = 0), linetype = 2)+
-    geom_errorbar(aes(ymin = lower, ymax = upper),
+    geom_vline(aes(xintercept = 0), linetype = 2)+
+    geom_errorbar(aes(xmin = lower, xmax = upper),
                   width = 0, linewidth = 0.5,
                   position = position_dodge(width = 0.2))+
     geom_point(size = 3, 
                position = position_dodge(width = 0.2),
                fill = "white")+
     scale_color_manual(values = situcolors, guide = "none")+
-    scale_x_discrete(limits = rev, position = "top")+
+    scale_y_discrete(limits = rev, position = "right")+
     scale_shape_manual(name = "", values = c(16, 21))+
-    coord_flip() + 
-    facet_wrap(~mod, scales = "free",
-               ncol = 1)+
-    ylab("Effect")+
+    facet_wrap(~mod, scales = "free_x",
+               nrow = 1)+
+    xlab("Effect")+
     theme(text = element_text(size = 14),
           axis.title.y = element_blank())
   return(p)
 })
+
+patchwork <- (plots[[1]] + plots[[2]]) / (plots[[3]] + plots[[4]])
+patchwork + plot_annotation(
+  title = 'Forest plots for model results',
+  subtitle = 'test subtitle',
+  caption = 'test caption'
+)
