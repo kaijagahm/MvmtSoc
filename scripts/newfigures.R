@@ -162,44 +162,68 @@ fig_2e
 ggsave(filename = here("fig/2e.png"), fig_2e, width = 3, height = 4)
 
 # Figure 3 ----------------------------------------------------------------
-deg_mov <- as.data.frame(emmeans::emtrends(deg_mod, specs = "situ", var = "movement")) %>% 
-  mutate(situ = case_when(situ == "Fe" ~ "Feeding",
-                          situ == "Fl" ~ "Flight",
-                          situ == "Ro" ~ "Roosting")) %>%
-  mutate(mod = "Normalized")
+# Main results
+# Degree and strength, movement and space use only.
+prepdata_forforestplots <- function(variable, mod, z_mod){
+  dat <- as.data.frame(ggeffect(mod, terms = c(variable, "situ"))) %>%
+    mutate(mod = "mod")
+  z_dat <- as.data.frame(ggeffect(z_mod, terms = c(variable, "situ"))) %>%
+    mutate(mod = "z_mod")
+  eff1 <- as.data.frame(emmeans::emtrends(mod, specs = "situ", 
+                                          var = variable)) %>%
+    mutate(mod = "Observed")
+  names(eff1)[5:6] <- c("lower", "upper")
+  eff2 <- as.data.frame(emmeans::emtrends(z_mod, specs = "situ", 
+                                          var = variable)) %>% 
+    mutate(mod = "Intentional")
+  names(eff2)[5:6] <- c("lower", "upper")
+  eff <- bind_rows(eff1, eff2) %>%
+    mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+    mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                            situ == "Fl" ~ "Flight",
+                            situ == "Ro" ~ "Roosting"))
+  
+  annot <- eff %>%
+    mutate(sig = case_when(lower < 0 & upper < 0 ~ T,
+                           lower > 0 & upper > 0 ~ T,
+                           .default = F))
+  return(annot)
+}
 
-deg_z_mov <- as.data.frame(emmeans::emtrends(deg_z_mod, specs = "situ", var = "movement")) %>% 
-  mutate(situ = case_when(situ == "Fe" ~ "Feeding",
-                          situ == "Fl" ~ "Flight",
-                          situ == "Ro" ~ "Roosting")) %>%
-  mutate(mod = "Intentional")
-deg_all_mov <- bind_rows(deg_mov, deg_z_mov)
+deg_movement <- prepdata_forforestplots(variable = "movement", mod = deg_mod,
+                                        z_mod = deg_z_mod) %>%
+  mutate(measure = "degree")
+deg_space <- prepdata_forforestplots(variable = "space_use", mod = deg_mod,
+                                     z_mod = deg_z_mod) %>%
+  mutate(measure = "degree")
+str_movement <- prepdata_forforestplots(variable = "movement", mod = str_mod,
+                                        z_mod = str_z_mod) %>%
+  mutate(measure = "strength")
+str_space <- prepdata_forforestplots(variable = "space_use", mod = str_mod,
+                                     z_mod = str_z_mod) %>%
+  mutate(measure = "strength")
+forforest <- list(deg_movement, deg_space, str_movement, str_space)
+forforest <- map(forforest, ~.x %>% rename("trend" = 2))
 
-deg_all_mov %>%
-  ggplot(aes(x = situ, y = movement.trend, col = situ),
-         group = interaction(mod, situ)) +
-  geom_hline(aes(yintercept = 0), linetype = 2)+
-  geom_errorbar(aes(ymin = lower.CL, ymax =))
-
-dat %>%
-  ggplot(aes(x = situ, y = movement.trend, col = situ,
-             group = interaction(mod, situ)))+
-  geom_hline(aes(yintercept = 0), linetype = 2)+
-  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL),
-                width = 0, linewidth = 0.5,
-                position = position_dodge(width = 0.2))+
-  geom_point(size = 3, aes(pch = mod),
-             position = position_dodge(width = 0.2),
-             fill = "white")+
-  scale_color_manual(values = situcolors, guide = "none")+
-  scale_x_discrete(limits = rev, position = "top")+
-  scale_shape_manual(name = "", values = c(16, 21))+
-  coord_flip() + ylab("Movement effect")+
-  guides(pch = guide_legend(position = "inside"))+
-  theme(text = element_text(size = 14),
-        legend.position.inside = c(0.2, 0.15),
-        axis.title.y = element_blank(),
-        legend.text = element_text(size = 10),
-        legend.background = element_rect(fill = NA))
-
-
+plots <- map(forforest, ~{
+  p <- .x %>%
+    ggplot(aes(x = situ, y = trend, col = situ,
+               group = interaction(mod, situ)))+
+    geom_hline(aes(yintercept = 0), linetype = 2)+
+    geom_errorbar(aes(ymin = lower, ymax = upper),
+                  width = 0, linewidth = 0.5,
+                  position = position_dodge(width = 0.2))+
+    geom_point(size = 3, 
+               position = position_dodge(width = 0.2),
+               fill = "white")+
+    scale_color_manual(values = situcolors, guide = "none")+
+    scale_x_discrete(limits = rev, position = "top")+
+    scale_shape_manual(name = "", values = c(16, 21))+
+    coord_flip() + 
+    facet_wrap(~mod, scales = "free",
+               ncol = 1)+
+    ylab("Effect")+
+    theme(text = element_text(size = 14),
+          axis.title.y = element_blank())
+  return(p)
+})
