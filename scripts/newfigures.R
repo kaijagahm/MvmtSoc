@@ -8,7 +8,11 @@ library(ggeffects)
 library(gtsummary)
 library(extrafont)
 library(ggthemes)
+library(lemon)
 library(see)
+library(sf)
+library(scales)
+library(ggmap)
 loadfonts(device = "win")
 theme_set(theme_classic() + theme(text = element_text(family="Verdana")))
 tar_config_set(store = here::here('_targets'))
@@ -134,32 +138,35 @@ fig_2d <- dat %>%
   xlab("Movement")+
   ylab("Model prediction")+
   theme(text = element_text(family = "Verdana", size = 14), 
-        legend.position = "bottom")
+        legend.position = "right",
+        plot.background = element_rect(fill = "transparent", color = NA),
+        legend.background = element_rect(fill = "transparent", color = NA),
+        panel.background = element_rect(fill = "transparent", color = NA))
 fig_2d
 ggsave(filename = here("fig/2d.png"), fig_2d, width = 6, height = 4)
 
 ## E. Example forest plot with both types of lines
 fig_2e <- eff %>%
-  ggplot(aes(x = situ, y = movement.trend, col = situ,
+  ggplot(aes(x = movement.trend, y = situ, col = situ,
              group = interaction(mod, situ)))+
-  geom_hline(aes(yintercept = 0), linetype = 2)+
-  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL),
+  geom_vline(aes(xintercept = 0), linetype = 2)+
+  geom_errorbar(aes(xmin = lower.CL, xmax = upper.CL),
                 width = 0, linewidth = 0.5,
                 position = position_dodge(width = 0.2))+
   geom_point(size = 3, 
              position = position_dodge(width = 0.2),
              fill = "white")+
   scale_color_manual(values = situcolors, guide = "none")+
-  scale_x_discrete(limits = rev, position = "top")+
+  scale_y_discrete(limits = rev, position = "right")+
   scale_shape_manual(name = "", values = c(16, 21))+
-  coord_flip() + 
-  facet_wrap(~mod, scales = "free",
-             ncol = 1)+
-  ylab("Movement effect")+
+  facet_wrap(~mod, scales = "free_x",
+             ncol = 2)+
+  ylab("Movement effect")+ xlab("Effect size")+
   theme(text = element_text(family = "Verdana", size = 14),
-        axis.title.y = element_blank())
+        axis.title.y = element_blank(),
+        axis.text.x = element_text(size = 11))
 fig_2e
-ggsave(filename = here("fig/2e.png"), fig_2e, width = 3, height = 4)
+ggsave(filename = here("fig/2e.png"), fig_2e, width = 4, height = 4)
 
 # Figure 3 ----------------------------------------------------------------
 # Main results
@@ -296,9 +303,282 @@ str <- forforest_df %>%
   theme(text = element_text(family = "Verdana", size = 14),
         legend.position = "right",
         axis.text.y = element_blank(),
-        axis.ticks.y = element_blank())
+        axis.ticks.y = element_blank(),
+        axis.text.x = element_text(size = 11))
 
 patchwork_new <- deg + str
 patchwork_new
-ggsave(patchwork_new, filename = here("fig/3a.png"), width = 13, height = 6)
+ggsave(patchwork_new, filename = here("fig/3a.png"), width = 12, height = 6)
 # Ok yeah this version is much much more readable and way simpler and also more correct! Four sets of axes for four different models, no need to repeat them.
+
+# Same thing but separating out movement and space ------------------------
+a <- forforest_df %>%
+  filter(measure == "degree", mod == "Observed") %>%
+  ggplot(aes(x = trend, y = situ, col = situ,
+             group = interaction(var, situ)))+
+  geom_vline(aes(xintercept = 0), linetype = 2)+
+  geom_errorbar(aes(xmin = lower, xmax = upper),
+                linewidth = 1, width = 0)+
+  geom_point(size = 5, pch = 19)+
+  facet_rep_wrap(~var, nrow = 2, strip.position = "left", repeat.tick.labels = TRUE)+
+  scale_color_manual(values = situcolors, guide = "none")+
+  ylab(NULL)+ xlab(NULL)+
+  scale_y_discrete(position = "right", limits = rev)+
+  theme(text = element_text(family = "Verdana", size = 14),
+        strip.text = element_text(size = 14),
+        strip.background = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank(),
+        plot.margin = unit(c(5.5, 1.5, 5.5, 5.5), "pt"))+
+  ggtitle("Observed")+
+  theme(plot.title = element_text(size = 14, hjust = 0.5))
+a
+
+b <- forforest_df %>%
+  filter(measure == "degree", mod == "Intentional") %>%
+  ggplot(aes(x = trend, y = situ, col = situ,
+             group = interaction(var, situ)))+
+  geom_vline(aes(xintercept = 0), linetype = 2)+
+  geom_errorbar(aes(xmin = lower, xmax = upper),
+                linewidth = 1, width = 0)+
+  geom_point(size = 5, fill = "white", pch = 21)+
+  facet_rep_wrap(~var, nrow = 2, strip.position = "left",
+                 repeat.tick.labels = TRUE)+
+  scale_color_manual(values = situcolors, guide = "none")+
+  ylab(NULL)+ xlab(NULL)+
+  scale_y_discrete(position = "right", limits = rev)+
+  theme(text = element_text(family = "Verdana", size = 14),
+        strip.text = element_blank(),
+        strip.background = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        plot.margin = unit(c(5.5, 25, 5.5, 5.5), "pt"))+
+  ggtitle("Intentional")+
+  theme(plot.title = element_text(size = 14, hjust = 0.5))
+b
+
+c <- forforest_df %>%
+  filter(measure == "strength", mod == "Observed") %>%
+  ggplot(aes(x = trend, y = situ, col = situ,
+             group = interaction(var, situ)))+
+  geom_vline(aes(xintercept = 0), linetype = 2)+
+  geom_errorbar(aes(xmin = lower, xmax = upper),
+                linewidth = 1, width = 0)+
+  geom_point(size = 5, pch = 19)+
+  facet_rep_wrap(~var, nrow = 2, strip.position = "left",
+                 repeat.tick.labels = TRUE)+
+  scale_color_manual(values = situcolors, guide = "none")+
+  ylab(NULL)+ xlab(NULL)+
+  scale_y_discrete(position = "right", limits = rev)+
+  theme(text = element_text(family = "Verdana", size = 14),
+        strip.text = element_blank(),
+        strip.background = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank(),
+        plot.margin = unit(c(5.5, 1.5, 5.5, 5.5), "pt"))+
+  ggtitle("Observed")+
+  theme(plot.title = element_text(size = 14, hjust = 0.5))
+c
+
+d <- forforest_df %>%
+  filter(measure == "strength", mod == "Intentional") %>%
+  ggplot(aes(x = trend, y = situ, col = situ,
+             group = interaction(var, situ)))+
+  geom_vline(aes(xintercept = 0), linetype = 2)+
+  geom_errorbar(aes(xmin = lower, xmax = upper),
+                linewidth = 1, width = 0)+
+  geom_point(size = 5, fill = "white", pch = 21)+
+  facet_rep_wrap(~var, nrow = 2, strip.position = "left",
+                 repeat.tick.labels = TRUE)+
+  scale_color_manual(values = situcolors, guide = "none")+
+  ylab(NULL)+ xlab(NULL)+
+  scale_y_discrete(position = "right", limits = rev)+
+  theme(text = element_text(family = "Verdana", size = 14),
+        strip.text = element_blank(),
+        strip.background = element_blank(),
+        plot.margin = unit(c(5.5, 5.5, 5.5, 5.5), "pt"))+
+  ggtitle("Intentional")+
+  theme(plot.title = element_text(size = 14, hjust = 0.5))
+d
+
+patchwork_3 <- (a+b+c+d) + plot_layout(ncol = 4)
+patchwork_3
+ggsave(patchwork_3, filename = here("fig/3a_rev.png"), width = 10, height = 6)
+
+# Map with interaction and roost locations --------------------------------
+load(here("stadia_key.Rda"))
+ggmap::register_stadiamaps(key = stadia_key)
+rm(stadia_key)
+# Get roost data (just one season, say summer 2023)
+tar_load(season_names)
+whch <- which(season_names == "2023_summer")
+tar_load(roosts)
+r <- roosts[[whch]] %>% filter(lubridate::month(roost_date) == 7)
+
+# Get feeding/flight interaction data (just one season, say summer 2023)
+## and then let's limit it to the month of July so that it's a little less chaotic to plot.
+tar_load(flightEdges)
+fle <- flightEdges[[whch]] %>% filter(lubridate::month(minTimestamp) == 7)
+tar_load(feedingEdges)
+fee <- feedingEdges[[whch]] %>% filter(lubridate::month(minTimestamp) == 7)
+
+bbox <- c(34.516, 30.408, 35.429, 31.582)
+# going to manually layer the points so the most concentrated ones (feeding events) are on top and the most dispersed ones (flight interactions) are on the bottom so it's easier to see.
+# mp <- ggmap(get_stadiamap(bbox = bbox, maptype = "stamen_terrain_background", color = "bw"))
+# save(mp, file = here("mp.Rda"))
+load(here("mp.Rda"))
+dat <- st_drop_geometry(r) %>% select("long" = location_long, "lat" = location_lat) %>%
+  mutate(type = "Roost\nlocations\n") %>%
+  bind_rows(st_drop_geometry(fle) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
+              mutate(type = "Co-flight\ninteractions\n")) %>%
+  bind_rows(st_drop_geometry(fee) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
+              mutate(type = "Co-feeding\ninteractions\n"))
+mymap <- mp+
+  geom_point(data = dat, aes(x = long, y = lat, col = type, shape = type), alpha = 0.4)+
+  scale_color_manual(values = situcolors)+
+  scale_shape_manual(values = c(4, 1, 2))+
+  guides(shape = guide_legend(override.aes = list(alpha = 1, size = 3)),
+         color = guide_legend(override.aes = list(alpha = 1, size = 3)))+
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.title = element_blank(),
+        text = element_text(family = "Verdana", size = 14),
+        legend.position = "left")
+ggsave(mymap, filename = here("fig/mymap.png"), width = 7, height = 6)
+
+
+
+# Supplement: Scatterplots with trendlines for all models -----------------
+## Degree
+### Observed--movement
+deg_obs_movement <- as.data.frame(ggeffect(deg_mod, terms = c("movement", "situ"))) %>% mutate(mod = "Observed")
+### Intentional--movement
+deg_int_movement <- as.data.frame(ggeffect(deg_z_mod, terms = c("movement", "situ"))) %>% mutate(mod = "Intentional")
+
+#### See which trends are significant
+deg_eff_movement <- as.data.frame(emmeans::emtrends(deg_mod, specs = "situ", var = "movement")) %>% mutate(mod = "Observed") %>% bind_rows(as.data.frame(emmeans::emtrends(deg_z_mod, specs = "situ", var = "movement")) %>% mutate(mod = "Intentional")) %>% mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  mutate(sig = case_when(lower.CL < 0 & upper.CL < 0 ~ T,
+                         lower.CL > 0 & upper.CL > 0 ~ T,
+                         .default = F))
+deg_movement <- bind_rows(deg_obs_movement, deg_int_movement) %>%
+  mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  left_join(deg_eff_movement %>% select("group" = situ, mod, sig))
+
+fig_deg_movement <- deg_movement %>%
+  ggplot(aes(x = x, y = predicted, group = group))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
+              alpha = 0.1)+
+  geom_line(linewidth = 1.5, aes(col = group, linetype = sig))+
+  scale_linetype_manual(values = c(2, 1), guide = "none", drop = FALSE)+
+  facet_wrap(~mod, scale = "free_y")+
+  scale_color_manual(name = "Situation",
+                     values = situcolors)+
+  scale_fill_manual(name = "Situation", 
+                    values = situcolors)+
+  xlab("Movement")+
+  ylab("Model prediction (degree)")+
+  theme(text = element_text(family = "Verdana", size = 14), 
+        legend.position = "right")
+fig_deg_movement
+
+### Observed--space
+deg_obs_space <- as.data.frame(ggeffect(deg_mod, terms = c("space_use", "situ"))) %>% mutate(mod = "Observed")
+### Intentional--space
+deg_int_space <- as.data.frame(ggeffect(deg_z_mod, terms = c("space_use", "situ"))) %>% mutate(mod = "Intentional")
+
+deg_eff_space <- as.data.frame(emmeans::emtrends(deg_mod, specs = "situ", var = "space_use")) %>% mutate(mod = "Observed") %>% bind_rows(as.data.frame(emmeans::emtrends(deg_z_mod, specs = "situ", var = "space_use")) %>% mutate(mod = "Intentional")) %>% mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  mutate(sig = case_when(lower.CL < 0 & upper.CL < 0 ~ T,
+                         lower.CL > 0 & upper.CL > 0 ~ T,
+                         .default = F))
+
+deg_space <- bind_rows(deg_obs_space, deg_int_space) %>%
+  mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  left_join(deg_eff_space %>% select("group" = situ, mod, sig))
+
+fig_deg_space <- deg_space %>%
+  ggplot(aes(x = x, y = predicted, group = group))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
+              alpha = 0.1)+
+  geom_line(linewidth = 1.5, aes(col = group, linetype = sig))+
+  scale_linetype_manual(values = c(2, 1), guide = "none", drop = FALSE)+
+  facet_wrap(~mod, scale = "free_y")+
+  scale_color_manual(name = "Situation",
+                     values = situcolors)+
+  scale_fill_manual(name = "Situation", 
+                    values = situcolors)+
+  xlab("Space use")+
+  ylab("Model prediction (degree)")+
+  theme(text = element_text(family = "Verdana", size = 14), 
+        legend.position = "right")
+fig_deg_space
+  
+## Strength
+### Observed--movement
+str_obs_movement <- as.data.frame(ggeffect(str_mod, terms = c("movement", "situ"))) %>% mutate(mod = "Observed")
+### Intentional--movement
+str_int_movement <- as.data.frame(ggeffect(str_z_mod, terms = c("movement", "situ"))) %>% mutate(mod = "Intentional")
+
+#### See which trends are significant
+str_eff_movement <- as.data.frame(emmeans::emtrends(str_mod, specs = "situ", var = "movement")) %>% mutate(mod = "Observed") %>% bind_rows(as.data.frame(emmeans::emtrends(str_z_mod, specs = "situ", var = "movement")) %>% mutate(mod = "Intentional")) %>% mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  mutate(sig = case_when(lower.CL < 0 & upper.CL < 0 ~ T,
+                         lower.CL > 0 & upper.CL > 0 ~ T,
+                         .default = F))
+str_movement <- bind_rows(str_obs_movement, str_int_movement) %>%
+  mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  left_join(str_eff_movement %>% select("group" = situ, mod, sig))
+
+fig_str_movement <- str_movement %>%
+  ggplot(aes(x = x, y = predicted, group = group))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
+              alpha = 0.1)+
+  geom_line(linewidth = 1.5, aes(col = group, linetype = sig))+
+  scale_linetype_manual(values = c(2, 1), guide = "none", drop = FALSE)+
+  facet_wrap(~mod, scale = "free_y")+
+  scale_color_manual(name = "Situation",
+                     values = situcolors)+
+  scale_fill_manual(name = "Situation", 
+                    values = situcolors)+
+  xlab("Movement")+
+  ylab("Model prediction (strength)")+
+  theme(text = element_text(family = "Verdana", size = 14), 
+        legend.position = "right")
+fig_str_movement
+
+### Observed--space
+str_obs_space <- as.data.frame(ggeffect(str_mod, terms = c("space_use", "situ"))) %>% mutate(mod = "Observed")
+### Intentional--space
+str_int_space <- as.data.frame(ggeffect(str_z_mod, terms = c("space_use", "situ"))) %>% mutate(mod = "Intentional")
+
+str_eff_space <- as.data.frame(emmeans::emtrends(str_mod, specs = "situ", var = "space_use")) %>% mutate(mod = "Observed") %>% bind_rows(as.data.frame(emmeans::emtrends(str_z_mod, specs = "situ", var = "space_use")) %>% mutate(mod = "Intentional")) %>% mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  mutate(sig = case_when(lower.CL < 0 & upper.CL < 0 ~ T,
+                         lower.CL > 0 & upper.CL > 0 ~ T,
+                         .default = F))
+
+str_space <- bind_rows(str_obs_space, str_int_space) %>%
+  mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  left_join(str_eff_space %>% select("group" = situ, mod, sig))
+
+fig_str_space <- str_space %>%
+  ggplot(aes(x = x, y = predicted, group = group))+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
+              alpha = 0.1)+
+  geom_line(linewidth = 1.5, aes(col = group, linetype = sig))+
+  scale_linetype_manual(values = c(2, 1), guide = "none", drop = FALSE)+
+  facet_wrap(~mod, scale = "free_y")+
+  scale_color_manual(name = "Situation",
+                     values = situcolors)+
+  scale_fill_manual(name = "Situation", 
+                    values = situcolors)+
+  xlab("Space use")+
+  ylab("Model prediction (strength)")+
+  theme(text = element_text(family = "Verdana", size = 14), 
+        legend.position = "right")
+fig_str_space
+
+ggsave(fig_deg_movement, filename = here("fig/figs_for_Noa/fig_deg_movement.png"), width = 9, height = 6)
+ggsave(fig_deg_space, filename = here("fig/figs_for_Noa/fig_deg_space.png"), width = 9, height = 6)
+ggsave(fig_str_movement, filename = here("fig/figs_for_Noa/fig_str_movement.png"), width = 9, height = 6)
+ggsave(fig_str_space, filename = here("fig/figs_for_Noa/fig_str_space.png"), width = 9, height = 6)
+
