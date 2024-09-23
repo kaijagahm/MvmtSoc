@@ -155,7 +155,7 @@ fig_2e <- eff %>%
                 position = position_dodge(width = 0.2))+
   geom_point(size = 3, 
              position = position_dodge(width = 0.2),
-             fill = "white")+
+             fill = "white", aes(shape = mod))+
   scale_color_manual(values = situcolors, guide = "none")+
   scale_y_discrete(limits = rev, position = "right")+
   scale_shape_manual(name = "", values = c(16, 21))+
@@ -164,7 +164,8 @@ fig_2e <- eff %>%
   ylab("Movement effect")+ xlab("Effect size")+
   theme(text = element_text(family = "Verdana", size = 14),
         axis.title.y = element_blank(),
-        axis.text.x = element_text(size = 11))
+        axis.text.x = element_text(size = 11),
+        legend.position = "none")
 fig_2e
 ggsave(filename = here("fig/2e.png"), fig_2e, width = 4, height = 4)
 
@@ -581,4 +582,8 @@ ggsave(fig_deg_movement, filename = here("fig/figs_for_Noa/fig_deg_movement.png"
 ggsave(fig_deg_space, filename = here("fig/figs_for_Noa/fig_deg_space.png"), width = 9, height = 6)
 ggsave(fig_str_movement, filename = here("fig/figs_for_Noa/fig_str_movement.png"), width = 9, height = 6)
 ggsave(fig_str_space, filename = here("fig/figs_for_Noa/fig_str_space.png"), width = 9, height = 6)
+
+
+# Some network graphs -----------------------------------------------------
+
 
