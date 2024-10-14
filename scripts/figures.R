@@ -45,7 +45,7 @@ fig_2a <- linked %>%
         text = element_text(family = "Verdana", size = 14),
         axis.title.y = element_blank())+
   xlab("Observed degree\n(normalized)")+
-  ylab(" ")
+  ylab("Density")
 fig_2a
 ggsave(filename = here("fig/2a.png"), plot = fig_2a, width = 2.75, height = 2.75)
 
@@ -60,7 +60,7 @@ fig_2b <- linked %>%
         text = element_text(family = "Verdana", size = 14),
         axis.title.y = element_blank())+
   xlab("Intentional degree\n(z-score)")+
-  ylab(" ")
+  ylab("Density")
 fig_2b
 ggsave(filename = here("fig/2b.png"), plot = fig_2b, width = 2.75, height = 2.75)
 
@@ -514,7 +514,7 @@ fig_deg_space <- deg_space %>%
   theme(text = element_text(family = "Verdana", size = 14), 
         legend.position = "right")
 fig_deg_space
-  
+
 ## Strength
 ### Observed--movement
 str_obs_movement <- as.data.frame(ggeffect(str_mod, terms = c("movement", "situ"))) %>% mutate(mod = "Observed")
@@ -584,6 +584,78 @@ ggsave(fig_str_movement, filename = here("fig/figs_for_Noa/fig_str_movement.png"
 ggsave(fig_str_space, filename = here("fig/figs_for_Noa/fig_str_space.png"), width = 9, height = 6)
 
 
-# Some network graphs -----------------------------------------------------
+# Supplementary material -----------------------------------------------------
+response <- c("degree", "strength", "strength")
+pred <- c("space_use", "movement", "space_use")
 
-
+walk2(response, pred, ~{
+  if(.x == "degree"){
+    mod <- deg_mod
+    z_mod <- deg_z_mod
+  }else if(.x == "strength"){
+    mod <- str_mod
+    z_mod <- str_z_mod
+  }
+  a <- as.data.frame(ggeffect(mod, terms = c(.y, "situ"))) %>%
+    mutate(mod = "Observed")
+  b <- as.data.frame(ggeffect(z_mod, terms = c(.y, "situ"))) %>%
+    mutate(mod = "Intentional")
+  
+  c <- as.data.frame(emmeans::emtrends(mod, specs = "situ", var = .y)) %>%
+    mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                            situ == "Fl" ~ "Flight",
+                            situ == "Ro" ~ "Roosting")) %>%
+    mutate(mod = "Observed")
+  d <- as.data.frame(emmeans::emtrends(z_mod, specs = "situ", var = .y)) %>% 
+    mutate(situ = case_when(situ == "Fe" ~ "Feeding",
+                            situ == "Fl" ~ "Flight",
+                            situ == "Ro" ~ "Roosting")) %>%
+    mutate(mod = "Intentional")
+  eff <- bind_rows(c, d) %>% mutate(mod = factor(mod, levels = c("Observed", "Intentional")))
+  
+  annot <- eff %>%
+    mutate(sig = case_when(lower.CL < 0 & upper.CL < 0 ~ T,
+                           lower.CL > 0 & upper.CL > 0 ~ T,
+                           .default = F)) %>%
+    select(situ, mod, sig)
+  
+  # combine the data and scale it
+  dat <- bind_rows(a, b)
+  mn_mod <- (a %>% select(predicted, conf.low, conf.high) %>% 
+               rowSums() %>% sum())/(3*nrow(a))
+  mn_mod_z <- (b %>% select(predicted, conf.low, conf.high) %>% 
+                 rowSums() %>% sum())/(3*nrow(b))
+  
+  dat <- dat %>%
+    mutate(mn = ifelse(mod == "Observed", mn_mod, mn_mod_z)) %>%
+    mutate(predicted_scl = predicted-mn,
+           conf.low_scl = conf.low-mn,
+           conf.high_scl = conf.high-mn) %>%
+    mutate(group = case_when(group == "Fe" ~ "Feeding",
+                             group == "Fl" ~ "Flight",
+                             group == "Ro" ~ "Roosting")) %>%
+    left_join(annot, by = c("group" = "situ",
+                            "mod")) %>%
+    mutate(mod = factor(mod, levels = c("Observed", "Intentional")))
+  
+  plt <- dat %>%
+    ggplot(aes(x = x, y = predicted, group = group))+
+    geom_ribbon(aes(ymin = conf.low, ymax = conf.high, 
+                    fill = group, col = NULL), alpha = 0.1)+
+    geom_line(linewidth = 1.5, aes(col = group, linetype = sig))+
+    scale_linetype_manual(values = c(2, 1), guide = "none")+
+    facet_wrap(~mod, scale = "free_y")+
+    scale_color_manual(name = "Situation",
+                       values = situcolors)+
+    scale_fill_manual(name = "Situation", 
+                      values = situcolors)+
+    xlab(str_replace(str_to_title(.y), "_", " "))+
+    ylab(paste0("Model prediction (", response[i], ")"))+
+    theme(text = element_text(family = "Verdana", size = 14), 
+          legend.position = "right",
+          plot.background = element_rect(fill = "transparent", color = NA),
+          legend.background = element_rect(fill = "transparent", color = NA),
+          panel.background = element_rect(fill = "transparent", color = NA))
+  file <- paste0("fig/SuppMat_", .y, "_", .x, ".png")
+  ggsave(plot = plt, filename = file, width = 6, height = 4)
+})
