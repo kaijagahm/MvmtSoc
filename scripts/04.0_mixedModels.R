@@ -190,140 +190,56 @@ summary(str_z_6) # remaining interaction is sig.
 
 str_z_mod <- str_z_6
 
-# Degree models to plot -----------------------------------------------------
-### Without randomizations:
-summary(deg_mod) # situ*space, movement*season, situ*movement
-### With randomizations:
-summary(deg_z_mod) # situ*space, situ*movement
 
-# Strength models to plot ---------------------------------------------------
-### Without randomizations:
-summary(str_mod) # none
-### With randomizations:
-summary(str_z_mod) # situ*space
+# Models: space use only --------------------------------------------------
 
-# Define plotting functions -----------------------------------------------
-effplot <- function(model, terms, dataset, pointX, pointY, colvar, legendTitle, values, ylab, xlab){
-  dat <- as.data.frame(ggeffect(model, terms = terms))
-  
-  if(length(terms) > 1){
-    plt <- ggplot(dat, aes(x, predicted)) +
-      geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, linewidth = 0.6, show.legend = F)+
-      geom_point(data = dataset %>% mutate("group" = .data[[colvar]]), 
-                 aes(.data[[pointX]], .data[[pointY]], col = group), alpha = 0.5)+
-      geom_line(aes(col = group), linewidth = 1) +
-      facet_wrap(~group, scales = "free_y")+
-      scale_color_manual(legendTitle, values = values) + 
-      scale_fill_manual(legendTitle, values = values) + 
-      ylab(ylab) + xlab(xlab)
-  }else{
-    plt <- ggplot(dat, aes(x, predicted)) +
-      geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.2, linewidth = 0.6, show.legend = F)+
-      geom_point(data = dataset %>% mutate("group" = .data[[colvar]]), 
-                 aes(.data[[pointX]], .data[[pointY]], col = group), alpha = 0.5)+
-      geom_line(linewidth = 1) +
-      facet_wrap(~group, scales = "free_y")+
-      scale_color_manual(legendTitle, values = values) + 
-      ylab(ylab) + xlab(xlab)
-  }
-  return(plt)
-}
+## Degree ------------------------------------------------------------------
 
-emtplot <- function(model, specs, var, values, ylab, xlab){
-  dat <- as.data.frame(emmeans::emtrends(model, specs, var))
-  lower <- ifelse("lower.CL" %in% names(dat), "lower.CL", "asymp.LCL")
-  upper <- ifelse("upper.CL" %in% names(dat), "upper.CL", "asymp.UCL")
-  plt <- dat %>% ggplot(aes(.data[[specs]], 
-                            .data[[paste0(var, ".", "trend")]], 
-                            col = .data[[specs]])) + 
-    geom_point(size = 6) +
-    geom_errorbar(aes(x = .data[[specs]], 
-                      ymin = .data[[lower]], 
-                      ymax = .data[[upper]]), 
-                  width = 0, linewidth = 2)+geom_hline(aes(yintercept = 0), 
-                                                       linetype = 2)+
-    scale_color_manual(values = values)+ 
-    theme(legend.position = "none") + ylab(ylab)+ xlab(xlab) + coord_flip()
-  return(plt)
-}
+### Observed ----------------------------------------------------------------
+sp_deg_obs_1 <- glmmTMB(degree ~ space_use + situ + (1|seasonUnique) + (1|Nili_id), data = linked)
+check_predictions(sp_deg_obs_1)
+check_model(sp_deg_obs_1) # fails linearity and normality but the others look decent.
+summary(sp_deg_obs_1) # actually no effect of space use here at all.
 
+sp_deg_obs_2 <- glmmTMB(degree ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_deg_obs_2) # still no main effect of space use, but it does interact with the seasons, so we should keep that.
 
-# Degree plots ------------------------------------------------------------
-### Without randomizations:
-#### situ*space
-deg_situ_space_P <- effplot(model = deg_mod, terms = c("space_use", "situ"), 
-                            dataset = linked, pointX = "space_use", 
-                            pointY = "normDegree", col = "situ", 
-                            legendTitle = "Situation", values = situcolors, 
-                            ylab = "normDegree", xlab = "Space use (log)")
+sp_deg_obs_3 <- glmmTMB(degree ~ space_use*situ + season + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_deg_obs_3) # season doesn't add anything
 
-deg_situ_space_emt_P <- emtplot(model = deg_mod, specs = "situ", 
-                                var = "space_use", values = situcolors, 
-                                ylab = "Space use effect (normDegree)", 
-                                xlab = "Situation")
+sp_deg_obs_4 <- glmmTMB(degree ~ space_use*situ + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_deg_obs_4) # there's a significant age effect. Does it make sense to add age here, if we're not going to talk about it?
 
-#### movement*season
-deg_season_movement_P <- effplot(model = deg_mod, terms = c("movement", "season"), 
-                                 dataset = linked, pointX = "movement", 
-                                 pointY = "normDegree", col = "season", 
-                                 legendTitle = "Season", values = seasoncolors, 
-                                 ylab = "normDegree", xlab = "Movement")
+sp_deg_obs_mod <- sp_deg_obs_2 # I don't think we need to get more complex than this.
+# And actually, come to think of it, maybe all the model selection is not necessary. We should just do the same thing for all of them. space_use*situ, so they're easily comparable.
 
-deg_season_movement_emt_P <- emtplot(model = deg_mod, specs = "season", 
-                                     var = "movement", values = seasoncolors, 
-                                     ylab = "Movement effect (normDegree)", 
-                                     xlab = "Season")
+### Intentional ----------------------------------------------------------------
+sp_deg_int_1 <- glmmTMB(z_deg ~ space_use + situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_deg_int_1)
 
-#### movement*situ
-deg_situ_movement_P <- effplot(model = deg_mod, terms = c("movement", "situ"), 
-                               dataset = linked, pointX = "movement", 
-                               pointY = "normDegree", col = "situ", 
-                               legendTitle = "Situation", values = situcolors, 
-                               ylab = "normDegree", xlab = "Movement")
+sp_deg_int_2 <- glmmTMB(z_deg ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_deg_int_2)
 
-deg_situ_movement_emt_P <- emtplot(model = deg_mod, specs = "situ", 
-                                   var = "movement", values = situcolors, 
-                                   ylab = "Movement effect (normDegree)", 
-                                   xlab = "Situation")
+sp_deg_int_mod <- sp_deg_int_2
 
-### With randomizations:
-#### situ*space
-deg_z_situ_space_P <- effplot(model = deg_z_mod, terms = c("space_use", "situ"), 
-                            dataset = linked, pointX = "space_use", 
-                            pointY = "z_deg", col = "situ", 
-                            legendTitle = "Situation", values = situcolors, 
-                            ylab = "Degree (z-score)", xlab = "Space use (log)")
+## Strength ------------------------------------------------------------------
 
-deg_z_situ_space_emt_P <- emtplot(model = deg_z_mod, specs = "situ", 
-                                var = "space_use", values = situcolors, 
-                                ylab = "Space use effect (Degree z-scores)", 
-                                xlab = "Situation")
+### Observed ----------------------------------------------------------------
+sp_str_obs_1 <- glmmTMB(strength ~ space_use + situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_str_obs_1)
 
-#### situ*movement
-deg_z_situ_movement_P <- effplot(model = deg_z_mod, terms = c("movement", "situ"), 
-                              dataset = linked, pointX = "movement", 
-                              pointY = "z_deg", col = "situ", 
-                              legendTitle = "Situation", values = situcolors, 
-                              ylab = "Degree (z-score)", xlab = "Movement")
+sp_str_obs_2 <- glmmTMB(strength ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_str_obs_2)
 
-deg_z_situ_movement_emt_P <- emtplot(model = deg_z_mod, specs = "situ", 
-                                  var = "movement", values = situcolors, 
-                                  ylab = "Movement effect (Degree z-scores)", 
-                                  xlab = "Situation")
+sp_str_obs_mod <- sp_str_obs_2
 
-# Strength plots ------------------------------------------------------------
-### Without randomizations:
-#### none
+### Intentional ----------------------------------------------------------------
+sp_str_int_1 <- glmmTMB(z_str ~ space_use + situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_str_int_1)
+check_model(sp_str_int_1)
 
-### With randomizations:
-#### situ*space
-str_z_situ_space_P <- effplot(model = str_z_mod, terms = c("space_use", "situ"), 
-                            dataset = linked, pointX = "space_use", 
-                            pointY = "z_str", col = "situ", 
-                            legendTitle = "Situation", values = situcolors, 
-                            ylab = "Strength (z-score)", xlab = "Space use (log)")
+sp_str_int_2 <- glmmTMB(z_str ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+summary(sp_str_int_2)
+check_model(sp_str_int_2) # XXX this one doesn't converge and I don't understand why.
 
-str_z_situ_space_emt_P <- emtplot(model = str_z_mod, specs = "situ", 
-                                var = "space_use", values = situcolors, 
-                                ylab = "Space use effect (strength z-score)", 
-                                xlab = "Situation")
+sp_str_int_mod <- sp_str_int_2
