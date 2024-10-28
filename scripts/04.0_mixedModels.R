@@ -178,7 +178,7 @@ check_model(sp_deg_obs_1) # fails linearity and normality but the others look de
 summary(sp_deg_obs_1) # actually no effect of space use here at all.
 
 sp_deg_obs_2 <- glmmTMB(normDegree ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-summary(sp_deg_obs_2) # still no main effect of space use, but it does interact with the seasons, so we should keep that.
+summary(sp_deg_obs_2) # still no main effect of space use, but it does interact with the situations, so we should keep that.
 
 sp_deg_obs_3 <- glmmTMB(normDegree ~ space_use*situ + season + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
 summary(sp_deg_obs_3) # season doesn't add anything
