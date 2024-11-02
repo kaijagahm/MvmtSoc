@@ -283,38 +283,32 @@ patchwork
 ggsave(patchwork, filename = here("fig/3a.png"), width = 7, height = 3)
 
 # Scatterplots ------------------------------------------------------------
-test <- preds %>%
-  filter(response == "degree")
-
-points <- linked %>%
-  select(z_deg, z_str, "group" = situ, normDegree, normStrength, "x" = space_use) %>%
-  pivot_longer(cols = c("z_deg", "z_str", "normDegree", "normStrength"), names_to = "mod", values_to = "predicted") %>%
-  mutate(response = case_when(str_detect(mod, "eg") ~ "degree",
-                              str_detect(mod, "tr") ~ "strength"),
-         mod = case_when(str_detect(mod, "z_") ~ "Intentional",
-                         .default = "Observed"),
-         mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
-  mutate(group = case_when(group == "Fe" ~ "Feeding",
-                           group == "Fl" ~ "Flight",
-                           group == "Ro" ~ "Roosting"))
-  
-pts <- points %>% 
-  ungroup() %>%
-  group_by(mod, response) %>%
-  group_split()
+# points <- linked %>%
+#   select(z_deg, z_str, "group" = situ, normDegree, normStrength, "x" = space_use) %>%
+#   pivot_longer(cols = c("z_deg", "z_str", "normDegree", "normStrength"), names_to = "mod", values_to = "predicted") %>%
+#   mutate(response = case_when(str_detect(mod, "eg") ~ "degree",
+#                               str_detect(mod, "tr") ~ "strength"),
+#          mod = case_when(str_detect(mod, "z_") ~ "Intentional",
+#                          .default = "Observed"),
+#          mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+#   mutate(group = case_when(group == "Fe" ~ "Feeding",
+#                            group == "Fl" ~ "Flight",
+#                            group == "Ro" ~ "Roosting"))
+# 
+# pts <- points %>% 
+#   ungroup() %>%
+#   group_by(mod, response) %>%
+#   group_split()
 
 preds_list <- preds %>%
   group_by(mod, response) %>%
   group_split() %>%
   map(., ~.x %>% mutate(sig = factor(sig, levels = c(F, T))))
 
-map_dfr(pts, ~.x %>% select(response, mod) %>% distinct())
-map_dfr(preds_list, ~.x %>% select(response, mod) %>% distinct()) # same; good
-
-labs <- c("Degree (normalized)", "Strength (normalized)", "Degree (deviation from expected)", "Strength (deviation from expected)")
+labs <- c("Degree", "Strength", "Degree z-score", "Strength z-score")
 titles <- c("Observed", "Observed", "Intentional", "Intentional")
 
-plts <- pmap(list(a = preds_list, b = pts, c = labs, d = titles, e = pts), .f = function(a, b, c, d, e){
+plts <- pmap(list(a = preds_list, b = labs), .f = function(a, b){
   p <- a %>%
     ggplot(aes(x = x, y = predicted, col = group))+
     geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
@@ -323,15 +317,107 @@ plts <- pmap(list(a = preds_list, b = pts, c = labs, d = titles, e = pts), .f = 
     scale_linetype_manual(drop = FALSE, values = c(2, 1))+
     scale_color_manual(name = "Situation", values = situcolors)+
     scale_fill_manual(name = "Situation", values = situcolors)+
-    labs(x = "Space use", y = c, title = d)+
-    geom_point(data = e, pch = 1, alpha = 0.5)+
-    theme(legend.position = "none")
+    labs(x = "Space use", y = b)+
+    #geom_point(data = e, pch = 1, alpha = 0.5)+
+    theme_classic()+
+    theme(legend.position = "none",
+          text = element_text(size = 14))
   return(p)
 })
-a <- plts[[1]]
-b <- plts[[2]]
-c <- plts[[3]]
-d <- plts[[4]]
+a <- plts[[1]] # obs deg
+b <- plts[[2]] # obs str
+c <- plts[[3]] # int deg
+d <- plts[[4]] # int str
 
 
-(a + b)/(c + d)
+scatterplots <- (a + c)/(b + labs(title = NULL) + d + labs(title = NULL))+ plot_annotation(tag_levels = list(c("e", "f", "g", "h")))
+scatterplots
+
+ggsave(scatterplots, width =8, height = 6, file = here("fig/scatterplots.png"))
+
+
+# Social measures plots ---------------------------------------------------
+degree_density <- linked %>%
+  mutate(szn = str_replace(seasonUnique, "_", " "),
+         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
+  ggplot(aes(x = degree, group = szn, color = szn))+
+  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
+  facet_wrap(~str_to_title(type), scales = "free_x")+
+  theme_classic()+
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")+
+  labs(y = "Density", color = "Season", title = "Degree")
+degree_density  
+
+strength_density <- linked %>%
+  mutate(szn = str_replace(seasonUnique, "_", " "),
+         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
+  ggplot(aes(x = strength, group = szn, color = szn))+
+  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
+  facet_wrap(~str_to_title(type), scales = "free")+
+  theme_classic()+
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")+
+  labs(y = "Density", color = "Season", title = "Strength")
+strength_density  
+
+densities <- degree_density/strength_density  + plot_layout(guides = "collect")
+densities
+ggsave(densities, file = here("fig/densities.png"), width = 6, height = 5)
+
+degree_density_norm <- linked %>%
+  mutate(szn = str_replace(seasonUnique, "_", " "),
+         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
+  ggplot(aes(x = normDegree, group = szn, color = szn))+
+  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
+  facet_wrap(~str_to_title(type), scales = "free_x")+
+  theme_classic()+
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")+
+  labs(y = "Density", color = "Season", title = "Degree (normalized)")
+degree_density_norm
+
+strength_density_norm <- linked %>%
+  mutate(szn = str_replace(seasonUnique, "_", " "),
+         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
+  ggplot(aes(x = normStrength, group = szn, color = szn))+
+  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
+  facet_wrap(~str_to_title(type), scales = "free")+
+  theme_classic()+
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")+
+  labs(y = "Density", color = "Season", title = "Strength (normalized)")
+strength_density_norm  
+
+densities_norm <- degree_density_norm/strength_density_norm  + plot_layout(guides = "collect")
+densities_norm
+ggsave(densities_norm, file = here("fig/densities_norm.png"), width = 6, height = 5)
+
+degree_density_z <- linked %>%
+  mutate(szn = str_replace(seasonUnique, "_", " "),
+         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
+  ggplot(aes(x = z_deg, group = szn, color = szn))+
+  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
+  facet_wrap(~str_to_title(type), scales = "free_y")+
+  theme_classic()+
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")+
+  labs(y = "Density", color = "Season", title = "Degree z-score")
+degree_density_z
+
+strength_density_z <- linked %>%
+  mutate(szn = str_replace(seasonUnique, "_", " "),
+         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
+  ggplot(aes(x = z_str, group = szn, color = szn))+
+  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
+  facet_wrap(~str_to_title(type), scales = "free_y")+
+  theme_classic()+
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")+
+  labs(y = "Density", color = "Season", title = "Strength z-score")
+strength_density_z 
+
+densities_all <- (((degree_density / degree_density_norm / degree_density_z) + plot_layout(axis_titles = "collect")) | ((strength_density / strength_density_norm / strength_density_z)+ plot_layout(axis_titles = "collect"))) + plot_layout(guides = "collect") & theme(legend.position = 'bottom')
+
+densities_all
+ggsave(densities_all, file = here("fig/densities_all.png"), width = 10, height = 8)

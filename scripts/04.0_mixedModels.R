@@ -172,18 +172,18 @@ linked <- linked %>%
 ## Degree ------------------------------------------------------------------
 
 ### Observed ----------------------------------------------------------------
-sp_deg_obs_1 <- glmmTMB(normDegree ~ space_use + situ + (1|seasonUnique) + (1|Nili_id), data = linked)
+sp_deg_obs_1 <- glmmTMB(degree ~ space_use + situ + (1|seasonUnique) + (1|Nili_id), data = linked)
 check_predictions(sp_deg_obs_1)
 check_model(sp_deg_obs_1) # fails linearity and normality but the others look decent.
 summary(sp_deg_obs_1) # actually no effect of space use here at all.
 
-sp_deg_obs_2 <- glmmTMB(normDegree ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+sp_deg_obs_2 <- glmmTMB(degree ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
 summary(sp_deg_obs_2) # still no main effect of space use, but it does interact with the situations, so we should keep that.
 
-sp_deg_obs_3 <- glmmTMB(normDegree ~ space_use*situ + season + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+sp_deg_obs_3 <- glmmTMB(degree ~ space_use*situ + season + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
 summary(sp_deg_obs_3) # season doesn't add anything
 
-sp_deg_obs_4 <- glmmTMB(normDegree ~ space_use*situ + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+sp_deg_obs_4 <- glmmTMB(degree ~ space_use*situ + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
 summary(sp_deg_obs_4) # there's a significant age effect. Does it make sense to add age here, if we're not going to talk about it?
 
 sp_deg_obs_mod <- sp_deg_obs_2 # I don't think we need to get more complex than this.
@@ -201,10 +201,10 @@ sp_deg_int_mod <- sp_deg_int_2
 ## Strength ------------------------------------------------------------------
 
 ### Observed ----------------------------------------------------------------
-sp_str_obs_1 <- glmmTMB(normStrength ~ space_use + situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+sp_str_obs_1 <- glmmTMB(strength ~ space_use + situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
 summary(sp_str_obs_1)
 
-sp_str_obs_2 <- glmmTMB(normStrength ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+sp_str_obs_2 <- glmmTMB(strength ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
 summary(sp_str_obs_2)
 
 sp_str_obs_mod <- sp_str_obs_2
