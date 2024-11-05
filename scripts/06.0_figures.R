@@ -66,8 +66,53 @@ preds <- preds %>%
               select(response, mod, sig, situ) %>%
               distinct(), by = c("group" = "situ", "response", "mod"))
 
-
 # Figure 1 ----------------------------------------------------------------
+# Show two individuals, both of which have approximately the same observed degree value, but which have very different distributions of expected degree values
+targets::tar_load(allMetrics)
+obs <- allMetrics %>% select(season, situ, Nili_id, degree, strength) %>%
+  distinct()
+exp <- allMetrics %>% select(season, situ, Nili_id, "degree" = wrapped_degree, "strength" = wrapped_strength)
+set.seed(6)
+szn <- sample(unique(allMetrics$season), 1)
+#indivs <- sample(unique(allMetrics$Nili_id), 3)
+indivs <- c("dingle", "kedros") # chose two with same degree but different expected distributions
+
+vals <- linked %>% ungroup() %>% filter(seasonUnique == szn, situ == "Fl", Nili_id %in% indivs) %>%
+  select(Nili_id, z_deg)
+
+dat <- exp %>%
+  filter(Nili_id %in% indivs, season == szn, situ == "flight") %>%
+  mutate(Nili_id = fct_recode(Nili_id, "A" = "dingle",
+                              "B" = "kedros"))
+mns <- dat %>%
+  group_by(Nili_id) %>%
+  summarize(mn = mean(degree))
+
+set.seed(6)
+fig1 <- dat %>%
+  ggplot(aes(x = degree, col = Nili_id))+
+  geom_density(linewidth = 0.75, aes(fill = Nili_id), alpha = 0.1)+
+  geom_vline(data = obs %>% filter(Nili_id %in% indivs, 
+                                   season == szn, situ == "flight") %>%
+               mutate(Nili_id = fct_recode(Nili_id, "A" = "dingle",
+                                           "B" = "kedros")), 
+             aes(xintercept = jitter(degree), col = Nili_id), linetype = 2,
+             linewidth = 1)+
+  labs(y = "Density",
+       x = "Degree (co-flight)",
+       col = "Individual",
+       fill = "Individual")+
+  scale_color_manual(values = c("orange", "purple"))+
+  scale_fill_manual(values = c("orange", "purple"))+
+  annotate("errorbar", y = 0.1, xmin = mns$mn[1], xmax = 39, col = "orange", width = 0.01)+
+  annotate("errorbar", y = 0.05, xmin = mns$mn[2], xmax = 39, col = "purple", width = 0.01)+
+  annotate("text", y = 0.11, x = (39-mns$mn[1])/2, col = "orange", 
+           label = paste0("z-score = ", round(vals$z_deg[1], 2)))+
+  annotate("text", y = 0.06, x = (39-mns$mn[2])/2, col = "purple",
+           label = paste0("z-score = ", round(vals$z_deg[2], 2)))+
+  annotate("text", y = 0.013, x = 34.5, col = "black", label = "observed")+
+  annotate("text", y = 0.013, x = 15, col = "black", label = "incidental")
+ggsave(fig1, file = here("fig/1.png"), width = 5, height = 3.5)
 
 # Figure 2 ----------------------------------------------------------------
 ## A
