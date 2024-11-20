@@ -1,4 +1,3 @@
-# Making the three figures we designed with Orr
 library(tidyverse)
 library(here)
 library(targets)
@@ -27,6 +26,7 @@ tar_load(situcolors)
 tar_load(seasoncolors)
 tar_load(movement_corr)
 tar_load(space_corr)
+linked2 <- readRDS(here("data/linked2.RDS"))
 
 # New models with only space use
 load(here("data/sp_deg_obs_mod.Rda"))
@@ -34,27 +34,27 @@ load(here("data/sp_deg_int_mod.Rda"))
 load(here("data/sp_str_obs_mod.Rda"))
 load(here("data/sp_str_int_mod.Rda"))
 
-mods <- list(sp_deg_obs_mod, sp_deg_int_mod, sp_str_obs_mod, sp_str_int_mod)
+models <- list(sp_deg_obs_mod, sp_deg_int_mod, sp_str_obs_mod, sp_str_int_mod)
 
-effs <- map(mods, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
-preds <- map(mods, ~as.data.frame(ggeffect(.x, terms = c("space_use", "situ"))))
+effs <- map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
+preds <- map(models, ~as.data.frame(ggeffect(.x, terms = c("space_use", "situ"))))
 responses <- rep(c("degree", "strength"), each = 2)
 mods <- rep(c("Observed", "Intentional"), 2)
 
 effs <- pmap(.l = list(x = effs, y = responses, z = mods), 
              .f = function(x, y, z){x %>% mutate(response = y,
-                                            mod = z)}) %>%
+                                                 mod = z)}) %>%
   purrr::list_rbind() %>%
   mutate(situ = case_when(situ == "Fe" ~ "Feeding",
-                           situ == "Fl" ~ "Flight",
-                           situ == "Ro" ~ "Roosting"),
+                          situ == "Fl" ~ "Flight",
+                          situ == "Ro" ~ "Roosting"),
          mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
   mutate(sig = case_when(sign(lower.CL) == sign(upper.CL) ~ T,
                          .default = F))
 
 preds <- pmap(.l = list(x = preds, y = responses, z = mods), 
-             .f = function(x, y, z){x %>% mutate(response = y,
-                                                 mod = z)}) %>%
+              .f = function(x, y, z){x %>% mutate(response = y,
+                                                  mod = z)}) %>%
   purrr::list_rbind() %>%
   mutate(group = case_when(group == "Fe" ~ "Feeding",
                            group == "Fl" ~ "Flight",
@@ -114,139 +114,92 @@ fig1 <- dat %>%
   annotate("text", y = 0.013, x = 15, col = "black", label = "incidental")
 ggsave(fig1, file = here("fig/1.png"), width = 5, height = 3.5)
 
+
+# re-do this figure with a sample dataset
+exp <- data.frame(exp_deg = c(rpois(1000, lambda = 12),
+                              rpois(1000, lambda = 5)),
+                  ID = rep(c("A", "B"), each = 1000))
+
+ggplot(exp, aes(x = ID, y = exp_deg)) + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .75, 
+    ## adjust height
+    width = .75, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  )+
+  coord_cartesian(xlim = c(1.2, 2.2))+
+  geom_point(data = data.frame(ID = c("A", "B"),
+                               exp_deg = c(21, 18)),
+             col = "red",
+             size = 4)+
+  # geom_linerange(data = data.frame(ID = c("A", "B"),
+  #                                min = (c(median(exp$exp_deg[exp$ID == "A"]),
+  #                                         median(exp$exp_deg[exp$ID == "B"]))),
+  #                                max = c(21, 18)),
+  #              aes(ymin = min, ymax = max, x = ID),
+  #              inherit.aes = F,
+  #              col = "red",
+  #              linetype = 2,
+  #              position = position_dodge(width = 0.5)
+  # )+
+  theme(text = element_text(size = 14))+
+  labs(y = "")+
+  NULL
+
+
 # Figure 2 ----------------------------------------------------------------
 ## A
 fig_2a <- linked %>%
-  filter(situ == "Fe") %>%
+  filter(situ == "Fl", seasonUnique == "2022_fall") %>%
   ungroup() %>%
-  ggplot(aes(x = normDegree))+
-  geom_density(linewidth = 1.5, col = situcolors[1])+
+  ggplot(aes(x = degree))+
+  geom_histogram(fill = situcolors[2], col = "white")+
   theme_classic()+
   theme(legend.position = "bottom",
-        text = element_text(family = "Verdana", size = 14))+
-  xlab("Observed degree\n(normalized)")+
+        text = element_text(family = "Verdana", size = 12))+
+  xlab("Degree (observed)")+
   ylab("Density")
 fig_2a
-ggsave(filename = here("fig/2a.png"), plot = fig_2a, width = 2.75, height = 2.75)
 
 ## B
-fig_2b <- linked %>%
-  filter(situ == "Fe") %>%
+fig_2b <- linked2 %>%
+  filter(situ == "Fl", seasonUnique == "2022_fall") %>%
   ungroup() %>%
   ggplot(aes(x = z_deg))+
-  geom_density(linewidth = 1.5, col = situcolors[1])+
+  geom_histogram(fill = situcolors[2], col = "white")+
   theme_classic()+
   theme(legend.position = "bottom",
-        text = element_text(family = "Verdana", size = 14))+
-  xlab("Intentional degree\n(z-score)")+
+        text = element_text(family = "Verdana", size = 12))+
+  xlab("Degree z-score (intentional)")+
   ylab("Density")
 fig_2b
-ggsave(filename = here("fig/2b.png"), plot = fig_2b, width = 2.75, height = 2.75)
 
 ## C. Correlation between measured and intentional sociality
-fig_2c <- linked %>%
+fig_2c <- linked2 %>%
   ungroup() %>%
-  filter(situ == "Fe") %>%
-  ggplot(aes(x = normDegree, y = z_deg))+
-  geom_point(pch = 1, size = 2, alpha = 0.6, col = situcolors[1])+
+  filter(situ == "Fl", seasonUnique == "2022_fall") %>%
+  ggplot(aes(x = degree, y = z_deg))+
+  geom_point(pch = 1, size = 2, alpha = 0.8, col = situcolors[2])+
   theme_classic()+
-  theme(text = element_text(family = "Verdana", size = 14))+
-  geom_smooth(method = "lm", col = situcolors[1])+
-  ylab("Intentional") + xlab("Observed")
-fig_2c # we see that these are correlated, but not perfectly. In particular, individuals with low normalized degree
-ggsave(filename = here("fig/2c.png"), fig_2c, width = 2.75, height = 2.75)
+  theme(text = element_text(family = "Verdana", size = 12))+
+  geom_smooth(alpha = 0.2, size = 0, method = "lm", col = situcolors[2], fill = situcolors[2])+ # creates se error clouds without the lines 
+  stat_smooth(geom = "line", size = 1, method = "lm", col = situcolors[2]) +
+  ylab("Degree (intentional)") + xlab("Degree (observed)")
+fig_2c # correlated, but not perfectly
 
-## D. Example scatter and forest plots
-deg_space_situ_obs <- as.data.frame(ggeffect(sp_deg_obs_mod, 
-                                            terms = c("space_use", "situ"))) %>%
-  mutate(mod = "obs")
-deg_space_situ_int <- as.data.frame(ggeffect(sp_deg_int_mod, 
-                                              terms = c("space_use", "situ"))) %>%
-  mutate(mod = "int")
-
-eff1 <- as.data.frame(emmeans::emtrends(sp_deg_obs_mod, specs = "situ", var = "space_use")) %>% 
-  mutate(situ = case_when(situ == "Fe" ~ "Feeding",
-                          situ == "Fl" ~ "Flight",
-                          situ == "Ro" ~ "Roosting")) %>%
-  mutate(mod = "Observed")
-eff2 <- as.data.frame(emmeans::emtrends(sp_deg_int_mod, specs = "situ", var = "space_use")) %>% 
-  mutate(situ = case_when(situ == "Fe" ~ "Feeding",
-                          situ == "Fl" ~ "Flight",
-                          situ == "Ro" ~ "Roosting")) %>%
-  mutate(mod = "Intentional")
-
-eff <- bind_rows(eff1, eff2) %>%
-  mutate(mod = factor(mod, levels = c("Observed", "Intentional")))
-
-
-annot <- eff %>%
-  mutate(sig = case_when(lower.CL < 0 & upper.CL < 0 ~ T,
-                         lower.CL > 0 & upper.CL > 0 ~ T,
-                         .default = F)) %>%
-  select(situ, mod, sig)
-
-# combine the data and scale it
-dat <- bind_rows(deg_space_situ_obs, deg_space_situ_int)
-mn_moddeg <- (deg_space_situ_obs %>% select(predicted, conf.low, conf.high) %>% rowSums() %>% sum())/(3*nrow(deg_space_situ_obs))
-mn_moddeg_z <- (deg_space_situ_int %>% select(predicted, conf.low, conf.high) %>% rowSums() %>% sum())/(3*nrow(deg_space_situ_int))
-
-dat <- dat %>%
-  mutate(mod = case_when(mod == "obs" ~ "Observed",
-                         mod == "int" ~ "Intentional")) %>%
-  mutate(mn = ifelse(mod == "Observed", mn_moddeg, mn_moddeg_z)) %>%
-  mutate(predicted_scl = predicted-mn,
-         conf.low_scl = conf.low-mn,
-         conf.high_scl = conf.high-mn) %>%
-  mutate(group = case_when(group == "Fe" ~ "Feeding",
-                           group == "Fl" ~ "Flight",
-                           group == "Ro" ~ "Roosting")) %>%
-  left_join(annot, by = c("group" = "situ",
-                          "mod")) %>%
-  mutate(mod = factor(mod, levels = c("Observed", "Intentional")))
-
-fig_2d <- dat %>%
-  ggplot(aes(x = x, y = predicted, group = group))+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL), alpha = 0.1)+
-  geom_line(linewidth = 1.5, aes(col = group, linetype = sig))+
-  scale_linetype_manual(values = c(2, 1), guide = "none")+
-  facet_wrap(~mod, scale = "free_y")+
-  scale_color_manual(name = "Situation",
-                     values = situcolors)+
-  scale_fill_manual(name = "Situation", 
-                    values = situcolors)+
-  xlab("Space use")+
-  ylab("Model prediction")+
-  theme(text = element_text(family = "Verdana", size = 14), 
-        legend.position = "right",
-        plot.background = element_rect(fill = "transparent", color = NA),
-        legend.background = element_rect(fill = "transparent", color = NA),
-        panel.background = element_rect(fill = "transparent", color = NA))
-fig_2d
-ggsave(filename = here("fig/2d.png"), fig_2d, width = 6, height = 4)
-
-## E. Example forest plot with both types of lines
-fig_2e <- eff %>%
-  ggplot(aes(x = space_use.trend, y = situ, col = situ,
-             group = interaction(mod, situ)))+
-  geom_vline(aes(xintercept = 0), linetype = 2)+
-  geom_errorbar(aes(xmin = lower.CL, xmax = upper.CL),
-                width = 0, linewidth = 0.5,
-                position = position_dodge(width = 0.2))+
-  geom_point(size = 3, 
-             position = position_dodge(width = 0.2),
-             fill = "white", aes(shape = mod))+
-  scale_color_manual(values = situcolors, guide = "none")+
-  scale_y_discrete(limits = rev, position = "right")+
-  scale_shape_manual(name = "", values = c(16, 21))+
-  facet_wrap(~mod, scales = "free_x",
-             ncol = 2)+
-  ylab("Space use effect")+ xlab("Effect size")+
-  theme(text = element_text(family = "Verdana", size = 14),
-        axis.title.y = element_blank(),
-        axis.text.x = element_text(size = 11),
-        legend.position = "none")
-fig_2e
-ggsave(filename = here("fig/2e.png"), fig_2e, width = 4, height = 4)
+fig_2 <- ((fig_2a | fig_2b & theme(axis.title.y = element_blank()))/fig_2c) + plot_layout(nrow = 2, heights = c(3, 5))
+ggsave(fig_2, filename = here("fig/fig_2.png"), height = 5, width = 6)
 
 # Figure 3 ----------------------------------------------------------------
 # Main results
@@ -280,71 +233,40 @@ prepdata_forforestplots <- function(variable, mod, z_mod){
 
 deg_space <- prepdata_forforestplots(variable = "space_use", mod = sp_deg_obs_mod,
                                      z_mod = sp_deg_int_mod) %>%
-  mutate(measure = "degree")
+  mutate(measure = "degree") %>%
+  group_by(mod) %>%
+  group_split()
 str_space <- prepdata_forforestplots(variable = "space_use", mod = sp_str_obs_mod,
                                      z_mod = sp_str_int_mod) %>%
-  mutate(measure = "strength")
-forforest <- list(deg_space, str_space)
-forforest <- map(forforest, ~.x %>% rename("trend" = 2))
-forforest_df <- purrr::list_rbind(forforest) %>%
-  mutate(var = case_when(var == "movement" ~ "Movement",
-                         var == "space_use" ~ "Space use"))
+  mutate(measure = "strength") %>%
+  group_by(mod) %>%
+  group_split()
 
-plots <- map(forforest, ~{
-  var <- str_to_sentence(str_replace(.x$var[1], "_", " "))
-  measure <- str_to_sentence(.x$measure[1])
-  title <- paste0(var, " effect")
+forforest <- c(deg_space, str_space)
+length(forforest)
+forforest <- map(forforest, ~.x %>% rename("trend" = 2))
+# forforest_df <- purrr::list_rbind(forforest) %>%
+#   mutate(var = case_when(var == "movement" ~ "Movement",
+#                          var == "space_use" ~ "Space use"))
+
+forestplots <- map(forforest, ~{
   p <- .x %>%
-    ggplot(aes(x = trend, y = situ, col = situ,
-               group = interaction(mod, situ)))+
+    ggplot(aes(x = trend, y = situ, col = situ))+
     geom_vline(aes(xintercept = 0), linetype = 2)+
     geom_errorbar(aes(xmin = lower, xmax = upper),
-                  width = 0, linewidth = 0.5,
-                  position = position_dodge(width = 0.2))+
-    geom_point(size = 3, 
-               position = position_dodge(width = 0.2),
-               fill = "white")+
+                  width = 0, linewidth = 0.75)+
+    geom_point(size = 3)+
     scale_color_manual(values = situcolors, guide = "none")+
     scale_y_discrete(limits = rev, position = "right")+
-    scale_shape_manual(name = "", values = c(16, 21))+
-    facet_wrap(~mod, scales = "free_x",
-               nrow = 1)+
-    xlab(title)+
-    theme(text = element_text(size = 14),
-          axis.title.y = element_blank())
+    labs(x = "Effect")+
+    theme(text = element_text(size = 10),
+          axis.title.y = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank())
   return(p)
 })
 
-patchwork <- ((plots[[1]]+
-                 ggtitle("Degree")+
-                 theme(axis.text.y = element_blank(),
-                       axis.ticks.y = element_blank(),
-                       plot.title = element_text(hjust = 0.5),
-                       axis.title.x = element_blank())) + 
-                (plots[[2]] + ggtitle("Strength")+
-                   theme(plot.title = element_text(hjust = 0.5),
-                         axis.title.x = element_blank())))
-patchwork
-ggsave(patchwork, filename = here("fig/3a.png"), width = 7, height = 3)
-
-# Scatterplots ------------------------------------------------------------
-# points <- linked %>%
-#   select(z_deg, z_str, "group" = situ, normDegree, normStrength, "x" = space_use) %>%
-#   pivot_longer(cols = c("z_deg", "z_str", "normDegree", "normStrength"), names_to = "mod", values_to = "predicted") %>%
-#   mutate(response = case_when(str_detect(mod, "eg") ~ "degree",
-#                               str_detect(mod, "tr") ~ "strength"),
-#          mod = case_when(str_detect(mod, "z_") ~ "Intentional",
-#                          .default = "Observed"),
-#          mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
-#   mutate(group = case_when(group == "Fe" ~ "Feeding",
-#                            group == "Fl" ~ "Flight",
-#                            group == "Ro" ~ "Roosting"))
-# 
-# pts <- points %>% 
-#   ungroup() %>%
-#   group_by(mod, response) %>%
-#   group_split()
-
+# Line plots --------------------------------------------------------------
 preds_list <- preds %>%
   group_by(mod, response) %>%
   group_split() %>%
@@ -353,36 +275,71 @@ preds_list <- preds %>%
 labs <- c("Degree", "Strength", "Degree z-score", "Strength z-score")
 titles <- c("Observed", "Observed", "Intentional", "Intentional")
 
-plts <- pmap(list(a = preds_list, b = labs), .f = function(a, b){
+lineplots <- pmap(list(a = preds_list, b = labs), .f = function(a, b){
   p <- a %>%
     ggplot(aes(x = x, y = predicted, col = group))+
     geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
                 alpha = 0.2)+
-    geom_line(aes(linetype = sig), show.legend = T)+
+    geom_line(aes(linetype = sig), show.legend = T, linewidth = 1.5)+
     scale_linetype_manual(drop = FALSE, values = c(2, 1))+
     scale_color_manual(name = "Situation", values = situcolors)+
     scale_fill_manual(name = "Situation", values = situcolors)+
-    labs(x = "Space use", y = b)+
+    labs(y = b, x = NULL)+
     #geom_point(data = e, pch = 1, alpha = 0.5)+
     theme_classic()+
     theme(legend.position = "none",
           text = element_text(size = 14))
   return(p)
 })
-a <- plts[[1]] # obs deg
-b <- plts[[2]] # obs str
-c <- plts[[3]] # int deg
-d <- plts[[4]] # int str
+a <- lineplots[[1]]+ggtitle("Observed")+ # obs deg
+  inset_element(forestplots[[1]]+labs(x = NULL), left = 0.6, right = 1, bottom = 0.65, top = 1)
+b <- lineplots[[3]]+ggtitle("Intentional")+ # int deg
+  inset_element(forestplots[[2]]+labs(x = NULL), left = 0.6, right = 1, bottom = 0.65, top = 1)
+c <- lineplots[[2]]+ # obs str
+  inset_element(forestplots[[3]]+labs(x = NULL), left = 0.6, right = 1, bottom = 0.65, top = 1)
+d <- lineplots[[4]]+ # int str
+  inset_element(forestplots[[4]], left = 0.6, right = 1, bottom = 0.55, top = 1)
 
+results <- (a + b)/(c + d)
+results
 
-scatterplots <- (a + c)/(b + labs(title = NULL) + d + labs(title = NULL))+ plot_annotation(tag_levels = list(c("e", "f", "g", "h")))
-scatterplots
+ggsave(results, width =8, height = 6, file = here("fig/results.png"))
 
-ggsave(scatterplots, width =8, height = 6, file = here("fig/scatterplots.png"))
+# Season plots ------------------------------------------------------------
+season_effects <- pmap(list(x = models, y = responses, z = mods), function(x, y, z){
+  as.data.frame(ggeffect(x, terms = "season")) %>%
+    mutate(response = y,
+           mod = z)
+}) %>%
+  purrr::list_rbind()
+
+# figure out if any of them are significantly different
+summary(sp_deg_int_mod) # fall is significantly higher than breeding
+summary(sp_str_int_mod) # nothing sig
+summary(sp_deg_obs_mod) # summer is significantly higher than breeding
+summary(sp_str_obs_mod) # summer is significantly higher than breeding 
+
+season_plot <- season_effects %>%
+  ggplot(aes(x = x, y = predicted, col = x))+
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
+                size = 0.7, width = 0)+
+  geom_errorbar(aes(ymin = predicted-std.error, ymax = predicted+std.error),
+                size = 1.5, width = 0)+
+  geom_point(size = 4, pch = 21, fill = "white")+
+  facet_wrap(~interaction(mod, response, sep = " "), scales = "free_y")+
+  scale_color_manual(values = seasoncolors)+
+  theme(legend.position = "none")+
+  labs(y = "Model-predicted value",
+       x = "Season",
+       caption = "Error bars represent standard error (thick) and 95% confidence intervals (thin)")+
+  NULL
+season_plot
+
+ggsave(season_plot, file = here("fig/season_plot.png"))
 
 
 # Social measures plots ---------------------------------------------------
-degree_density <- linked %>%
+degree_density <- linked2 %>%
   mutate(szn = str_replace(seasonUnique, "_", " "),
          szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
   ggplot(aes(x = degree, group = szn, color = szn))+
@@ -394,7 +351,7 @@ degree_density <- linked %>%
   labs(y = "Density", color = "Season", title = "Degree")
 degree_density  
 
-strength_density <- linked %>%
+strength_density <- linked2 %>%
   mutate(szn = str_replace(seasonUnique, "_", " "),
          szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
   ggplot(aes(x = strength, group = szn, color = szn))+
@@ -410,35 +367,7 @@ densities <- degree_density/strength_density  + plot_layout(guides = "collect")
 densities
 ggsave(densities, file = here("fig/densities.png"), width = 6, height = 5)
 
-degree_density_norm <- linked %>%
-  mutate(szn = str_replace(seasonUnique, "_", " "),
-         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
-  ggplot(aes(x = normDegree, group = szn, color = szn))+
-  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
-  facet_wrap(~str_to_title(type), scales = "free_x")+
-  theme_classic()+
-  theme(axis.title.x = element_blank(),
-        legend.position = "bottom")+
-  labs(y = "Density", color = "Season", title = "Degree (normalized)")
-degree_density_norm
-
-strength_density_norm <- linked %>%
-  mutate(szn = str_replace(seasonUnique, "_", " "),
-         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
-  ggplot(aes(x = normStrength, group = szn, color = szn))+
-  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
-  facet_wrap(~str_to_title(type), scales = "free")+
-  theme_classic()+
-  theme(axis.title.x = element_blank(),
-        legend.position = "bottom")+
-  labs(y = "Density", color = "Season", title = "Strength (normalized)")
-strength_density_norm  
-
-densities_norm <- degree_density_norm/strength_density_norm  + plot_layout(guides = "collect")
-densities_norm
-ggsave(densities_norm, file = here("fig/densities_norm.png"), width = 6, height = 5)
-
-degree_density_z <- linked %>%
+degree_density_z <- linked2 %>%
   mutate(szn = str_replace(seasonUnique, "_", " "),
          szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
   ggplot(aes(x = z_deg, group = szn, color = szn))+
@@ -450,7 +379,7 @@ degree_density_z <- linked %>%
   labs(y = "Density", color = "Season", title = "Degree z-score")
 degree_density_z
 
-strength_density_z <- linked %>%
+strength_density_z <- linked2 %>%
   mutate(szn = str_replace(seasonUnique, "_", " "),
          szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
   ggplot(aes(x = z_str, group = szn, color = szn))+
@@ -462,7 +391,7 @@ strength_density_z <- linked %>%
   labs(y = "Density", color = "Season", title = "Strength z-score")
 strength_density_z 
 
-densities_all <- (((degree_density / degree_density_norm / degree_density_z) + plot_layout(axis_titles = "collect")) | ((strength_density / strength_density_norm / strength_density_z)+ plot_layout(axis_titles = "collect"))) + plot_layout(guides = "collect") & theme(legend.position = 'bottom')
+densities_all <- (((degree_density / degree_density_z) + plot_layout(axis_titles = "collect")) | ((strength_density / strength_density_z)+ plot_layout(axis_titles = "collect"))) + plot_layout(guides = "collect") & theme(legend.position = 'bottom')
 
 densities_all
-ggsave(densities_all, file = here("fig/densities_all.png"), width = 10, height = 8)
+ggsave(densities_all, file = here("fig/densities_all.png"), width = 10, height = 6)
