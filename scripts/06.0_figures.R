@@ -395,3 +395,43 @@ densities_all <- (((degree_density / degree_density_z) + plot_layout(axis_titles
 
 densities_all
 ggsave(densities_all, file = here("fig/densities_all.png"), width = 10, height = 6)
+
+# Map with interaction and roost locations --------------------------------
+load(here("stadia_key.Rda"))
+ggmap::register_stadiamaps(key = stadia_key)
+rm(stadia_key)
+# Get roost data (just one season, say summer 2023)
+tar_load(season_names)
+whch <- which(season_names == "2023_summer")
+tar_load(roosts)
+r <- roosts[[whch]] %>% filter(lubridate::month(roost_date) == 7 & lubridate::day(roost_date) <= 5) # first five days of july in 2023
+
+# Get feeding/flight interaction data (just one season, say summer 2023)
+## and then let's limit it to the first five days of July so that it's a little less chaotic to plot.
+tar_load(flightEdges)
+fle <- flightEdges[[whch]] %>% filter(lubridate::month(minTimestamp) == 7 & lubridate::day(minTimestamp) <= 5)
+tar_load(feedingEdges)
+fee <- feedingEdges[[whch]] %>% filter(lubridate::month(minTimestamp) == 7 & lubridate::day(minTimestamp) <= 5)
+
+bbox <- c(34.516, 30.408, 35.429, 31.582)
+# going to manually layer the points so the most concentrated ones (feeding events) are on top and the most dispersed ones (flight interactions) are on the bottom so it's easier to see.
+# mp <- ggmap(get_stadiamap(bbox = bbox, maptype = "stamen_terrain_background", color = "bw"))
+# save(mp, file = here("mp.Rda"))
+load(here("mp.Rda"))
+dat <- st_drop_geometry(r) %>% select("long" = location_long, "lat" = location_lat) %>%
+  mutate(type = "Roost\nlocations\n") %>%
+  bind_rows(st_drop_geometry(fle) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
+              mutate(type = "Co-flight\ninteractions\n")) %>%
+  bind_rows(st_drop_geometry(fee) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
+              mutate(type = "Co-feeding\ninteractions\n"))
+mymap <- mp+
+  geom_point(data = dat, aes(x = long, y = lat, col = type, shape = type), alpha = 0.4)+
+  scale_color_manual(values = situcolors)+
+  scale_shape_manual(values = c(4, 1, 2))+
+  guides(shape = guide_legend(override.aes = list(alpha = 1, size = 3)))+
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.title = element_blank(),
+        text = element_text(family = "Verdana", size = 14),
+        legend.position = "left")
+ggsave(mymap, filename = here("fig/mymap.png"), width = 7, height = 6)

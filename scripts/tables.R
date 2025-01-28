@@ -34,7 +34,16 @@ indivs <- bind_rows(all, focal) %>%
   relocate(year, season) %>%
   arrange(year, season) %>%
   pivot_longer(c("flight", "feeding", "roosting"), names_to = "situ", values_to = "n") %>%
-  pivot_wider(names_from = "type", values_from = "n")
+  pivot_wider(names_from = "type", values_from = "n") %>%
+  mutate(proportion = round(focal/all, 2))
+
+indivs %>%
+  summarize(mn_all = mean(all),
+            sd_all = sd(all),
+            mn_focal = mean(focal),
+            sd_focal = sd(focal),
+            mn_prop = mean(proportion),
+            sd_prop = sd(proportion))
 
 
 # Make a nice table -------------------------------------------------------
