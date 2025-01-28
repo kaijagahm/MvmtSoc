@@ -1086,22 +1086,22 @@ report <- function(dataset, id){
 
 # Models
 # Code for these is taken over from 04.0_mixedModels.R once I'm done testing them.
-get_deg_mod <- function(linked){
-  deg_mod <- glmmTMB(degree ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-  return(deg_mod)
-}
-get_deg_z_mod <- function(linked){
-  deg_z_mod <-glmmTMB(z_deg ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-  return(deg_z_mod)
-}
-get_str_mod <- function(linked){
-  str_mod <- glmmTMB(strength ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-  return(str_mod)
-}
-get_str_z_mod <- function(linked){
-  str_z_mod <- glmmTMB(z_str ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-  return(str_z_mod)
-}
+# get_deg_mod <- function(linked){
+#   deg_mod <- glmmTMB(degree ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+#   return(deg_mod)
+# }
+# get_deg_z_mod <- function(linked){
+#   deg_z_mod <-glmmTMB(z_deg ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+#   return(deg_z_mod)
+# }
+# get_str_mod <- function(linked){
+#   str_mod <- glmmTMB(strength ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+#   return(str_mod)
+# }
+# get_str_z_mod <- function(linked){
+#   str_z_mod <- glmmTMB(z_str ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+#   return(str_z_mod)
+# }
 
 
 get_n_in_network <- function(season_names, flightGraphs, feedingGraphs, roostingGraphs){

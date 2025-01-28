@@ -18,10 +18,6 @@ tar_load(downsampled_10min_forSocial_r)
 tar_load(downsampled_10min_r)
 tar_load(cc)
 tar_load(linked)
-tar_load(deg_mod)
-tar_load(deg_z_mod)
-tar_load(str_mod)
-tar_load(str_z_mod)
 tar_load(situcolors)
 tar_load(seasoncolors)
 tar_load(movement_corr)
@@ -245,9 +241,6 @@ str_space <- prepdata_forforestplots(variable = "space_use", mod = sp_str_obs_mo
 forforest <- c(deg_space, str_space)
 length(forforest)
 forforest <- map(forforest, ~.x %>% rename("trend" = 2))
-# forforest_df <- purrr::list_rbind(forforest) %>%
-#   mutate(var = case_when(var == "movement" ~ "Movement",
-#                          var == "space_use" ~ "Space use"))
 
 forestplots <- map(forforest, ~{
   p <- .x %>%
@@ -291,19 +284,21 @@ lineplots <- pmap(list(a = preds_list, b = labs), .f = function(a, b){
           text = element_text(size = 14))
   return(p)
 })
-a <- lineplots[[1]]+ggtitle("Observed")+ # obs deg
-  inset_element(forestplots[[1]]+labs(x = NULL), left = 0.6, right = 1, bottom = 0.65, top = 1)
-b <- lineplots[[3]]+ggtitle("Intentional")+ # int deg
-  inset_element(forestplots[[2]]+labs(x = NULL), left = 0.6, right = 1, bottom = 0.65, top = 1)
-c <- lineplots[[2]]+ # obs str
-  inset_element(forestplots[[3]]+labs(x = NULL), left = 0.6, right = 1, bottom = 0.65, top = 1)
-d <- lineplots[[4]]+ # int str
-  inset_element(forestplots[[4]], left = 0.6, right = 1, bottom = 0.55, top = 1)
 
+a <- lineplots[[1]] + ggtitle("Observed") + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
+b <- lineplots[[3]] + ggtitle("Intentional") + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
+c <- lineplots[[2]] + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
+d <- lineplots[[4]] + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
 results <- (a + b)/(c + d)
 results
 
-ggsave(results, width =8, height = 6, file = here("fig/results.png"))
+ggsave(results, width =9, height = 6.5, file = here("fig/results.png"))
+
+forestplots[[1]]
+ggsave(forestplots[[1]], filename = here("fig/forest1.png"), width = 1.5, height = 1)
+ggsave(forestplots[[2]], filename = here("fig/forest2.png"), width = 1.5, height = 1)
+ggsave(forestplots[[3]], filename = here("fig/forest3.png"), width = 1.5, height = 1)
+ggsave(forestplots[[4]], filename = here("fig/forest4.png"), width = 1.5, height = 1)
 
 # Season plots ------------------------------------------------------------
 season_effects <- pmap(list(x = models, y = responses, z = mods), function(x, y, z){
@@ -314,10 +309,10 @@ season_effects <- pmap(list(x = models, y = responses, z = mods), function(x, y,
   purrr::list_rbind()
 
 # figure out if any of them are significantly different
-summary(sp_deg_int_mod) # fall is significantly higher than breeding
-summary(sp_str_int_mod) # nothing sig
-summary(sp_deg_obs_mod) # summer is significantly higher than breeding
-summary(sp_str_obs_mod) # summer is significantly higher than breeding 
+summary(sp_deg_int_mod)
+summary(sp_str_int_mod) 
+summary(sp_deg_obs_mod) 
+summary(sp_str_obs_mod) 
 
 season_plot <- season_effects %>%
   ggplot(aes(x = x, y = predicted, col = x))+
@@ -328,14 +323,15 @@ season_plot <- season_effects %>%
   geom_point(size = 4, pch = 21, fill = "white")+
   facet_wrap(~interaction(mod, response, sep = " "), scales = "free_y")+
   scale_color_manual(values = seasoncolors)+
-  theme(legend.position = "none")+
-  labs(y = "Model-predicted value",
-       x = "Season",
-       caption = "Error bars represent standard error (thick) and 95% confidence intervals (thin)")+
+  theme(legend.position = "none",
+        axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 11),
+        strip.text = element_text(size = 12))+
+  labs(caption = "Error bars represent standard error (thick) and 95% confidence intervals (thin)")+
   NULL
 season_plot
 
-ggsave(season_plot, file = here("fig/season_plot.png"))
+ggsave(season_plot, file = here("fig/season_plot.png"), width = 5.5, height = 7)
 
 
 # Social measures plots ---------------------------------------------------

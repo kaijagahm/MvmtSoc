@@ -13,18 +13,15 @@ library(ggeffects)
 library(gtsummary)
 library(here)
 library(targets)
-# THIS SCRIPT IS FOR TESTING OUT MODELS. FINAL MODEL CODE GOES OVER INTO FUNCTIONS.R TO BE INCORPORATED INTO THE TARGETS PIPELINE.
-# Updated 2024-06-10: removing roost_div as a predictor
 
 # Set ggplot theme to classic
 theme_set(theme_classic())
 
-# Load the data from the targets pipeline (wow this is so much easier!!!)
+# Load the data from the targets pipeline
 tar_load(linked)
 tar_load(cc)
 situcolors <- c(cc$feedingColor, cc$flightColor, cc$roostingColor)
 seasoncolors <- c(cc$breedingColor, cc$summerColor, cc$fallColor)
-
 
 # Add number of individuals -----------------------------------------------
 tar_load(season_names)
@@ -60,7 +57,6 @@ write_rds(linked2, file = here("data/linked2.RDS"))
 # Models: space use only --------------------------------------------------
 
 ## Degree ------------------------------------------------------------------
-
 ### Observed ----------------------------------------------------------------
 sp_deg_obs_1 <- glmmTMB(degree ~ space_use + situ + season + (1|seasonUnique) + (1|Nili_id), data = linked2)
 check_predictions(sp_deg_obs_1)
@@ -71,19 +67,13 @@ sp_deg_obs_2 <- glmmTMB(degree ~ space_use*situ + season + (1|seasonUnique) + (1
 summary(sp_deg_obs_2)
 sp_deg_obs_2a <- glmmTMB(normDegree ~ space_use*situ + season + (1|seasonUnique) + (1|Nili_id), data = linked2, family = gaussian())
 summary(sp_deg_obs_2a) ### normalization
+
 sp_deg_obs_2b <- glmmTMB(degree ~ space_use*situ + season + nInNetwork + (1|seasonUnique) + (1|Nili_id), data = linked2, family = gaussian())
 summary(sp_deg_obs_2b)
 summary(sp_deg_obs_2)
-
-# trying it again with removing the seasonUnique random effect, just in case...
-sp_deg_obs_2c <- glmmTMB(degree ~ space_use*situ + season + nInNetwork + (1|Nili_id), data = linked2, family = gaussian()) # adding main effect of n individuals but NO random effect of unique season
-summary(sp_deg_obs_2c)
-summary(sp_deg_obs_2)
-sjPlot::plot_model(sp_deg_obs_2)
-sjPlot::plot_model(sp_deg_obs_2c) 
   
-sp_deg_obs_mod <- sp_deg_obs_2b 
-# And actually, come to think of it, maybe all the model selection is not necessary. We should just do the same thing for all of them. space_use*situ, so they're easily comparable.
+sp_deg_obs_mod <- sp_deg_obs_2 # without the nInNetwork--should be accounted for by seasonUnique random effect
+sp_deg_obs_mod
 
 ### Intentional ----------------------------------------------------------------
 sp_deg_int_1 <- glmmTMB(z_deg ~ space_use + situ + season + (1|seasonUnique) + (1|Nili_id), data = linked2, family = gaussian())
@@ -110,7 +100,7 @@ sp_str_obs_2b <- glmmTMB(strength ~ space_use*situ + season + nInNetwork + (1|se
 summary(sp_str_obs_2b) 
 summary(sp_str_obs_2)
 
-sp_str_obs_mod <- sp_str_obs_2b
+sp_str_obs_mod <- sp_str_obs_2
 
 ### Intentional ----------------------------------------------------------------
 sp_str_int_1 <- glmmTMB(z_str ~ space_use + situ + season + (1|seasonUnique) + (1|Nili_id), data = linked2, family = gaussian())
@@ -127,9 +117,3 @@ save(sp_deg_obs_mod, file = here("data/sp_deg_obs_mod.Rda"))
 save(sp_deg_int_mod, file = here("data/sp_deg_int_mod.Rda"))
 save(sp_str_obs_mod, file = here("data/sp_str_obs_mod.Rda"))
 save(sp_str_int_mod, file = here("data/sp_str_int_mod.Rda"))
-
-sjPlot::plot_model(sp_deg_obs_2)
-sjPlot::plot_model(sp_deg_obs_2b) # slight effect on season but otherwise nothing really changes
-
-sjPlot::plot_model(sp_str_obs_2)
-sjPlot::plot_model(sp_str_obs_2b) # added sig effect of season but otherwise nothing really changes

@@ -144,11 +144,11 @@ list(
   tar_target(downsampled_10min_forSocial_r, map(downsampled_10min_forSocial, ~report(.x, "Nili_id"))),
   tar_target(downsampled_10min_r, map(downsampled_10min, ~report(.x, "Nili_id"))),
   # Mixed models
-  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, season_names, ns)),
-  tar_target(deg_mod, get_deg_mod(linked)),
-  tar_target(deg_z_mod, get_deg_z_mod(linked)),
-  tar_target(str_mod, get_str_mod(linked)),
-  tar_target(str_z_mod, get_str_z_mod(linked))
+  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, season_names, ns))#,
+  # tar_target(deg_mod, get_deg_mod(linked)),
+  # tar_target(deg_z_mod, get_deg_z_mod(linked)),
+  # tar_target(str_mod, get_str_mod(linked)),
+  # tar_target(str_z_mod, get_str_z_mod(linked))
 )
 
 
