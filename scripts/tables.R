@@ -54,21 +54,21 @@ with_seasons <- joined0 %>% mutate(month = lubridate::month(timestamp),
                                   .default = paste(as.character(year), season, sep = "_"))) %>%
   mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding", "2023_summer")),
          season = factor(season, levels = c("breeding", "summer", "fall")))
-all_tracked <- with_seasons %>%
+all_tagged <- with_seasons %>%
   select(local_identifier, month, day, year, season, seasonUnique) %>%
   group_by(year, season) %>%
-  summarize(`all tracked` = length(unique(local_identifier)))
-a_t <- bind_rows(all_tracked %>% mutate(situ = "flight"),
-                 all_tracked %>% mutate(situ = "feeding"),
-                 all_tracked %>% mutate(situ = "roosting")) %>%
+  summarize(`all tagged` = length(unique(local_identifier)))
+a_t <- bind_rows(all_tagged %>% mutate(situ = "flight"),
+                 all_tagged %>% mutate(situ = "feeding"),
+                 all_tagged %>% mutate(situ = "roosting")) %>%
   mutate(year = as.character(year))
 
 indivs <- left_join(indivs, a_t)
 
 
 # Make a nice table -------------------------------------------------------
-min <- min(c(indivs$`space use`, indivs$`social network`, indivs$`all tracked`))
-max <- max(c(indivs$`space use`, indivs$`social network`, indivs$`all tracked`))
+min <- min(c(indivs$`space use`, indivs$`social network`, indivs$`all tagged`))
+max <- max(c(indivs$`space use`, indivs$`social network`, indivs$`all tagged`))
 tar_load(season_names)
 
 tab <- indivs %>%
@@ -76,7 +76,7 @@ tab <- indivs %>%
   mutate(yrsz = factor(yrsz, levels = str_replace(season_names, "_", " "))) %>%
   arrange(yrsz) %>%
   select(-c("year", "season")) %>%
-  pivot_longer(cols = c("social network", "space use", "all tracked"), names_to = "type", values_to = "count") %>%
+  pivot_longer(cols = c("social network", "space use", "all tagged"), names_to = "type", values_to = "count") %>%
   pivot_wider(names_from = "yrsz", values_from = "count") %>%
   arrange(situ, type) %>%
   rename("Situation" = situ,
