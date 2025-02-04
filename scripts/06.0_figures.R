@@ -421,13 +421,15 @@ dat <- st_drop_geometry(r) %>% select("long" = location_long, "lat" = location_l
   bind_rows(st_drop_geometry(fee) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
               mutate(type = "Co-feeding\ninteractions\n"))
 mymap <- mp+
-  geom_point(data = dat, aes(x = long, y = lat, col = type, shape = type), alpha = 0.4)+
+  geom_point(data = dat, aes(x = long, y = lat, col = type, shape = type),
+             alpha = 0.9, size = 2)+
   scale_color_manual(values = situcolors)+
   scale_shape_manual(values = c(4, 1, 2))+
-  guides(shape = guide_legend(override.aes = list(alpha = 1, size = 3)))+
+  guides(shape = guide_legend(override.aes = list(alpha = 1, size = 5)))+
   theme(axis.title.x = element_blank(),
         axis.title.y = element_blank(),
         legend.title = element_blank(),
-        text = element_text(family = "Verdana", size = 14),
+        text = element_text(size = 18),
         legend.position = "left")
+mymap
 ggsave(mymap, filename = here("fig/mymap.png"), width = 7, height = 6)
