@@ -695,6 +695,7 @@ get_space_use <- function(movementBehaviorScaled){
   pca <- prcomp(space_use[,-c(1:3)])
   space_use <- space_use %>%
     mutate(space_pc1 = pca$x[,1]*-1)
+  summary(pca) # explains 84% of variance
   return(distinct(space_use))
 }
 
@@ -1069,6 +1070,10 @@ join_movement_soc <- function(new_movement_vars, metrics_summary, season_names){
   linked <- linked %>%
     filter(!is.infinite(z_deg), !is.infinite(z_str))
   
+  # Add number of individuals per season
+  linked <- linked %>%
+    left_join(ns, by = c("seasonUnique", situ))
+  
   return(linked)
 }
 
@@ -1081,19 +1086,29 @@ report <- function(dataset, id){
 
 # Models
 # Code for these is taken over from 04.0_mixedModels.R once I'm done testing them.
-get_deg_mod <- function(linked){
-  deg_mod <- glmmTMB(normDegree ~ situ*movement + season*movement + situ*space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-  return(deg_mod)
-}
-get_deg_z_mod <- function(linked){
-  deg_z_mod <- glmmTMB(z_deg ~situ*movement + situ*space_use + age_group + season + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian())
-  return(deg_z_mod)
-}
-get_str_mod <- function(linked){
-  str_mod <- glmmTMB(normStrength ~ situ + season + movement + space_use + age_group + (1|seasonUnique) + (1|Nili_id), data = linked, family = beta_family())
-  return(str_mod)
-}
-get_str_z_mod <- function(linked){
-  str_z_mod <- glmmTMB(z_str ~ movement + situ*space_use + age_group + season + (1|seasonUnique)+ (1|Nili_id), data = linked, family = gaussian())
-  return(str_z_mod)
+# get_deg_mod <- function(linked){
+#   deg_mod <- glmmTMB(degree ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+#   return(deg_mod)
+# }
+# get_deg_z_mod <- function(linked){
+#   deg_z_mod <-glmmTMB(z_deg ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+#   return(deg_z_mod)
+# }
+# get_str_mod <- function(linked){
+#   str_mod <- glmmTMB(strength ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+#   return(str_mod)
+# }
+# get_str_z_mod <- function(linked){
+#   str_z_mod <- glmmTMB(z_str ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
+#   return(str_z_mod)
+# }
+
+
+get_n_in_network <- function(season_names, flightGraphs, feedingGraphs, roostingGraphs){
+  ns <- data.frame(seasonUnique = season_names,
+             Fl = map_dbl(flightGraphs, ~length(igraph::V(.x))),
+             Fe = map_dbl(feedingGraphs, ~length(igraph::V(.x))),
+             Ro = map_dbl(roostingGraphs, ~length(igraph::V(.x)))) %>%
+    pivot_longer(cols = -seasonUnique, names_to = "situ", values_to = "nInNetwork")
+  return(ns)
 }

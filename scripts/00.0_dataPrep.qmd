@@ -14,10 +14,13 @@ Prepare data for the movement/social analysis. This involves loading the data fr
 # Setup
 
 ```{r load-packages}
+# First install the package from GitHub (do this in the console, not the script)
+# remotes::install_github("kaijagahm/vultureUtils")
+# devtools::install_github("kaijagahm/vultureUtils")
 library(vultureUtils)
 library(sf)
 library(tidyverse)
-library(move)
+library(move) # the R package that allows you to download Movebank data through R instead of manually
 library(feather)
 library(readxl)
 library(elevatr)
@@ -194,7 +197,7 @@ save(cleaned, file = here("data/dataPrep/cleaned.Rda"))
 ```{r}
 capture_sites <- read.csv(here("data/raw/capture_sites.csv"))
 carmel <- read.csv(here("data/raw/all_captures_carmel_2010-2021.csv"))
-removed_captures <- removeCaptures(data = cleaned, 
+removed_captures <- vultureUtils::removeCaptures(data = cleaned, 
                                        captureSites = capture_sites, 
                                        AllCarmelDates = carmel, 
                                        distance = 500, idCol = "Nili_id")
@@ -232,7 +235,7 @@ gc()
 Here, we set the `inMaskThreshold` to 30 days overall. If we wanted 30 days per season, we would have to do that differently (e.g. split the seasons before this step, not after). But I think that gets covered later in the data cleaning anyway.
 
 ```{r region-masking}
-mask <- sf::st_read(here("data/raw/CutOffRegion.kml"))
+mask <- sf::st_read(here("data/CutOffRegion.kml"))
 
 # XXX TEST
 test <- sample_n(with_age_sex, 50000)
