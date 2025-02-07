@@ -11,9 +11,9 @@ tar_load(roostingGraphs)
 tar_load(season_names)
 
 all <- data.frame(seasonUnique = season_names,
-                     flight = map_dbl(flightGraphs, ~length(igraph::V(.x))),
-                     feeding = map_dbl(feedingGraphs, ~length(igraph::V(.x))),
-                     roosting = map_dbl(roostingGraphs, ~length(igraph::V(.x)))) %>%
+                  flight = map_dbl(flightGraphs, ~length(igraph::V(.x))),
+                  feeding = map_dbl(feedingGraphs, ~length(igraph::V(.x))),
+                  roosting = map_dbl(roostingGraphs, ~length(igraph::V(.x)))) %>%
   mutate(year = str_extract(seasonUnique, "[0-9]+"),
          season = str_extract(seasonUnique, "[a-z]+")) %>%
   select(-seasonUnique) %>%
@@ -79,15 +79,55 @@ tab <- indivs %>%
   pivot_longer(cols = c("social network", "space use", "all tagged"), names_to = "type", values_to = "count") %>%
   pivot_wider(names_from = "yrsz", values_from = "count") %>%
   arrange(situ, type) %>%
-  rename("Situation" = situ,
-         "# vultures" = type) %>%
-  gt(groupname_col = "Situation") %>%
+  mutate(situ = str_to_title(situ)) %>%
+  gt(groupname_col = "situ", rowname_col = "type") %>%
   tab_header(
-    title = "Number of individuals",
-    subtitle = "Space use measured for focal vultures only"
+    title = md("**Number of vultures**"),
   ) %>%
   data_color(columns = starts_with("20"),
              palette = "Oranges",
-             domain = c(min, max))
+             domain = c(min, max)) %>%
+  tab_style(
+    style = "padding-left:20px;",
+    locations = cells_stub()
+  )
+tab
 gtsave(tab, filename = here("fig/tab1.png"))
 # XXX can do more with levels with years and columns I think
+
+# Degree and strength per season and situation ----------------------------
+head(linked)
+summ <- linked %>%
+  ungroup() %>%
+  select(seasonUnique, year, season, type, degree, strength) %>%
+  pivot_longer(cols = c("degree", "strength"), 
+               names_to = "measure", values_to = "value") %>%
+  group_by(seasonUnique, year, season, type, measure) %>%
+  summarize(mn = round(mean(value), 2),
+            sd = round(sd(value), 2),
+            min = round(min(value), 2),
+            max = round(max(value), 2),
+            words = paste0(mn, " (", sd, ")<br>", 
+                           min, "-", max))
+
+tab2 <- summ %>%
+  ungroup() %>%
+  select(-c("year", "season")) %>%
+  select(seasonUnique, type, measure, words) %>%
+  mutate(seasonUnique = str_replace(seasonUnique, "_", " ")) %>%
+  pivot_wider(id_cols = c("measure", "type"), names_from = "seasonUnique", values_from = "words") %>%
+  mutate(measure = str_to_title(measure),
+         type = str_to_title(type)) %>%
+  group_by(measure) %>%
+  gt(rowname_col = "type") %>%
+  tab_style(
+    style = "padding-left:20px;",
+    locations = cells_stub()
+  ) %>%
+  fmt_markdown() %>%
+  tab_header(
+    title = md("**Social network measures**"),
+    subtitle = md("mean (sd)<br>min-max")
+  )
+tab2
+gtsave(tab2, filename = here("fig/tab2.png"))
