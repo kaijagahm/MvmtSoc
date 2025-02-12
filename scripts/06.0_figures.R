@@ -433,3 +433,35 @@ mymap <- mp+
         legend.position = "left")
 mymap
 ggsave(mymap, filename = here("fig/mymap.png"), width = 7, height = 6)
+
+# Centroid latitudes ------------------------------------------------------
+# just pulling some code out of remove_northern() from functions.R to make a plot of the centroids
+tar_load(seasons_list)
+tar_load(season_names)
+seasons_sf <- map(seasons_list, ~.x %>%
+                    sf::st_as_sf(coords = c("location_long", "location_lat"), 
+                                 remove = F) %>%
+                    sf::st_set_crs("WGS84") %>%
+                    sf::st_transform(32636))
+
+## Get centroids, so we can see who's "southern" for that season.
+centroids <- map(seasons_sf, ~.x %>%
+                   group_by(Nili_id) %>%
+                   summarize(geometry = sf::st_union(geometry)) %>%
+                   sf::st_centroid())
+
+centroids_df <- map2(centroids, season_names, ~.x %>% mutate(seasonUnique = .y) %>% bind_cols(sf::st_coordinates(.))) %>% purrr::list_rbind()
+
+centroids_hist <- centroids_df %>%
+  ggplot(aes(x = Y))+
+  geom_histogram(aes(fill = seasonUnique))+
+  theme_classic()+
+  facet_wrap(~seasonUnique)+
+  theme(legend.position = "none",
+        text = element_text(size = 14))+
+  labs(y = "Frequency",
+       x = "UTM northing")+
+  geom_vline(col = "black", linetype = 2, aes(xintercept = 3550000))+
+  annotate("rect", xmin = 3550000, xmax = max(centroids_df$Y), ymin = -Inf, ymax = Inf, alpha = 0.2, fill = "black") 
+
+ggsave(centroids_hist, file = here("fig/centroids_hist.png"), width = 8, height = 6)
