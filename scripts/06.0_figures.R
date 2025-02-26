@@ -11,6 +11,9 @@ library(see)
 library(sf)
 library(scales)
 library(ggmap)
+library(glmmTMB) # have to have this loaded because emmeans cannot actually handle models of class glmmTMB, but the glmmTMB package has implemented its own methods for this.
+library(gt)
+
 tar_config_set(store = here::here('_targets'))
 tar_load(cleaned_r)
 tar_load(joined0_r)
@@ -32,7 +35,7 @@ load(here("data/sp_str_int_mod.Rda"))
 
 models <- list(sp_deg_obs_mod, sp_deg_int_mod, sp_str_obs_mod, sp_str_int_mod)
 
-effs <- map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
+effs <- purrr::map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
 preds <- map(models, ~as.data.frame(ggeffect(.x, terms = c("space_use", "situ"))))
 responses <- rep(c("degree", "strength"), each = 2)
 mods <- rep(c("Observed", "Intentional"), 2)
@@ -61,98 +64,6 @@ preds <- preds %>%
   left_join(effs %>%
               select(response, mod, sig, situ) %>%
               distinct(), by = c("group" = "situ", "response", "mod"))
-
-# Figure 1 ----------------------------------------------------------------
-# Show two individuals, both of which have approximately the same observed degree value, but which have very different distributions of expected degree values
-targets::tar_load(allMetrics)
-obs <- allMetrics %>% select(season, situ, Nili_id, degree, strength) %>%
-  distinct()
-exp <- allMetrics %>% select(season, situ, Nili_id, "degree" = wrapped_degree, "strength" = wrapped_strength)
-set.seed(6)
-szn <- sample(unique(allMetrics$season), 1)
-#indivs <- sample(unique(allMetrics$Nili_id), 3)
-indivs <- c("dingle", "kedros") # chose two with same degree but different expected distributions
-
-vals <- linked %>% ungroup() %>% filter(seasonUnique == szn, situ == "Fl", Nili_id %in% indivs) %>%
-  select(Nili_id, z_deg)
-
-dat <- exp %>%
-  filter(Nili_id %in% indivs, season == szn, situ == "flight") %>%
-  mutate(Nili_id = fct_recode(Nili_id, "A" = "dingle",
-                              "B" = "kedros"))
-mns <- dat %>%
-  group_by(Nili_id) %>%
-  summarize(mn = mean(degree))
-
-set.seed(6)
-fig1 <- dat %>%
-  ggplot(aes(x = degree, col = Nili_id))+
-  geom_density(linewidth = 0.75, aes(fill = Nili_id), alpha = 0.1)+
-  geom_vline(data = obs %>% filter(Nili_id %in% indivs, 
-                                   season == szn, situ == "flight") %>%
-               mutate(Nili_id = fct_recode(Nili_id, "A" = "dingle",
-                                           "B" = "kedros")), 
-             aes(xintercept = jitter(degree), col = Nili_id), linetype = 2,
-             linewidth = 1)+
-  labs(y = "Density",
-       x = "Degree (co-flight)",
-       col = "Individual",
-       fill = "Individual")+
-  scale_color_manual(values = c("orange", "purple"))+
-  scale_fill_manual(values = c("orange", "purple"))+
-  annotate("errorbar", y = 0.1, xmin = mns$mn[1], xmax = 39, col = "orange", width = 0.01)+
-  annotate("errorbar", y = 0.05, xmin = mns$mn[2], xmax = 39, col = "purple", width = 0.01)+
-  annotate("text", y = 0.11, x = (39-mns$mn[1])/2, col = "orange", 
-           label = paste0("z-score = ", round(vals$z_deg[1], 2)))+
-  annotate("text", y = 0.06, x = (39-mns$mn[2])/2, col = "purple",
-           label = paste0("z-score = ", round(vals$z_deg[2], 2)))+
-  annotate("text", y = 0.013, x = 34.5, col = "black", label = "observed")+
-  annotate("text", y = 0.013, x = 15, col = "black", label = "incidental")
-ggsave(fig1, file = here("fig/1.png"), width = 5, height = 3.5)
-
-
-# re-do this figure with a sample dataset
-exp <- data.frame(exp_deg = c(rpois(1000, lambda = 12),
-                              rpois(1000, lambda = 5)),
-                  ID = rep(c("A", "B"), each = 1000))
-
-ggplot(exp, aes(x = ID, y = exp_deg)) + 
-  ## add half-violin from {ggdist} package
-  ggdist::stat_halfeye(
-    ## custom bandwidth
-    adjust = .75, 
-    ## adjust height
-    width = .75, 
-    ## move geom to the right
-    justification = -.2, 
-    ## remove slab interval
-    .width = 0, 
-    point_colour = NA
-  ) + 
-  geom_boxplot(
-    width = .15, 
-    ## remove outliers
-    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
-  )+
-  coord_cartesian(xlim = c(1.2, 2.2))+
-  geom_point(data = data.frame(ID = c("A", "B"),
-                               exp_deg = c(21, 18)),
-             col = "red",
-             size = 4)+
-  # geom_linerange(data = data.frame(ID = c("A", "B"),
-  #                                min = (c(median(exp$exp_deg[exp$ID == "A"]),
-  #                                         median(exp$exp_deg[exp$ID == "B"]))),
-  #                                max = c(21, 18)),
-  #              aes(ymin = min, ymax = max, x = ID),
-  #              inherit.aes = F,
-  #              col = "red",
-  #              linetype = 2,
-  #              position = position_dodge(width = 0.5)
-  # )+
-  theme(text = element_text(size = 14))+
-  labs(y = "")+
-  NULL
-
 
 # Figure 2 ----------------------------------------------------------------
 ## A
@@ -465,3 +376,145 @@ centroids_hist <- centroids_df %>%
   annotate("rect", xmin = 3550000, xmax = max(centroids_df$Y), ymin = -Inf, ymax = Inf, alpha = 0.2, fill = "black") 
 
 ggsave(centroids_hist, file = here("fig/centroids_hist.png"), width = 8, height = 6)
+
+# Model summary tables ----------------------------------------------------
+forforest
+# tbl_regression(sp_deg_obs_mod)
+# tbl_regression(sp_deg_int_mod)
+# tbl_regression(sp_str_obs_mod)
+# tbl_regression(sp_str_int_mod)
+
+do <- broom.mixed::tidy(sp_deg_obs_mod) %>% mutate(model = "Degree (observed)")
+di <- broom.mixed::tidy(sp_deg_int_mod) %>% mutate(model = "Degree (intentional)")
+so <- broom.mixed::tidy(sp_str_obs_mod) %>% mutate(model = "Strength (observed)")
+si <- broom.mixed::tidy(sp_str_int_mod) %>% mutate(model = "Strength (intentional)")
+
+confint_fun <- function(mod, mod_name){
+  mat <- confint(mod)
+  df <- as.data.frame(mat) %>%
+    mutate(term = row.names(.)) %>%
+    mutate(model = mod_name) %>%
+    relocate(term)
+  row.names(df) <- NULL
+  return(df)
+}
+
+cis <- map2(models, c("Degree (observed)", "Degree (intentional)", "Strength (observed)", "Strength (intentional)"),  ~confint_fun(.x, .y)) %>% purrr::list_rbind()
+
+all <- bind_rows(do, di, so, si)
+fixed <- all %>%
+  filter(effect == "fixed") %>%
+  select(-c("effect", "component", "group")) %>%
+  relocate("model") %>%
+  left_join(cis, by = c("term", "model")) %>%
+  select(-estimate) %>% # I actually like the formatting of the ones in the "Estimate" column from the confint function better
+  mutate(term = case_when(term == "space_use" ~ "Space use",
+                          term == "situFl" ~ "Situation (flight)",
+                          term == "situRo" ~ "Situation (roosting)",
+                          term == "seasonsummer" ~ "Season (summer)",
+                          term == "seasonfall" ~ "Season (fall)",
+                          term == "space_use:situFl" ~ "Space use * Situation (flight)",
+                          term == "space_use:situRo" ~ "Space use * Situation (roosting)",
+                          .default = term)) %>%
+  rename("Social network" = model,
+         "Predictor variable" = term,
+         "Statistic" = statistic,
+         "P" = "p.value") %>%
+  mutate("95% CI" = paste(round(`2.5 %`, 3), round(`97.5 %`, 3), sep = ", "),
+         "Estimate±SE" = paste(round(Estimate, 3), "±", round(std.error, 3)),
+         P = round(P, 3)) %>%
+  select(`Social network`, `Predictor variable`, `Estimate±SE`, `95% CI`, P) %>%
+  mutate(P = as.character(P),
+         P = case_when(P == "0" ~ "<0.001",
+                       .default = P))
+# 
+# rand <- all %>%
+#   filter(effect == "ran_pars") %>%
+#   select(-c("effect", "component", "std.error", "statistic", "p.value")) %>%
+#   relocate("model") %>%
+#   mutate(group = case_when(group == "seasonUnique" ~ "Season_Year",
+#                            group == "Nili_id" ~ "ID",
+#                            .default = group)) %>%
+#   rename("Model" = model,
+#          "Group" = group,
+#          "Characteristic" = term,
+#          "Beta" = estimate)
+
+fixed_tab <- fixed %>%
+  group_by(`Social network`) %>%
+  gt(row_group_as_column = T) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = list(cells_column_labels(), cells_row_groups())
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = c(P, `95% CI`),
+      rows = P < 0.05
+    )
+  )
+fixed_tab # this is too long... let me try doing it in two separate ones
+
+fixed_obs <- fixed %>% filter(grepl("observed", `Social network`))
+fixed_int <- fixed %>% filter(grepl("intentional", `Social network`))
+
+fixed_tab_obs <- fixed_obs %>%
+  group_by(`Social network`) %>%
+  gt(row_group_as_column = T) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = list(cells_column_labels(), cells_row_groups())
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = c(P, `95% CI`),
+      rows = P < 0.05
+    )
+  )
+fixed_tab_obs
+
+fixed_tab_int <- fixed_int %>%
+  group_by(`Social network`) %>%
+  gt(row_group_as_column = T) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = list(cells_column_labels(), cells_row_groups())
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = c(P, `95% CI`),
+      rows = P < 0.05
+    )
+  )
+fixed_tab_int
+
+gtsave(fixed_tab_obs, filename = here("fig/fixed_tab_obs.png"))
+gtsave(fixed_tab_int, filename = here("fig/fixed_tab_int.png"))
+
+
+# rand_tab <- rand %>%
+#   group_by(Model) %>%
+#   gt(row_group_as_column = T) %>%
+#   fmt_number(decimals = 2) %>%
+#   tab_style(
+#     style = list(
+#       cell_text(weight = "bold")
+#     ),
+#     locations = list(cells_column_labels(), cells_row_groups())
+#   )
+# gtsave(rand_tab, filename = here("fig/rand_tab.png"))
