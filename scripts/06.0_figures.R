@@ -35,7 +35,7 @@ load(here("data/sp_str_int_mod.Rda"))
 
 models <- list(sp_deg_obs_mod, sp_deg_int_mod, sp_str_obs_mod, sp_str_int_mod)
 
-effs <- purrr::map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
+effs <- effs <- map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
 preds <- map(models, ~as.data.frame(ggeffect(.x, terms = c("space_use", "situ"))))
 responses <- rep(c("degree", "strength"), each = 2)
 mods <- rep(c("Observed", "Intentional"), 2)
@@ -62,51 +62,8 @@ preds <- pmap(.l = list(x = preds, y = responses, z = mods),
 
 preds <- preds %>%
   left_join(effs %>%
-              select(response, mod, sig, situ) %>%
+              dplyr::select(response, mod, sig, situ) %>%
               distinct(), by = c("group" = "situ", "response", "mod"))
-
-# Figure 2 ----------------------------------------------------------------
-## A
-fig_2a <- linked %>%
-  filter(situ == "Fl", seasonUnique == "2022_fall") %>%
-  ungroup() %>%
-  ggplot(aes(x = degree))+
-  geom_histogram(fill = situcolors[2], col = "white")+
-  theme_classic()+
-  theme(legend.position = "bottom",
-        text = element_text(family = "Verdana", size = 12))+
-  xlab("Degree (observed)")+
-  ylab("Density")
-fig_2a
-
-## B
-fig_2b <- linked2 %>%
-  filter(situ == "Fl", seasonUnique == "2022_fall") %>%
-  ungroup() %>%
-  ggplot(aes(x = z_deg))+
-  geom_histogram(fill = situcolors[2], col = "white")+
-  theme_classic()+
-  theme(legend.position = "bottom",
-        text = element_text(family = "Verdana", size = 12))+
-  xlab("Degree z-score (intentional)")+
-  ylab("Density")
-fig_2b
-
-## C. Correlation between measured and intentional sociality
-fig_2c <- linked2 %>%
-  ungroup() %>%
-  filter(situ == "Fl", seasonUnique == "2022_fall") %>%
-  ggplot(aes(x = degree, y = z_deg))+
-  geom_point(pch = 1, size = 2, alpha = 0.8, col = situcolors[2])+
-  theme_classic()+
-  theme(text = element_text(family = "Verdana", size = 12))+
-  geom_smooth(alpha = 0.2, size = 0, method = "lm", col = situcolors[2], fill = situcolors[2])+ # creates se error clouds without the lines 
-  stat_smooth(geom = "line", size = 1, method = "lm", col = situcolors[2]) +
-  ylab("Degree (intentional)") + xlab("Degree (observed)")
-fig_2c # correlated, but not perfectly
-
-fig_2 <- ((fig_2a | fig_2b & theme(axis.title.y = element_blank()))/fig_2c) + plot_layout(nrow = 2, heights = c(3, 5))
-ggsave(fig_2, filename = here("fig/fig_2.png"), height = 5, width = 6)
 
 # Figure 3 ----------------------------------------------------------------
 # Main results
@@ -506,7 +463,63 @@ fixed_tab_int
 gtsave(fixed_tab_obs, filename = here("fig/fixed_tab_obs.png"))
 gtsave(fixed_tab_int, filename = here("fig/fixed_tab_int.png"))
 
+effs_modified <- effs %>%
+  mutate(`Social network` = paste0(str_to_title(response), " (", str_to_lower(mod), ")")) %>%
+  rename("Situation" = "situ",
+         "Estimate" = "space_use.trend") %>%
+  mutate("95% CI" = paste(round(`lower.CL`, 3), round(`upper.CL`, 3), 
+                          sep = ", "),
+         "Estimate±SE" = paste(round(Estimate, 3), "±", round(SE, 3))) %>%
+  select(`Social network`, Situation, `Estimate±SE`, `95% CI`) %>%
+  mutate(`Predictor variable` = paste0("Space use * Situation (", str_to_lower(Situation), ")")) %>%
+  select(-Situation) %>%
+  relocate(`Predictor variable`, .after = `Social network`)
 
+em_obs <- effs_modified %>%
+  filter(grepl("observed", `Social network`))
+em_int <- effs_modified %>%
+  filter(grepl("intentional", `Social network`))
+
+sig_obs <- stringr::str_count(em_obs$`95% CI`, "-") %in% c(0, 2)
+sig_int <- stringr::str_count(em_in$`95% CI`, "-") %in% c(0, 2)
+conditional_effects_tab_obs <- em_obs %>%
+  group_by(`Social network`) %>%
+  gt(row_group_as_column = T) %>%
+  tab_style(style = list(
+    cell_text(weight = "bold")
+  ),
+  locations = list(cells_column_labels(), cells_row_groups())) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = "95% CI",
+      rows = sig_obs
+    )
+  )
+
+conditional_effects_tab_int <- em_int %>%
+  group_by(`Social network`) %>%
+  gt(row_group_as_column = T) %>%
+  tab_style(style = list(
+    cell_text(weight = "bold")
+  ),
+  locations = list(cells_column_labels(), cells_row_groups())) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = "95% CI",
+      rows = sig_int
+    )
+  )
+gtsave(conditional_effects_tab_obs, filename = here("fig/conditional_effects_tab_obs.png"))
+gtsave(conditional_effects_tab_int, filename = here("fig/conditional_effects_tab_int.png"))
+
+
+  
 # rand_tab <- rand %>%
 #   group_by(Model) %>%
 #   gt(row_group_as_column = T) %>%
