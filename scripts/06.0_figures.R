@@ -191,6 +191,7 @@ season_plot <- season_effects %>%
   geom_point(size = 4, pch = 21, fill = "white")+
   facet_wrap(~interaction(mod, response, sep = " "), scales = "free_y")+
   scale_color_manual(values = seasoncolors)+
+  theme_minimal()+
   theme(legend.position = "none",
         axis.text.y = element_text(size = 12),
         axis.text.x = element_text(size = 11),
@@ -203,62 +204,59 @@ ggsave(season_plot, file = here("fig/season_plot.png"), width = 5.5, height = 7)
 
 
 # Social measures plots ---------------------------------------------------
-degree_density <- linked2 %>%
+bordercolors <- c("gold3", "dodgerblue3", "darkolivegreen")
+linked3 <- linked2 %>%
   mutate(szn = str_replace(seasonUnique, "_", " "),
-         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
-  ggplot(aes(x = degree, group = szn, color = szn))+
-  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
-  facet_wrap(~str_to_title(type), scales = "free_x")+
-  theme_classic()+
+         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer")),
+         szn = paste0(substr(szn, 3, 4), "_", toupper(substr(szn, 6, 6))))
+
+obs_deg_box <- linked3 %>%
+  ggplot(aes(x = szn, y = degree, fill = type, col = type, group = interaction(szn, type)))+
+  geom_boxplot(outlier.shape = 1, outlier.size = 0.5)+
+  theme_minimal()+
+  scale_fill_manual(name = "Behavioral situation", values = situcolors)+
+  scale_color_manual(name = "Behavioral situation", values = bordercolors)+
   theme(axis.title.x = element_blank(),
         legend.position = "bottom")+
-  labs(y = "Density", color = "Season", title = "Degree")
-degree_density  
+  labs(y = "Degree (observed)", x = "Season")
+obs_deg_box
 
-strength_density <- linked2 %>%
-  mutate(szn = str_replace(seasonUnique, "_", " "),
-         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
-  ggplot(aes(x = strength, group = szn, color = szn))+
-  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
-  facet_wrap(~str_to_title(type), scales = "free")+
-  theme_classic()+
+obs_str_box <- linked3 %>%
+  ggplot(aes(x = szn, y = strength, fill = type, col = type, group = interaction(szn, type)))+
+  geom_boxplot(outlier.shape = 1, outlier.size = 0.5)+
+  theme_minimal()+
+  scale_fill_manual(name = "Behavioral situation", values = situcolors)+
+  scale_color_manual(name = "Behavioral situation", values = bordercolors)+
   theme(axis.title.x = element_blank(),
         legend.position = "bottom")+
-  labs(y = "Density", color = "Season", title = "Strength")
-strength_density  
+  labs(y = "Strength (observed)", x = "Season")
+obs_str_box
 
-densities <- degree_density/strength_density  + plot_layout(guides = "collect")
-densities
-ggsave(densities, file = here("fig/densities.png"), width = 6, height = 5)
-
-degree_density_z <- linked2 %>%
-  mutate(szn = str_replace(seasonUnique, "_", " "),
-         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
-  ggplot(aes(x = z_deg, group = szn, color = szn))+
-  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
-  facet_wrap(~str_to_title(type), scales = "free_y")+
-  theme_classic()+
+int_deg_box <- linked3 %>%
+  ggplot(aes(x = szn, y = z_deg, fill = type, col = type, group = interaction(szn, type)))+
+  geom_boxplot(outlier.shape = 1, outlier.size = 0.5)+
+  theme_minimal()+
+  scale_fill_manual(name = "Behavioral situation", values = situcolors)+
+  scale_color_manual(name = "Behavioral situation", values = bordercolors)+
   theme(axis.title.x = element_blank(),
         legend.position = "bottom")+
-  labs(y = "Density", color = "Season", title = "Degree z-score")
-degree_density_z
+  labs(y = "Degree (intentional)", x = "Season")
+int_deg_box
 
-strength_density_z <- linked2 %>%
-  mutate(szn = str_replace(seasonUnique, "_", " "),
-         szn = factor(szn, levels = c("2020 fall", "2021 breeding", "2021 summer", "2021 fall", "2022 breeding", "2022 summer", "2022 fall", "2023 breeding", "2023 summer"))) %>%
-  ggplot(aes(x = z_str, group = szn, color = szn))+
-  stat_density(geom = "line", alpha = 0.5, position = "identity", linewidth = 1)+
-  facet_wrap(~str_to_title(type), scales = "free_y")+
-  theme_classic()+
+int_str_box <- linked3 %>%
+  ggplot(aes(x = szn, y = z_str, fill = type, col = type, group = interaction(szn, type)))+
+  geom_boxplot(outlier.shape = 1, outlier.size = 0.5)+
+  theme_minimal()+
+  scale_fill_manual(name = "Behavioral situation", values = situcolors)+
+  scale_color_manual(name = "Behavioral situation", values = bordercolors)+
   theme(axis.title.x = element_blank(),
         legend.position = "bottom")+
-  labs(y = "Density", color = "Season", title = "Strength z-score")
-strength_density_z 
+  labs(y = "Strength (intentional)", x = "Season")
+int_str_box
 
-densities_all <- (((degree_density / degree_density_z) + plot_layout(axis_titles = "collect")) | ((strength_density / strength_density_z)+ plot_layout(axis_titles = "collect"))) + plot_layout(guides = "collect") & theme(legend.position = 'bottom')
-
-densities_all
-ggsave(densities_all, file = here("fig/densities_all.png"), width = 10, height = 6)
+boxplots <- ((obs_deg_box/obs_str_box) + plot_layout(axes = "collect") | (int_deg_box/int_str_box) + plot_layout(axes = "collect")) + plot_layout(guides = "collect") & theme(legend.position = 'bottom', panel.grid.minor.x = element_blank())
+boxplots
+ggsave(boxplots, file = here("fig/boxplots.png"), width = 9, height = 5)
 
 # Map with interaction and roost locations --------------------------------
 load(here("stadia_key.Rda"))
