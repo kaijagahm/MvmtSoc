@@ -36,39 +36,39 @@ indivs <- bind_rows(all, focal) %>%
   pivot_longer(c("flight", "feeding", "roosting"), names_to = "situ", values_to = "n") %>%
   pivot_wider(names_from = "type", values_from = "n")
 
-# For comparison: how many tagged birds in the entire uncleaned da --------
-tar_load(joined0)# to get total numbers of tagged birds during the same time periods
-with_seasons <- joined0 %>% mutate(month = lubridate::month(timestamp),
-                                   day = lubridate::day(timestamp),
-                                   year = lubridate::year(timestamp)) %>%
-  mutate(season = case_when(((month == 12 & day >= 15) | 
-                               (month %in% 1:4) | 
-                               (month == 5 & day < 15)) ~ "breeding",
-                            ((month == 5 & day >= 15) | 
-                               (month %in% 6:8) | 
-                               (month == 9 & day < 15)) ~ "summer",
-                            .default = "fall")) %>%
-  filter(dateOnly != "2023-09-15") %>% # remove September 15 2023, because it turns out the season boundaries are supposed to be non-inclusive and this is the latest one.
-  mutate(seasonUnique = case_when(season == "breeding" & month == 12 ~
-                                    paste(as.character(year + 1), season, sep = "_"),
-                                  .default = paste(as.character(year), season, sep = "_"))) %>%
-  mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding", "2023_summer")),
-         season = factor(season, levels = c("breeding", "summer", "fall")))
-all_tagged <- with_seasons %>%
-  select(local_identifier, month, day, year, season, seasonUnique) %>%
-  group_by(year, season) %>%
-  summarize(`all tagged` = length(unique(local_identifier)))
-a_t <- bind_rows(all_tagged %>% mutate(situ = "flight"),
-                 all_tagged %>% mutate(situ = "feeding"),
-                 all_tagged %>% mutate(situ = "roosting")) %>%
-  mutate(year = as.character(year))
-
-indivs <- left_join(indivs, a_t)
+# # For comparison: how many tagged birds in the entire uncleaned da --------
+# tar_load(joined0)# to get total numbers of tagged birds during the same time periods
+# with_seasons <- joined0 %>% mutate(month = lubridate::month(timestamp),
+#                                    day = lubridate::day(timestamp),
+#                                    year = lubridate::year(timestamp)) %>%
+#   mutate(season = case_when(((month == 12 & day >= 15) | 
+#                                (month %in% 1:4) | 
+#                                (month == 5 & day < 15)) ~ "breeding",
+#                             ((month == 5 & day >= 15) | 
+#                                (month %in% 6:8) | 
+#                                (month == 9 & day < 15)) ~ "summer",
+#                             .default = "fall")) %>%
+#   filter(dateOnly != "2023-09-15") %>% # remove September 15 2023, because it turns out the season boundaries are supposed to be non-inclusive and this is the latest one.
+#   mutate(seasonUnique = case_when(season == "breeding" & month == 12 ~
+#                                     paste(as.character(year + 1), season, sep = "_"),
+#                                   .default = paste(as.character(year), season, sep = "_"))) %>%
+#   mutate(seasonUnique = factor(seasonUnique, levels = c("2020_summer", "2020_fall", "2021_breeding", "2021_summer", "2021_fall", "2022_breeding", "2022_summer", "2022_fall", "2023_breeding", "2023_summer")),
+#          season = factor(season, levels = c("breeding", "summer", "fall")))
+# all_tagged <- with_seasons %>%
+#   select(local_identifier, month, day, year, season, seasonUnique) %>%
+#   group_by(year, season) %>%
+#   summarize(`all tagged` = length(unique(local_identifier)))
+# a_t <- bind_rows(all_tagged %>% mutate(situ = "flight"),
+#                  all_tagged %>% mutate(situ = "feeding"),
+#                  all_tagged %>% mutate(situ = "roosting")) %>%
+#   mutate(year = as.character(year))
+# 
+# indivs <- left_join(indivs, a_t)
 
 
 # Make a nice table -------------------------------------------------------
-min <- min(c(indivs$`space use`, indivs$`social network`, indivs$`all tagged`))
-max <- max(c(indivs$`space use`, indivs$`social network`, indivs$`all tagged`))
+#min <- min(c(indivs$`space use`, indivs$`social network`))
+#max <- max(c(indivs$`space use`, indivs$`social network`))
 tar_load(season_names)
 
 tab <- indivs %>%
@@ -76,31 +76,26 @@ tab <- indivs %>%
   mutate(yrsz = factor(yrsz, levels = str_replace(season_names, "_", " "))) %>%
   arrange(yrsz) %>%
   select(-c("year", "season")) %>%
-  pivot_longer(cols = c("social network", "space use", "all tagged"), names_to = "type", values_to = "count") %>%
+  pivot_longer(cols = c("social network", "space use"), names_to = "type", values_to = "count") %>%
   pivot_wider(names_from = "yrsz", values_from = "count") %>%
   arrange(situ, type) %>%
   mutate(situ = str_to_title(situ)) %>%
   gt(groupname_col = "situ", rowname_col = "type") %>%
   tab_header(
     title = md("**Number of vultures**"),
-  ) %>%
-  data_color(columns = starts_with("20"),
-             palette = "Oranges",
-             domain = c(min, max)) %>%
-  tab_style(
-    style = "padding-left:20px;",
-    locations = cells_stub()
-  )
+  ) #%>%
+  # data_color(columns = starts_with("20"),
+  #            palette = "Oranges",
+  #            domain = c(min, max)) %>%
 tab
 gtsave(tab, filename = here("fig/tab1.png"))
-# XXX can do more with levels with years and columns I think
 
 # Degree and strength per season and situation ----------------------------
 head(linked)
 summ <- linked %>%
   ungroup() %>%
-  select(seasonUnique, year, season, type, degree, strength) %>%
-  pivot_longer(cols = c("degree", "strength"), 
+  select(seasonUnique, year, season, type, degree, strength, z_deg, z_str) %>%
+  pivot_longer(cols = c("degree", "strength", "z_deg", "z_str"), 
                names_to = "measure", values_to = "value") %>%
   group_by(seasonUnique, year, season, type, measure) %>%
   summarize(mn = round(mean(value), 2),
@@ -108,7 +103,11 @@ summ <- linked %>%
             min = round(min(value), 2),
             max = round(max(value), 2),
             words = paste0(mn, " (", sd, ")<br>", 
-                           min, "-", max))
+                           min, "-", max)) %>%
+  mutate(measure = case_when(measure == "degree" ~ "Degree (observed)",
+                             measure == "strength" ~ "Strength (observed)",
+                             measure == "z_deg" ~ "Degree (intentional)",
+                             measure == "z_str" ~ "Strength (intentional)"))
 
 tab2 <- summ %>%
   ungroup() %>%
@@ -116,8 +115,7 @@ tab2 <- summ %>%
   select(seasonUnique, type, measure, words) %>%
   mutate(seasonUnique = str_replace(seasonUnique, "_", " ")) %>%
   pivot_wider(id_cols = c("measure", "type"), names_from = "seasonUnique", values_from = "words") %>%
-  mutate(measure = str_to_title(measure),
-         type = str_to_title(type)) %>%
+  mutate(type = str_to_title(type)) %>%
   group_by(measure) %>%
   gt(rowname_col = "type") %>%
   tab_style(

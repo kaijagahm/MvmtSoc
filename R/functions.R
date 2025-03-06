@@ -305,7 +305,7 @@ get_roosts <- function(dat){
 remove_nighttime <- function(removed_lfr){
   removed_nighttime <- map(removed_lfr, ~{
     times <- suncalc::getSunlightTimes(date = unique(lubridate::date(.x$timestamp)),
-                                       lat = 31.434306, lon = 34.991889, # XXX revisit this!
+                                       lat = 31.434306, lon = 34.991889, # coords represent rough spatial centroid of Israel, based on https://wikimapia.org/37549200/Geographic-center-of-Israel
                                        keep = c("sunrise", "sunset")) %>%
       dplyr::select("dateOnly" = date, sunrise, sunset)
     
