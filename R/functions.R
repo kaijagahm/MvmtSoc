@@ -699,6 +699,11 @@ get_space_use <- function(movementBehaviorScaled){
   return(distinct(space_use))
 }
 
+# XXX code for pca biplot included in the supplementary material
+# autoplot(pca, data = space_use, 
+#          +          loadings = TRUE, loadings.colour = 'blue',
+#          +          loadings.label = TRUE, loadings.label.size = 3, loadings.label.color = "blue")+theme_classic() + labs(x = "PC1 (84.51%)--Space use")
+
 get_movement <- function(movementBehaviorScaled){
   movement <- movementBehaviorScaled %>%
     dplyr::select(Nili_id, seasonUnique, mnDailyMnAlt, meanDFD, meanDMD, meanDDT, mnTort) %>%
