@@ -1,86 +1,66 @@
-# Created by use_targets().
-# Follow the comments below to fill in this target script.
-# Then follow the manual to check and run the pipeline:
-#   https://books.ropensci.org/targets/walkthrough.html#inspect-the-pipeline
+# This is the targets pipeline script that does all the data cleaning for this project. Running this with tar_make() makes it quicker to modify and re-run parts of the pipeline without having to re-create enormous data objects every time.
 
-# Load packages required to define the pipeline:
 library(targets)
-# library(tarchetypes) # Load other packages as needed.
 
-# Set target options:
+# Load packages that the functions here will need in order to complete their tasks
 tar_option_set(
-  packages = c("vultureUtils", "sf", "tidyverse", "move", "feather", "readxl", "elevatr", "here", "furrr", "future", "ctmm", "purrr", "igraph", "mapview", "adehabitatHR", "sp", "raster", "parallel", "car", "factoextra", "ggfortify", "ggpmisc", "lme4", "ggpubr", "rstatix", "easystats", "performance", "lmerTest", "glmmTMB", "DHARMa", "sjPlot", "broom.mixed", "jtools", "emmeans", "ggeffects", "gtsummary", "ade4", "extrafont", "ggplot2", "ggspatial", "grid", "ggmap", "Polychrome", "ggraph", "tidygraph") # Packages that your targets need for their tasks.
-  # format = "qs", # Optionally set the default storage format. qs is fast.
-  #
-  # Pipelines that take a long time to run may benefit from
-  # optional distributed computing. To use this capability
-  # in tar_make(), supply a {crew} controller
-  # as discussed at https://books.ropensci.org/targets/crew.html.
-  # Choose a controller that suits your needs. For example, the following
-  # sets a controller that scales up to a maximum of two workers
-  # which run as local R processes. Each worker launches when there is work
-  # to do and exits if 60 seconds pass with no tasks to run.
-  #
-  #   controller = crew::crew_controller_local(workers = 2, seconds_idle = 60)
-  #
-  # Alternatively, if you want workers to run on a high-performance computing
-  # cluster, select a controller from the {crew.cluster} package.
-  # For the cloud, see plugin packages like {crew.aws.batch}.
-  # The following example is a controller for Sun Grid Engine (SGE).
-  # 
-  #   controller = crew.cluster::crew_controller_sge(
-  #     # Number of workers that the pipeline can scale up to:
-  #     workers = 10,
-  #     # It is recommended to set an idle time so workers can shut themselves
-  #     # down if they are not running tasks.
-  #     seconds_idle = 120,
-  #     # Many clusters install R as an environment module, and you can load it
-  #     # with the script_lines argument. To select a specific verison of R,
-  #     # you may need to include a version string, e.g. "module load R/4.3.2".
-  #     # Check with your system administrator if you are unsure.
-  #     script_lines = "module load R"
-  #   )
-  #
-  # Set other options as needed.
+  packages = c("vultureUtils", "sf", "tidyverse", "move", "feather", "readxl", "elevatr", "here", "furrr", "future", "ctmm", "purrr", "igraph", "mapview", "adehabitatHR", "sp", "raster", "parallel", "car", "factoextra", "ggfortify", "ggpmisc", "lme4", "ggpubr", "rstatix", "easystats", "performance", "lmerTest", "glmmTMB", "DHARMa", "sjPlot", "broom.mixed", "jtools", "emmeans", "ggeffects", "gtsummary", "ade4", "extrafont", "ggplot2", "ggspatial", "grid", "ggmap", "Polychrome", "ggraph", "tidygraph")
 )
 
-# Run the R scripts in the R/ folder with your custom functions:
-lapply(list.files("R", full.names = TRUE), source) # source all scripts in the R directory
-# tar_source("other_functions.R") # Source other scripts as needed.
+# The functions needed for data cleaning are defined in the script(s) in the R/ folder. Let's source all those scripts so we have access to the functions.
+lapply(list.files("R", full.names = TRUE), source) 
 
-# Replace the target list below with your own:
 list(
   # Prepare data
+  ## Color palettes needed later for plotting--these are defined in functions.R
   tar_target(cc, get_cc()),
-  tar_target(situcolors, get_situcolors(cc)), #XXX
-  tar_target(seasoncolors, get_seasoncolors(cc)), #XXX
+  tar_target(situcolors, get_situcolors(cc)),
+  tar_target(seasoncolors, get_seasoncolors(cc)), 
+  ## Get movebank credentials, which will allow us to download data from movebank
   tar_target(pw, "movebankCredentials/pw.Rda", format = "file"),
   tar_target(loginObject, get_loginObject(pw)),
+  ## Download the vulture data from movebank
   tar_target(inpa, get_inpa(loginObject)),
   tar_target(ornitela, get_ornitela(loginObject)),
+  ## Join together the inpa and ornitela datases
   tar_target(joined0, join_inpa_ornitela(inpa, ornitela)),
+  ## Load the who's who file, which has additional information about the vultures
   tar_target(ww_file, "data/whoswho_vultures_20230920_new.xlsx", format = "file"),
+  ## Fix the names
   tar_target(fixed_names, fix_names(joined0, ww_file)),
+  ## Remove hospital/invalid periods
   tar_target(removed_periods, remove_periods(ww_file, fixed_names)),
+  ## Clean the data with the various steps in the vultureUtils::cleanData function.
   tar_target(cleaned, clean_data(removed_periods)),
+  ## Load in data about capture sites and remove carmel captures
   tar_target(capture_sites, "data/capture_sites.csv", format = "file"),
   tar_target(carmel, "data/all_captures_carmel_2010-2021.csv", format = "file"),
   tar_target(removed_captures, remove_captures(capture_sites, carmel, cleaned)),
+  ## Attach age and sex information from the who's who file.
   tar_target(with_age_sex, attach_age_sex(removed_captures, ww_file)),
+  ## Mask data with the israel region mask
   tar_target(mask, "data/CutOffRegion.kml", format = "file"),
   tar_target(data_masked, mask_data(with_age_sex, mask)),
+  ## Split the data into seasons and extract the season names
   tar_target(seasons_list, split_seasons(data_masked)),
   tar_target(season_names, get_season_names(seasons_list)),
+  ## Remove northern birds
   tar_target(removed_northern, remove_northern(seasons_list)),
+  ## Remove any vultures that have too low a fix rate for any given season
   tar_target(removed_lfr, remove_lfr(removed_northern)),
+  ## If any vultures have too *high* a fix rate, downsample it to every 10 minutes so it's easier to work with.
   tar_target(downsampled_10min_forSocial, downsample_10min(removed_lfr)),
+  ## Get roost locations for each vulture on each night.
   tar_target(roosts, get_roosts(downsampled_10min_forSocial)),
+  ## Remove nighttime points
   tar_target(removed_nighttime, remove_nighttime(removed_lfr)),
+  ## Remove vulture days that don't have enough points (unless battery was full enough all day) 
   tar_target(removed_lowppd, remove_lowppd(removed_nighttime)),
+  ## Remove any vultures that don't have enough points in a given season
   tar_target(removed_too_few_days, remove_too_few_days(removed_lowppd)),
-  tar_target(with_altitudes, attach_altitudes(removed_too_few_days)),
-  tar_target(downsampled_10min, downsample_10min(with_altitudes)),
-  # AKDE
+  ## Downsample the new dataset to every 10 minutes too, for use in movement calculations
+  tar_target(downsampled_10min, downsample_10min(removed_too_few_days)),
+  ## AKDE--calculate home ranges. This process takes forever to run!
   tar_target(animals, get_animals(downsampled_10min)),
   tar_target(telems_list, get_telems(downsampled_10min, animals)),
   tar_target(variograms_list, get_variograms(telems_list)),
@@ -90,29 +70,26 @@ list(
   tar_target(stats_w_95_df, get_akde_stats(uds_w, 0.95, animals, season_names, telems_list)),
   tar_target(stats_w_50_df, get_akde_stats(uds_w, 0.5, animals, season_names, telems_list)),
   tar_target(sfs_est_centroids, get_akde_centroids(uds_w, season_names, downsampled_10min)),
-  # CalcMovement
+  ## Get how many days each individual was tracked per season XXX remove?
   tar_target(daysTracked_seasons, get_daystracked(downsampled_10min, season_names)),
+  ## Load roost polygons (will use this later for the social networks)
   tar_target(roostPolygons, "data/roosts50_kde95_cutOffRegion.kml", format = "file"),
-  tar_target(roostsPrepped, prep_roosts(roosts, roostPolygons)),
+  ## Convert to sf object
   tar_target(downsampled_10min_sf, convertsf(downsampled_10min)),
+  ## Get home range and core area sizes
   tar_target(areas_list, compile_areas(stats_w_95_df, stats_w_50_df)),
-  tar_target(roostSwitches, get_roost_switches(roostsPrepped)),
-  tar_target(shannon, get_shannon(roostsPrepped)),
-  tar_target(dfdSumm, get_dfd(downsampled_10min_sf, season_names)),
-  tar_target(mnMvmt, get_daily_movements(downsampled_10min_sf)),
-  tar_target(dailyAltitudesSumm, get_altitude_stats(downsampled_10min_sf, season_names)),
+  ## Compile and label area data
   tar_target(movementBehavior, compile_movement_behavior(areas_list, dailyAltitudesSumm, roostSwitches, shannon, dfdSumm, mnMvmt, daysTracked_seasons, season_names, downsampled_10min_sf)),
   # Categorize movement (PCAs)
+  ## Scale movement behavior
   tar_target(movementBehaviorScaled, scale_movement_behavior(movementBehavior)),
+  ## Get demographic information
   tar_target(demo, get_demo(movementBehaviorScaled)),
+  ## Calculate space use
   tar_target(space_use, get_space_use(movementBehaviorScaled)),
-  tar_target(movement, get_movement(movementBehaviorScaled)),
-  tar_target(roost_behavior, get_roost_behavior(movementBehaviorScaled)),
-  tar_target(new_movement_vars, get_new_movement_vars(demo, space_use, movement, roost_behavior)),
-  tar_target(all_movement_vars, get_all_movement_vars(demo, space_use, movement, roost_behavior)),
-  tar_target(space_corr, get_correlation_scatterplots(all_movement_vars, "space_use", ycols = c("homeRange_log", "coreAreaFidelity"), title = "Space use")),
-  tar_target(movement_corr, get_correlation_scatterplots(all_movement_vars, "movement", ycols = c("mnDailyMnAlt", "meanDFD", "meanDMD", "meanDDT", "mnTort"), title = "Movement")),
-  tar_target(roost_corr, get_correlation_scatterplots(all_movement_vars, "roost_div", ycols = c("propSwitch", "shannon", "uniqueRoosts"), title = "Roost diversification")),
+  tar_target(new_movement_vars, get_new_movement_vars(demo, space_use)),
+  tar_target(all_movement_vars, get_all_movement_vars(demo, space_use)),
+  
   # Calculate social networks
   tar_target(sfdata, convertsf(downsampled_10min_forSocial)),
   tar_target(flight, get_flight(sfdata, roostPolygons)),
@@ -128,27 +105,15 @@ list(
   tar_target(feedingGraphs, get_graphs(feedingSRI)),
   tar_target(roostingGraphs, get_graphs(roostingSRI)),
   tar_target(networkMetrics, get_network_metrics(flightGraphs, feedingGraphs, roostingGraphs, season_names)),
-  # Wrap around
+  # Wrap around method--permutations
+  ## Create a column with explicit times (necessary for the wraparound method)
   tar_target(with_times, prepare_times(downsampled_10min_forSocial)),
   tar_target(metrics_wrapped, get_metrics_wrapped(with_times, roosts, season_names, roostPolygons, 100, 1)),
   tar_target(allMetrics, combine_metrics(networkMetrics, metrics_wrapped)),
   tar_target(metrics_summary, get_metrics_summary(allMetrics)),
   tar_target(ns, get_n_in_network(season_names, flightGraphs, feedingGraphs, roostingGraphs)),
-  # Reporting
-  tar_target(joined0_r, report(joined0, "trackId")),
-  tar_target(cleaned_r, report(cleaned, "Nili_id")),
-  tar_target(data_masked_r, report(data_masked, "Nili_id")),
-  tar_target(seasons_list_r, map(seasons_list, ~report(.x, "Nili_id"))),
-  tar_target(removed_northern_r, map(removed_northern, ~report(.x, "Nili_id"))),
-  tar_target(removed_lfr_r, map(removed_lfr, ~report(.x, "Nili_id"))),
-  tar_target(downsampled_10min_forSocial_r, map(downsampled_10min_forSocial, ~report(.x, "Nili_id"))),
-  tar_target(downsampled_10min_r, map(downsampled_10min, ~report(.x, "Nili_id"))),
-  # Mixed models
-  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, season_names, ns))#,
-  # tar_target(deg_mod, get_deg_mod(linked)),
-  # tar_target(deg_z_mod, get_deg_z_mod(linked)),
-  # tar_target(str_mod, get_str_mod(linked)),
-  # tar_target(str_z_mod, get_str_z_mod(linked))
+  # Data for mixed models
+  tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, season_names, ns))
 )
 
 
