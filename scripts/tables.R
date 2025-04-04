@@ -88,7 +88,7 @@ tab <- indivs %>%
   #            palette = "Oranges",
   #            domain = c(min, max)) %>%
 tab
-gtsave(tab, filename = here("fig/tab1.png"))
+gtsave(tab, filename = here("fig/tab1.rtf"))
 
 # Degree and strength per season and situation ----------------------------
 head(linked)
@@ -128,4 +128,4 @@ tab2 <- summ %>%
     subtitle = md("mean (sd)<br>min-max")
   )
 tab2
-gtsave(tab2, filename = here("fig/tab2.png"))
+gtsave(tab2, filename = here("fig/tab2.rtf"))

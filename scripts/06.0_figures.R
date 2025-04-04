@@ -458,8 +458,8 @@ fixed_tab_int <- fixed_int %>%
   )
 fixed_tab_int
 
-gtsave(fixed_tab_obs, filename = here("fig/fixed_tab_obs.png"))
-gtsave(fixed_tab_int, filename = here("fig/fixed_tab_int.png"))
+gtsave(fixed_tab_obs, filename = here("fig/fixed_tab_obs.rtf"))
+gtsave(fixed_tab_int, filename = here("fig/fixed_tab_int.rtf"))
 
 effs_modified <- effs %>%
   mutate(`Social network` = paste0(str_to_title(response), " (", str_to_lower(mod), ")")) %>%
@@ -513,8 +513,8 @@ conditional_effects_tab_int <- em_int %>%
       rows = sig_int
     )
   )
-gtsave(conditional_effects_tab_obs, filename = here("fig/conditional_effects_tab_obs.png"))
-gtsave(conditional_effects_tab_int, filename = here("fig/conditional_effects_tab_int.png"))
+gtsave(conditional_effects_tab_obs, filename = here("fig/conditional_effects_tab_obs.rtf"))
+gtsave(conditional_effects_tab_int, filename = here("fig/conditional_effects_tab_int.rtf"))
 
 
   
