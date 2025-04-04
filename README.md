@@ -4,7 +4,7 @@ Kaija Gahm, Marta Acácio, Nili Anglister, Gideon Vaadia, Orr Spiegel, Noa Pinte
 Corresponding author: Kaija Gahm (kgahm@ucla.edu)
 
 # Overview
-The data cleaning and preparation steps are all contained in the targets pipeline. Outputs are in the _targets/ folder and can be loaded with tar_load(). 
+The data cleaning and preparation steps are all contained in the targets pipeline. Outputs will be placed in the targets/ folder and can be loaded with tar_load(). 
 
 After the targets pipeline is finished, the modeling happens in the script called "scripts/mixedModels.R" and the figures and tables are created in "scripts/figuresTables.R". Figures are saved to the "fig/" directory. 
 
