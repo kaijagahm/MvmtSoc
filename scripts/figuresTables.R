@@ -19,20 +19,6 @@ tar_load(cc)
 tar_load(linked)
 tar_load(situcolors)
 tar_load(seasoncolors)
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD:scripts/06.0_figures.R
-tar_load(movement_corr)
-tar_load(space_corr)
-linked2 <- readRDS(here("data/linked2.RDS"))
-
-# New models with only space use
-load(here("data/sp_deg_obs_mod.Rda"))
-load(here("data/sp_deg_int_mod.Rda"))
-load(here("data/sp_str_obs_mod.Rda"))
-load(here("data/sp_str_int_mod.Rda"))
-=======
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
 linked2 <- readRDS(here("data/created/linked2.RDS"))
 tar_load(flightGraphs)
 tar_load(feedingGraphs)
@@ -87,10 +73,6 @@ load(here("data/created/sp_deg_obs_mod.Rda"))
 load(here("data/created/sp_deg_int_mod.Rda"))
 load(here("data/created/sp_str_obs_mod.Rda"))
 load(here("data/created/sp_str_int_mod.Rda"))
-<<<<<<< HEAD
-=======
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
 
 # List models so we can operate on them
 models <- list(sp_deg_obs_mod, sp_deg_int_mod, sp_str_obs_mod, sp_str_int_mod)
@@ -309,25 +291,7 @@ int_str_box
 
 boxplots <- ((obs_deg_box/obs_str_box) + plot_layout(axes = "collect") | (int_deg_box/int_str_box) + plot_layout(axes = "collect")) + plot_layout(guides = "collect") & theme(legend.position = 'bottom', panel.grid.minor.x = element_blank())
 boxplots
-<<<<<<< HEAD
 ggsave(boxplots, file = here("fig/figS2.png"), width = 9, height = 5)
-=======
-<<<<<<< HEAD:scripts/06.0_figures.R
-ggsave(boxplots, file = here("fig/boxplots.png"), width = 9, height = 5)
-
-# Map with interaction and roost locations --------------------------------
-load(here("stadia_key.Rda"))
-ggmap::register_stadiamaps(key = stadia_key)
-rm(stadia_key)
-# Get roost data (just one season, say summer 2023)
-tar_load(season_names)
-whch <- which(season_names == "2023_summer")
-tar_load(roosts)
-r <- roosts[[whch]] %>% filter(lubridate::month(roost_date) == 7 & lubridate::day(roost_date) <= 5) # first five days of july in 2023
-=======
-ggsave(boxplots, file = here("fig/figS2.png"), width = 9, height = 5)
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
 
 # FIGURE S4 ---------------------------------------------------------------
 season_effects <- pmap(list(x = models, y = responses, z = mods), function(x, y, z){
@@ -337,44 +301,11 @@ season_effects <- pmap(list(x = models, y = responses, z = mods), function(x, y,
 }) %>%
   purrr::list_rbind()
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD:scripts/06.0_figures.R
-bbox <- c(34.516, 30.408, 35.429, 31.582)
-# going to manually layer the points so the most concentrated ones (feeding events) are on top and the most dispersed ones (flight interactions) are on the bottom so it's easier to see.
-# mp <- ggmap(get_stadiamap(bbox = bbox, maptype = "stamen_terrain_background", color = "bw"))
-# save(mp, file = here("mp.Rda"))
-load(here("mp.Rda"))
-dat <- st_drop_geometry(r) %>% select("long" = location_long, "lat" = location_lat) %>%
-  mutate(type = "Roost\nlocations\n") %>%
-  bind_rows(st_drop_geometry(fle) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
-              mutate(type = "Co-flight\ninteractions\n")) %>%
-  bind_rows(st_drop_geometry(fee) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
-              mutate(type = "Co-feeding\ninteractions\n"))
-mymap <- mp+
-  geom_point(data = dat, aes(x = long, y = lat, col = type, shape = type),
-             alpha = 0.9, size = 2)+
-  scale_color_manual(values = situcolors)+
-  scale_shape_manual(values = c(4, 1, 2))+
-  guides(shape = guide_legend(override.aes = list(alpha = 1, size = 5)))+
-  theme(axis.title.x = element_blank(),
-        axis.title.y = element_blank(),
-        legend.title = element_blank(),
-        text = element_text(size = 18),
-        legend.position = "left")
-mymap
-ggsave(mymap, filename = here("fig/mymap.png"), width = 7, height = 6)
-=======
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
 # figure out if any of them are significantly different
 summary(sp_deg_int_mod)
 summary(sp_str_int_mod) 
 summary(sp_deg_obs_mod) 
 summary(sp_str_obs_mod) 
-<<<<<<< HEAD
-=======
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
 
 season_plot <- season_effects %>%
   ggplot(aes(x = x, y = predicted, col = x))+
@@ -433,17 +364,6 @@ conditional_effects_tab_obs <- em_obs %>%
     )
   )
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD:scripts/06.0_figures.R
-# Model summary tables ----------------------------------------------------
-forforest
-# tbl_regression(sp_deg_obs_mod)
-# tbl_regression(sp_deg_int_mod)
-# tbl_regression(sp_str_obs_mod)
-# tbl_regression(sp_str_int_mod)
-=======
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
 conditional_effects_tab_int <- em_int %>%
   group_by(`Social network`) %>%
   gt(row_group_as_column = T) %>%
@@ -544,10 +464,6 @@ tab2 <- summ %>%
   )
 tab2
 gtsave(tab2, filename = here("fig/tabS2.rtf"))
-<<<<<<< HEAD
-=======
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
 
 # TABLE S3 ----------------------------------------------------------------
 do <- broom.mixed::tidy(sp_deg_obs_mod) %>% mutate(model = "Degree (observed)")
@@ -593,21 +509,6 @@ fixed <- all %>%
   mutate(P = as.character(P),
          P = case_when(P == "0" ~ "<0.001",
                        .default = P))
-<<<<<<< HEAD
-=======
-# 
-# rand <- all %>%
-#   filter(effect == "ran_pars") %>%
-#   select(-c("effect", "component", "std.error", "statistic", "p.value")) %>%
-#   relocate("model") %>%
-#   mutate(group = case_when(group == "seasonUnique" ~ "Season_Year",
-#                            group == "Nili_id" ~ "ID",
-#                            .default = group)) %>%
-#   rename("Model" = model,
-#          "Group" = group,
-#          "Characteristic" = term,
-#          "Beta" = estimate)
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
 
 fixed_tab <- fixed %>%
   group_by(`Social network`) %>%
@@ -672,84 +573,5 @@ fixed_tab_int <- fixed_int %>%
   )
 fixed_tab_int
 
-<<<<<<< HEAD
 gtsave(fixed_tab_obs, filename = here("fig/tabS3_obs.rtf"))
 gtsave(fixed_tab_int, filename = here("fig/tabS3_int.rtf"))
-=======
-<<<<<<< HEAD:scripts/06.0_figures.R
-gtsave(fixed_tab_obs, filename = here("fig/fixed_tab_obs.png"))
-gtsave(fixed_tab_int, filename = here("fig/fixed_tab_int.png"))
-
-effs_modified <- effs %>%
-  mutate(`Social network` = paste0(str_to_title(response), " (", str_to_lower(mod), ")")) %>%
-  rename("Situation" = "situ",
-         "Estimate" = "space_use.trend") %>%
-  mutate("95% CI" = paste(round(`lower.CL`, 3), round(`upper.CL`, 3), 
-                          sep = ", "),
-         "Estimate±SE" = paste(round(Estimate, 3), "±", round(SE, 3))) %>%
-  select(`Social network`, Situation, `Estimate±SE`, `95% CI`) %>%
-  mutate(`Predictor variable` = paste0("Space use * Situation (", str_to_lower(Situation), ")")) %>%
-  select(-Situation) %>%
-  relocate(`Predictor variable`, .after = `Social network`)
-
-em_obs <- effs_modified %>%
-  filter(grepl("observed", `Social network`))
-em_int <- effs_modified %>%
-  filter(grepl("intentional", `Social network`))
-
-sig_obs <- stringr::str_count(em_obs$`95% CI`, "-") %in% c(0, 2)
-sig_int <- stringr::str_count(em_in$`95% CI`, "-") %in% c(0, 2)
-conditional_effects_tab_obs <- em_obs %>%
-  group_by(`Social network`) %>%
-  gt(row_group_as_column = T) %>%
-  tab_style(style = list(
-    cell_text(weight = "bold")
-  ),
-  locations = list(cells_column_labels(), cells_row_groups())) %>%
-  tab_style(
-    style = list(
-      cell_text(weight = "bold")
-    ),
-    locations = cells_body(
-      columns = "95% CI",
-      rows = sig_obs
-    )
-  )
-
-conditional_effects_tab_int <- em_int %>%
-  group_by(`Social network`) %>%
-  gt(row_group_as_column = T) %>%
-  tab_style(style = list(
-    cell_text(weight = "bold")
-  ),
-  locations = list(cells_column_labels(), cells_row_groups())) %>%
-  tab_style(
-    style = list(
-      cell_text(weight = "bold")
-    ),
-    locations = cells_body(
-      columns = "95% CI",
-      rows = sig_int
-    )
-  )
-gtsave(conditional_effects_tab_obs, filename = here("fig/conditional_effects_tab_obs.png"))
-gtsave(conditional_effects_tab_int, filename = here("fig/conditional_effects_tab_int.png"))
-
-
-  
-# rand_tab <- rand %>%
-#   group_by(Model) %>%
-#   gt(row_group_as_column = T) %>%
-#   fmt_number(decimals = 2) %>%
-#   tab_style(
-#     style = list(
-#       cell_text(weight = "bold")
-#     ),
-#     locations = list(cells_column_labels(), cells_row_groups())
-#   )
-# gtsave(rand_tab, filename = here("fig/rand_tab.png"))
-=======
-gtsave(fixed_tab_obs, filename = here("fig/tabS3_obs.rtf"))
-gtsave(fixed_tab_int, filename = here("fig/tabS3_int.rtf"))
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
->>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras)
