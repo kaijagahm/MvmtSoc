@@ -15,14 +15,11 @@ library(glmmTMB) # have to have this loaded because emmeans cannot actually hand
 library(gt)
 
 tar_config_set(store = here::here('_targets'))
-tar_load(cleaned_r)
-tar_load(joined0_r)
-tar_load(downsampled_10min_forSocial_r)
-tar_load(downsampled_10min_r)
 tar_load(cc)
 tar_load(linked)
 tar_load(situcolors)
 tar_load(seasoncolors)
+<<<<<<< HEAD:scripts/06.0_figures.R
 tar_load(movement_corr)
 tar_load(space_corr)
 linked2 <- readRDS(here("data/linked2.RDS"))
@@ -32,7 +29,64 @@ load(here("data/sp_deg_obs_mod.Rda"))
 load(here("data/sp_deg_int_mod.Rda"))
 load(here("data/sp_str_obs_mod.Rda"))
 load(here("data/sp_str_int_mod.Rda"))
+=======
+linked2 <- readRDS(here("data/created/linked2.RDS"))
+tar_load(flightGraphs)
+tar_load(feedingGraphs)
+tar_load(roostingGraphs)
+tar_load(season_names)
 
+# FIGURE 2: map -----------------------------------------------------------
+load(here("credentials/stadia_key.Rda"))
+ggmap::register_stadiamaps(key = stadia_key)
+rm(stadia_key)
+# Get roost data (just one season, say summer 2023)
+tar_load(season_names)
+whch <- which(season_names == "2023_summer")
+tar_load(roosts)
+r <- roosts[[whch]] %>% filter(lubridate::month(roost_date) == 7 & lubridate::day(roost_date) <= 5) # first five days of july in 2023
+
+# Get feeding/flight interaction data (just one season, say summer 2023)
+## and then let's limit it to the first five days of July so that it's a little less chaotic to plot.
+tar_load(flightEdges)
+fle <- flightEdges[[whch]] %>% filter(lubridate::month(minTimestamp) == 7 & lubridate::day(minTimestamp) <= 5)
+tar_load(feedingEdges)
+fee <- feedingEdges[[whch]] %>% filter(lubridate::month(minTimestamp) == 7 & lubridate::day(minTimestamp) <= 5)
+
+bbox <- c(34.516, 30.408, 35.429, 31.582)
+# going to manually layer the points so the most concentrated ones (feeding events) are on top and the most dispersed ones (flight interactions) are on the bottom so it's easier to see.
+# mp <- ggmap(get_stadiamap(bbox = bbox, maptype = "stamen_terrain_background", color = "bw"))
+# save(mp, file = here("mp.Rda"))
+load(here("data/created/mp.Rda"))
+dat <- st_drop_geometry(r) %>% select("long" = location_long, "lat" = location_lat) %>%
+  mutate(type = "Roost\nlocations\n") %>%
+  bind_rows(st_drop_geometry(fle) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
+              mutate(type = "Co-flight\ninteractions\n")) %>%
+  bind_rows(st_drop_geometry(fee) %>% select("long" = interactionLong, "lat" = interactionLat) %>%
+              mutate(type = "Co-feeding\ninteractions\n"))
+mymap <- mp+
+  geom_point(data = dat, aes(x = long, y = lat, col = type, shape = type),
+             alpha = 0.9, size = 2)+
+  scale_color_manual(values = situcolors)+
+  scale_shape_manual(values = c(4, 1, 2))+
+  guides(shape = guide_legend(override.aes = list(alpha = 1, size = 5)))+
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.title = element_blank(),
+        text = element_text(size = 18),
+        legend.position = "left")
+mymap
+ggsave(mymap, filename = here("fig/fig2_map.png"), width = 7, height = 6)
+
+# FIGURE 3: Model results -------------------------------------------------
+# Load models
+load(here("data/created/sp_deg_obs_mod.Rda"))
+load(here("data/created/sp_deg_int_mod.Rda"))
+load(here("data/created/sp_str_obs_mod.Rda"))
+load(here("data/created/sp_str_int_mod.Rda"))
+>>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
+
+# List models so we can operate on them
 models <- list(sp_deg_obs_mod, sp_deg_int_mod, sp_str_obs_mod, sp_str_int_mod)
 
 effs <- effs <- map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
@@ -65,9 +119,7 @@ preds <- preds %>%
               dplyr::select(response, mod, sig, situ) %>%
               distinct(), by = c("group" = "situ", "response", "mod"))
 
-# Figure 3 ----------------------------------------------------------------
-# Main results
-# Degree and strength, space use only.
+# Prepare data for forest plots (insets)
 prepdata_forforestplots <- function(variable, mod, z_mod){
   dat <- as.data.frame(ggeffect(mod, terms = c(variable, "situ"))) %>%
     mutate(mod = "mod")
@@ -127,7 +179,7 @@ forestplots <- map(forforest, ~{
   return(p)
 })
 
-# Line plots --------------------------------------------------------------
+## Line plots
 preds_list <- preds %>%
   group_by(mod, response) %>%
   group_split() %>%
@@ -160,50 +212,45 @@ d <- lineplots[[4]] + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
 results <- (a + b)/(c + d)
 results
 
-ggsave(results, width =9, height = 6.5, file = here("fig/results.png"))
+ggsave(results, width =9, height = 6.5, file = here("fig/fig3_line.png"))
 
-forestplots[[1]]
-ggsave(forestplots[[1]], filename = here("fig/forest1.png"), width = 1.5, height = 1)
-ggsave(forestplots[[2]], filename = here("fig/forest2.png"), width = 1.5, height = 1)
-ggsave(forestplots[[3]], filename = here("fig/forest3.png"), width = 1.5, height = 1)
-ggsave(forestplots[[4]], filename = here("fig/forest4.png"), width = 1.5, height = 1)
+ggsave(forestplots[[1]], filename = here("fig/fig3_forest1.png"), width = 1.5, height = 1)
+ggsave(forestplots[[2]], filename = here("fig/fig3_forest2.png"), width = 1.5, height = 1)
+ggsave(forestplots[[3]], filename = here("fig/fig3_forest3.png"), width = 1.5, height = 1)
+ggsave(forestplots[[4]], filename = here("fig/fig3_forest4.png"), width = 1.5, height = 1)
+# FIGURE S1 ------------------------------------------------------
+# just pulling some code out of remove_northern() from functions.R to make a plot of the centroids
+tar_load(seasons_list)
+tar_load(season_names)
+seasons_sf <- map(seasons_list, ~.x %>%
+                    sf::st_as_sf(coords = c("location_long", "location_lat"), 
+                                 remove = F) %>%
+                    sf::st_set_crs("WGS84") %>%
+                    sf::st_transform(32636))
 
-# Season plots ------------------------------------------------------------
-season_effects <- pmap(list(x = models, y = responses, z = mods), function(x, y, z){
-  as.data.frame(ggeffect(x, terms = "season")) %>%
-    mutate(response = y,
-           mod = z)
-}) %>%
-  purrr::list_rbind()
+## Get centroids, so we can see who's "southern" for that season.
+centroids <- map(seasons_sf, ~.x %>%
+                   group_by(Nili_id) %>%
+                   summarize(geometry = sf::st_union(geometry)) %>%
+                   sf::st_centroid())
 
-# figure out if any of them are significantly different
-summary(sp_deg_int_mod)
-summary(sp_str_int_mod) 
-summary(sp_deg_obs_mod) 
-summary(sp_str_obs_mod) 
+centroids_df <- map2(centroids, season_names, ~.x %>% mutate(seasonUnique = .y) %>% bind_cols(sf::st_coordinates(.))) %>% purrr::list_rbind()
 
-season_plot <- season_effects %>%
-  ggplot(aes(x = x, y = predicted, col = x))+
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
-                size = 0.7, width = 0)+
-  geom_errorbar(aes(ymin = predicted-std.error, ymax = predicted+std.error),
-                size = 1.5, width = 0)+
-  geom_point(size = 4, pch = 21, fill = "white")+
-  facet_wrap(~interaction(mod, response, sep = " "), scales = "free_y")+
-  scale_color_manual(values = seasoncolors)+
-  theme_minimal()+
+centroids_hist <- centroids_df %>%
+  ggplot(aes(x = Y))+
+  geom_histogram(aes(fill = seasonUnique))+
+  theme_classic()+
+  facet_wrap(~seasonUnique)+
   theme(legend.position = "none",
-        axis.text.y = element_text(size = 12),
-        axis.text.x = element_text(size = 11),
-        strip.text = element_text(size = 12))+
-  labs(caption = "Error bars represent standard error (thick) and 95% confidence intervals (thin)")+
-  NULL
-season_plot
+        text = element_text(size = 14))+
+  labs(y = "Frequency",
+       x = "UTM northing")+
+  geom_vline(col = "black", linetype = 2, aes(xintercept = 3550000))+
+  annotate("rect", xmin = 3550000, xmax = max(centroids_df$Y), ymin = -Inf, ymax = Inf, alpha = 0.2, fill = "black") 
 
-ggsave(season_plot, file = here("fig/season_plot.png"), width = 5.5, height = 7)
+ggsave(centroids_hist, file = here("fig/figS1.png"), width = 8, height = 6)
 
-
-# Social measures plots ---------------------------------------------------
+# FIGURE S2 ---------------------------------------------------------------
 bordercolors <- c("gold3", "dodgerblue3", "darkolivegreen")
 linked3 <- linked2 %>%
   mutate(szn = str_replace(seasonUnique, "_", " "),
@@ -256,6 +303,7 @@ int_str_box
 
 boxplots <- ((obs_deg_box/obs_str_box) + plot_layout(axes = "collect") | (int_deg_box/int_str_box) + plot_layout(axes = "collect")) + plot_layout(guides = "collect") & theme(legend.position = 'bottom', panel.grid.minor.x = element_blank())
 boxplots
+<<<<<<< HEAD:scripts/06.0_figures.R
 ggsave(boxplots, file = here("fig/boxplots.png"), width = 9, height = 5)
 
 # Map with interaction and roost locations --------------------------------
@@ -267,14 +315,19 @@ tar_load(season_names)
 whch <- which(season_names == "2023_summer")
 tar_load(roosts)
 r <- roosts[[whch]] %>% filter(lubridate::month(roost_date) == 7 & lubridate::day(roost_date) <= 5) # first five days of july in 2023
+=======
+ggsave(boxplots, file = here("fig/figS2.png"), width = 9, height = 5)
+>>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
 
-# Get feeding/flight interaction data (just one season, say summer 2023)
-## and then let's limit it to the first five days of July so that it's a little less chaotic to plot.
-tar_load(flightEdges)
-fle <- flightEdges[[whch]] %>% filter(lubridate::month(minTimestamp) == 7 & lubridate::day(minTimestamp) <= 5)
-tar_load(feedingEdges)
-fee <- feedingEdges[[whch]] %>% filter(lubridate::month(minTimestamp) == 7 & lubridate::day(minTimestamp) <= 5)
+# FIGURE S4 ---------------------------------------------------------------
+season_effects <- pmap(list(x = models, y = responses, z = mods), function(x, y, z){
+  as.data.frame(ggeffect(x, terms = "season")) %>%
+    mutate(response = y,
+           mod = z)
+}) %>%
+  purrr::list_rbind()
 
+<<<<<<< HEAD:scripts/06.0_figures.R
 bbox <- c(34.516, 30.408, 35.429, 31.582)
 # going to manually layer the points so the most concentrated ones (feeding events) are on top and the most dispersed ones (flight interactions) are on the bottom so it's easier to see.
 # mp <- ggmap(get_stadiamap(bbox = bbox, maptype = "stamen_terrain_background", color = "bw"))
@@ -299,46 +352,182 @@ mymap <- mp+
         legend.position = "left")
 mymap
 ggsave(mymap, filename = here("fig/mymap.png"), width = 7, height = 6)
+=======
+# figure out if any of them are significantly different
+summary(sp_deg_int_mod)
+summary(sp_str_int_mod) 
+summary(sp_deg_obs_mod) 
+summary(sp_str_obs_mod) 
+>>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
 
-# Centroid latitudes ------------------------------------------------------
-# just pulling some code out of remove_northern() from functions.R to make a plot of the centroids
-tar_load(seasons_list)
-tar_load(season_names)
-seasons_sf <- map(seasons_list, ~.x %>%
-                    sf::st_as_sf(coords = c("location_long", "location_lat"), 
-                                 remove = F) %>%
-                    sf::st_set_crs("WGS84") %>%
-                    sf::st_transform(32636))
-
-## Get centroids, so we can see who's "southern" for that season.
-centroids <- map(seasons_sf, ~.x %>%
-                   group_by(Nili_id) %>%
-                   summarize(geometry = sf::st_union(geometry)) %>%
-                   sf::st_centroid())
-
-centroids_df <- map2(centroids, season_names, ~.x %>% mutate(seasonUnique = .y) %>% bind_cols(sf::st_coordinates(.))) %>% purrr::list_rbind()
-
-centroids_hist <- centroids_df %>%
-  ggplot(aes(x = Y))+
-  geom_histogram(aes(fill = seasonUnique))+
-  theme_classic()+
-  facet_wrap(~seasonUnique)+
+season_plot <- season_effects %>%
+  ggplot(aes(x = x, y = predicted, col = x))+
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
+                size = 0.7, width = 0)+
+  geom_errorbar(aes(ymin = predicted-std.error, ymax = predicted+std.error),
+                size = 1.5, width = 0)+
+  geom_point(size = 4, pch = 21, fill = "white")+
+  facet_wrap(~interaction(mod, response, sep = " "), scales = "free_y")+
+  scale_color_manual(values = seasoncolors)+
+  theme_minimal()+
   theme(legend.position = "none",
-        text = element_text(size = 14))+
-  labs(y = "Frequency",
-       x = "UTM northing")+
-  geom_vline(col = "black", linetype = 2, aes(xintercept = 3550000))+
-  annotate("rect", xmin = 3550000, xmax = max(centroids_df$Y), ymin = -Inf, ymax = Inf, alpha = 0.2, fill = "black") 
+        axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 11),
+        strip.text = element_text(size = 12))+
+  labs(caption = "Error bars represent standard error (thick) and 95% confidence intervals (thin)")+
+  NULL
+season_plot
 
-ggsave(centroids_hist, file = here("fig/centroids_hist.png"), width = 8, height = 6)
+ggsave(season_plot, file = here("fig/figS4.png"), width = 5.5, height = 7)
 
+# TABLE 1 -----------------------------------------------------------------
+effs_modified <- effs %>%
+  mutate(`Social network` = paste0(str_to_title(response), " (", str_to_lower(mod), ")")) %>%
+  rename("Situation" = "situ",
+         "Estimate" = "space_use.trend") %>%
+  mutate("95% CI" = paste(round(`lower.CL`, 3), round(`upper.CL`, 3), 
+                          sep = ", "),
+         "Estimate±SE" = paste(round(Estimate, 3), "±", round(SE, 3))) %>%
+  select(`Social network`, Situation, `Estimate±SE`, `95% CI`) %>%
+  mutate(`Predictor variable` = paste0("Space use * Situation (", str_to_lower(Situation), ")")) %>%
+  select(-Situation) %>%
+  relocate(`Predictor variable`, .after = `Social network`)
+
+em_obs <- effs_modified %>%
+  filter(grepl("observed", `Social network`))
+em_int <- effs_modified %>%
+  filter(grepl("intentional", `Social network`))
+
+sig_obs <- stringr::str_count(em_obs$`95% CI`, "-") %in% c(0, 2)
+sig_int <- stringr::str_count(em_int$`95% CI`, "-") %in% c(0, 2)
+conditional_effects_tab_obs <- em_obs %>%
+  group_by(`Social network`) %>%
+  gt(row_group_as_column = T) %>%
+  tab_style(style = list(
+    cell_text(weight = "bold")
+  ),
+  locations = list(cells_column_labels(), cells_row_groups())) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = "95% CI",
+      rows = sig_obs
+    )
+  )
+
+<<<<<<< HEAD:scripts/06.0_figures.R
 # Model summary tables ----------------------------------------------------
 forforest
 # tbl_regression(sp_deg_obs_mod)
 # tbl_regression(sp_deg_int_mod)
 # tbl_regression(sp_str_obs_mod)
 # tbl_regression(sp_str_int_mod)
+=======
+conditional_effects_tab_int <- em_int %>%
+  group_by(`Social network`) %>%
+  gt(row_group_as_column = T) %>%
+  tab_style(style = list(
+    cell_text(weight = "bold")
+  ),
+  locations = list(cells_column_labels(), cells_row_groups())) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = "95% CI",
+      rows = sig_int
+    )
+  )
+gtsave(conditional_effects_tab_obs, filename = here("fig/tab1_obs.rtf"))
+gtsave(conditional_effects_tab_int, filename = here("fig/tab1_int.rtf"))
 
+# TABLE S1 ----------------------------------------------------------------
+all <- data.frame(seasonUnique = season_names,
+                  flight = map_dbl(flightGraphs, ~length(igraph::V(.x))),
+                  feeding = map_dbl(feedingGraphs, ~length(igraph::V(.x))),
+                  roosting = map_dbl(roostingGraphs, ~length(igraph::V(.x)))) %>%
+  mutate(year = str_extract(seasonUnique, "[0-9]+"),
+         season = str_extract(seasonUnique, "[a-z]+")) %>%
+  select(-seasonUnique) %>%
+  mutate(type = "social network")
+# XXX START HERE--COMPARE TO DATA FOR SOCIAL ANALYSIS
+
+focal <- linked %>%
+  group_by(seasonUnique, type) %>%
+  summarize(n = n()) %>%
+  pivot_wider(names_from = "type", values_from = "n") %>%
+  mutate(year = str_extract(seasonUnique, "[0-9]+"),
+         season = str_extract(seasonUnique, "[a-z]+")) %>%
+  ungroup() %>%
+  select(-seasonUnique) %>%
+  mutate(type = "space use")
+
+indivs <- bind_rows(all, focal) %>%
+  relocate(year, season) %>%
+  arrange(year, season) %>%
+  pivot_longer(c("flight", "feeding", "roosting"), names_to = "situ", values_to = "n") %>%
+  pivot_wider(names_from = "type", values_from = "n")
+
+tab <- indivs %>%
+  mutate(yrsz = paste(year, season, sep = " ")) %>%
+  mutate(yrsz = factor(yrsz, levels = str_replace(season_names, "_", " "))) %>%
+  arrange(yrsz) %>%
+  select(-c("year", "season")) %>%
+  pivot_longer(cols = c("social network", "space use"), names_to = "type", values_to = "count") %>%
+  pivot_wider(names_from = "yrsz", values_from = "count") %>%
+  arrange(situ, type) %>%
+  mutate(situ = str_to_title(situ)) %>%
+  gt(groupname_col = "situ", rowname_col = "type") %>%
+  tab_header(
+    title = md("**Number of vultures**"),
+  )
+tab
+gtsave(tab, filename = here("fig/tabS1.rtf"))
+
+# TABLE S2 ----------------------------------------------------------------
+summ <- linked %>%
+  ungroup() %>%
+  select(seasonUnique, year, season, type, degree, strength, z_deg, z_str) %>%
+  pivot_longer(cols = c("degree", "strength", "z_deg", "z_str"), 
+               names_to = "measure", values_to = "value") %>%
+  group_by(seasonUnique, year, season, type, measure) %>%
+  summarize(mn = round(mean(value), 2),
+            sd = round(sd(value), 2),
+            min = round(min(value), 2),
+            max = round(max(value), 2),
+            words = paste0(mn, " (", sd, ")<br>", 
+                           min, "-", max)) %>%
+  mutate(measure = case_when(measure == "degree" ~ "Degree (observed)",
+                             measure == "strength" ~ "Strength (observed)",
+                             measure == "z_deg" ~ "Degree (intentional)",
+                             measure == "z_str" ~ "Strength (intentional)"))
+
+tab2 <- summ %>%
+  ungroup() %>%
+  select(-c("year", "season")) %>%
+  select(seasonUnique, type, measure, words) %>%
+  mutate(seasonUnique = str_replace(seasonUnique, "_", " ")) %>%
+  pivot_wider(id_cols = c("measure", "type"), names_from = "seasonUnique", values_from = "words") %>%
+  mutate(type = str_to_title(type)) %>%
+  group_by(measure) %>%
+  gt(rowname_col = "type") %>%
+  tab_style(
+    style = "padding-left:20px;",
+    locations = cells_stub()
+  ) %>%
+  fmt_markdown() %>%
+  tab_header(
+    title = md("**Social network measures**"),
+    subtitle = md("mean (sd)<br>min-max")
+  )
+tab2
+gtsave(tab2, filename = here("fig/tabS2.rtf"))
+>>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
+
+# TABLE S3 ----------------------------------------------------------------
 do <- broom.mixed::tidy(sp_deg_obs_mod) %>% mutate(model = "Degree (observed)")
 di <- broom.mixed::tidy(sp_deg_int_mod) %>% mutate(model = "Degree (intentional)")
 so <- broom.mixed::tidy(sp_str_obs_mod) %>% mutate(model = "Strength (observed)")
@@ -458,6 +647,7 @@ fixed_tab_int <- fixed_int %>%
   )
 fixed_tab_int
 
+<<<<<<< HEAD:scripts/06.0_figures.R
 gtsave(fixed_tab_obs, filename = here("fig/fixed_tab_obs.png"))
 gtsave(fixed_tab_int, filename = here("fig/fixed_tab_int.png"))
 
@@ -529,3 +719,7 @@ gtsave(conditional_effects_tab_int, filename = here("fig/conditional_effects_tab
 #     locations = list(cells_column_labels(), cells_row_groups())
 #   )
 # gtsave(rand_tab, filename = here("fig/rand_tab.png"))
+=======
+gtsave(fixed_tab_obs, filename = here("fig/tabS3_obs.rtf"))
+gtsave(fixed_tab_int, filename = here("fig/tabS3_int.rtf"))
+>>>>>>> b7974be (comb tabs/figs scripts; rename files; rm extras):scripts/figuresTables.R
