@@ -10,3 +10,4 @@ data/
 *.DS_Store
 *.html
 stadia_key.Rda
+rosm.cache/
