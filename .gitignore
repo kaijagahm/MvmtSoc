@@ -1,10 +1,11 @@
 .Rproj.user
 .Rhistory
 .RData
+.RDataTmp
 .Ruserdata
+credentials/
 movebankCredentials/
 data/
-cassidy/
 *.pptx
 *.DS_Store
 *.html

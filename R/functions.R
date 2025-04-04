@@ -344,21 +344,6 @@ remove_too_few_days <- function(removed_lowppd){
   return(removed_too_few_days)
 }
 
-attach_altitudes <- function(removed_too_few_days){
-  sf <- map(removed_too_few_days, ~st_as_sf(.x, coords = c("location_lat", "location_long"), remove = F, crs = "WGS84"))
-  elevation_rasters <- map(sf, ~elevatr::get_elev_raster(.x , z = 10), .progress = T)
-  
-  groundElev_z10 <- map2(elevation_rasters, sf, ~raster::extract(x = .x, y = .y), .progress = T) # have to convert the crs because the raster from elevatr is in WGS84.
-  
-  ## use elevation rasters to calculate height above ground level
-  with_altitudes <- map2(.x = removed_too_few_days, .y = groundElev_z10, 
-                         ~.x %>% mutate(groundElev = .y) %>%
-                           mutate(height_above_ground = height_above_msl-groundElev,
-                                  height_above_ground = case_when(height_above_ground < 0 ~ 0,
-                                                                  TRUE ~ height_above_ground)))
-  return(with_altitudes)
-}
-
 # AKDE --------------------------------------------------------------------
 get_animals <- function(downsampled_10min){
   animals <- map(downsampled_10min, ~unique(.x$Nili_id))
@@ -485,19 +470,6 @@ get_daystracked <- function(downsampled_10min, season_names){
   return(daysTracked_seasons)
 }
 
-prep_roosts <- function(roosts, roostPolygons){
-  rp <- sf::st_read(roostPolygons)
-  roostsPrepped <- map(roosts, ~.x %>% group_by(Nili_id) %>% 
-                         mutate(daysTracked = length(unique(roost_date))) %>% ungroup())
-  roostIDs <- map(roostsPrepped, ~as.numeric(st_intersects(x = .x, y = rp)))
-  
-  roostsPrepped <- map2(roostsPrepped, roostIDs, ~.x %>% 
-                          mutate(roostID = as.character(.y)) %>%
-                          mutate(roostID = case_when(is.na(roostID) ~ paste(Nili_id, roost_date, sep = "_"), 
-                                                     TRUE ~ roostID)))
-  return(roostsPrepped)
-}
-
 convertsf <- function(downsampled_10min){
   downsampled_10min_sf <- map(downsampled_10min, ~.x %>% sf::st_as_sf(coords = c("location_long", "location_lat"), crs = "WGS84", remove = F))
   return(downsampled_10min_sf)
@@ -521,150 +493,18 @@ compile_areas <- function(stats_w_95_df, stats_w_50_df){
   return(areas_list)
 }
 
-# Movement measures -------------------------------------------------------
-get_roost_switches <- function(roosts){
-  ## Calculate sequences of roost locations
-  roostSequences <- map(roosts, ~.x %>%
-                          st_drop_geometry() %>%
-                          dplyr::select(Nili_id, roost_date, roostID) %>%
-                          arrange(Nili_id, roost_date) %>%
-                          group_by(Nili_id) %>%
-                          mutate(switch = case_when(roostID == lag(roostID) ~ F,
-                                                    TRUE ~ T)))
-  
-  ## Calculate whether, on each night, they switch or stay at the same roost
-  roostSwitches <- map(roostSequences, ~.x %>%
-                         group_by(Nili_id) %>%
-                         summarize(nSwitch = sum(switch),
-                                   nStay = sum(!switch),
-                                   nights = n(),
-                                   propSwitch = nSwitch/nights) %>%
-                         dplyr::select(Nili_id, propSwitch))
-  return(roostSwitches)
-}
-
-get_shannon <- function(roosts){
-  shannon <- map(roosts, ~.x %>%
-                   st_drop_geometry() %>%
-                   mutate(roostID = as.character(roostID),
-                          roostID = case_when(is.na(roostID) ~ 
-                                                paste(Nili_id, roost_date, sep = "_"),
-                                              TRUE ~ roostID)) %>%
-                   group_by(Nili_id, roostID) %>%
-                   summarize(n = n()) %>%
-                   ungroup() %>%
-                   group_by(Nili_id) %>%
-                   dplyr::select(Nili_id, roostID, n) %>%
-                   mutate(nNights = sum(n),
-                          uniqueRoosts = length(unique(roostID))) %>%
-                   mutate(prop = n/nNights,
-                          lnProp = log(prop),
-                          item = prop*lnProp) %>%
-                   group_by(Nili_id) %>%
-                   summarize(shannon = -sum(item),
-                             uniqueRoosts = uniqueRoosts[1]))
-  return(shannon)
-}
-
-get_dfd <- function(downsampled_10min_sf, season_names){
-  dfd <- map(downsampled_10min_sf, ~.x %>%
-               st_drop_geometry() %>%
-               group_by(Nili_id, dateOnly) %>%
-               arrange(timestamp, .by_group = T) %>%
-               mutate(flight = ifelse(ground_speed > 5, T, F),
-                      lagTimestamp = lag(timestamp),
-                      lagFlight = lag(flight)) %>%
-               mutate(dur = case_when(flight & lagFlight ~ as.numeric(difftime(timestamp, lagTimestamp, units = "secs")),
-                                      flight & !lagFlight ~ 0,
-                                      !flight & lagFlight ~ as.numeric(difftime(timestamp, lagTimestamp, units = "secs")),
-                                      is.na(flight)|is.na(lagFlight) ~ 0)) %>%
-               group_by(Nili_id, dateOnly) %>%
-               summarize(totalFlightDuration = as.numeric(sum(dur, na.rm = T))))
-  
-  dfdSumm <- map(dfd, ~.x %>%
-                   group_by(Nili_id) %>%
-                   summarize(meanDFD = mean(totalFlightDuration, na.rm = T)))
-  
-  names(dfdSumm) <- season_names
-  return(dfdSumm)
-}
-
-get_daily_movements <- function(downsampled_10min_sf){
-  # set up parallel backend with 4 sessions (change this to match your machine)
-  future::plan(future::multicore, workers = 10)
-  
-  # function to calculate displacements within a group
-  calc_displacements <- function(group) {
-    start_point <- dplyr::first(group$geometry)
-    group %>%
-      dplyr::mutate(
-        disp_from_start = as.vector(sf::st_distance(geometry, start_point)),
-        dist_to_prev = as.vector(sf::st_distance(geometry, dplyr::lag(geometry, default = dplyr::first(geometry)), by_element = T))
-      )
-  }
-  
-  # function to calculate metrics for each individual and date
-  calc_metrics <- function(data){
-    # split the data by Nili_id and dateOnly
-    groups <- data %>%
-      dplyr::group_by(Nili_id, dateOnly) %>%
-      group_split()
-    
-    # run the distance calculations in parallel using furrr::future_map()
-    disp_data <- furrr::future_map_dfr(groups, calc_displacements)
-    
-    # group the data by Nili_id and dateOnly, and calculate the metrics
-    result <- disp_data %>%
-      sf::st_drop_geometry() %>%
-      dplyr::group_by(Nili_id, dateOnly) %>%
-      arrange(timestamp, .by_group = T) %>%
-      mutate(csDist = cumsum(replace_na(dist_to_prev, 0))) %>%
-      dplyr::summarise(
-        dmd = max(disp_from_start, na.rm = T),
-        ddt = sum(dist_to_prev, na.rm = T),
-        distToMaxPt = csDist[disp_from_start == max(disp_from_start, na.rm = T)],
-        tort_dmd = distToMaxPt/dmd) # YIKES
-    
-    return(result)
-  }
-  
-  # apply the calc_metrics() function to each season in the list using purrr::map()
-  dailyMovementList_seasons <- map(downsampled_10min_sf, calc_metrics, .progress = T)
-  mnMvmt <- map(dailyMovementList_seasons, ~.x %>%
-                  group_by(Nili_id) %>%
-                  summarize(meanDMD = mean(dmd, na.rm = T),
-                            meanDDT = mean(ddt, na.rm = T),
-                            mnTort = mean(tort_dmd, na.rm = T)))
-  return(mnMvmt)
-}
-
-get_altitude_stats <- function(downsampled_10min_sf, season_names){
-  dailyAltitudes <- map(downsampled_10min_sf, ~.x %>%
-                          st_drop_geometry() %>%
-                          filter(ground_speed >= 5) %>% # we only care about the altitude of in-flight points.
-                          group_by(Nili_id, dateOnly) %>%
-                          summarize(meanAltitude = mean(height_above_ground, na.rm  =T)) %>%
-                          mutate(meanAltitude = case_when(meanAltitude < 0 ~ NA,
-                                                          TRUE ~ meanAltitude)))
-  names(dailyAltitudes) <- season_names
-  
-  dailyAltitudesSumm <- map(dailyAltitudes, ~.x %>%
-                              group_by(Nili_id) %>%
-                              summarize(mnDailyMnAlt = mean(meanAltitude, na.rm = T)))
-  return(dailyAltitudesSumm)
-}
-
-compile_movement_behavior <- function(areas_list, dailyAltitudesSumm, roostSwitches, shannon, dfdSumm, mnMvmt, daysTracked_seasons, season_names, downsampled_10min_sf){
-  movementBehavior <- map2(areas_list, dailyAltitudesSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
-    map2(., roostSwitches, ~left_join(.x, .y, by = "Nili_id")) %>%
-    map2(., shannon, ~left_join(.x, .y, by = "Nili_id")) %>%
-    map2(., dfdSumm, ~left_join(.x, .y, by = "Nili_id")) %>%
-    map2(., mnMvmt, ~left_join(.x, .y, by = "Nili_id")) %>%
-    map2(., daysTracked_seasons, ~left_join(.x, .y, by = "Nili_id")) %>%
-    map2(., .y = season_names, ~.x %>% mutate(seasonUnique = .y) %>% relocate(seasonUnique, .after = "Nili_id"))
+compile_movement_behavior <- function(areas_list,
+                                      daysTracked_seasons,
+                                      season_names,
+                                      downsampled_10min_sf){
+  movementBehavior <- map2(areas_list, daysTracked_seasons, 
+                           ~left_join(.x, .y, by = "Nili_id")) %>%
+    map2(., .y = season_names, 
+         ~.x %>% mutate(seasonUnique = .y) %>% 
+           relocate(seasonUnique, .after = "Nili_id"))
   
   ## Add age and sex
-  ageSex <- map(downsampled_10min_sf, ~.x %>% st_drop_geometry() %>% 
+  ageSex <- map(downsampled_10min_sf, ~.x %>% sf::st_drop_geometry() %>% 
                   dplyr::select(Nili_id, birth_year, age_group, sex) %>% 
                   distinct())
   
@@ -699,67 +539,18 @@ get_space_use <- function(movementBehaviorScaled){
   return(distinct(space_use))
 }
 
-# XXX code for pca biplot included in the supplementary material
-# autoplot(pca, data = space_use, 
-#          +          loadings = TRUE, loadings.colour = 'blue',
-#          +          loadings.label = TRUE, loadings.label.size = 3, loadings.label.color = "blue")+theme_classic() + labs(x = "PC1 (84.51%)--Space use")
-
-get_movement <- function(movementBehaviorScaled){
-  movement <- movementBehaviorScaled %>%
-    dplyr::select(Nili_id, seasonUnique, mnDailyMnAlt, meanDFD, meanDMD, meanDDT, mnTort) %>%
-    filter(!is.na(mnDailyMnAlt))
-  pca <- prcomp(movement[,-c(1:2)])
-  movement <- movement %>% mutate(movement_pc1 = pca$x[,1]*-1)
-  return(distinct(movement))
-}
-
-get_roost_behavior <- function(movementBehaviorScaled){
-  roost_behavior <- movementBehaviorScaled %>%
-    dplyr::select(Nili_id, seasonUnique, propSwitch, shannon, uniqueRoosts) %>%
-    filter(!is.na(shannon))
-  pca <- prcomp(roost_behavior[,-c(1:2)])
-  roost_behavior <- roost_behavior %>%
-    mutate(roost_pc1 = pca$x[,1]*-1)
-  return(distinct(roost_behavior))
-}
-
-get_new_movement_vars <- function(demo, space_use, movement, roost_behavior){
+get_new_movement_vars <- function(demo, space_use){
   new_movement_vars <- demo %>%
     left_join(space_use %>% dplyr::select(Nili_id, seasonUnique, space_pc1)) %>%
-    left_join(movement %>% dplyr::select(Nili_id, seasonUnique, movement_pc1)) %>%
-    left_join(roost_behavior %>% dplyr::select(Nili_id, seasonUnique, roost_pc1)) %>%
-    rename("space_use" = "space_pc1",
-           "movement" = "movement_pc1",
-           "roost_div" = "roost_pc1") %>%
-    filter(!is.na(movement))
+    rename("space_use" = "space_pc1")
   return(new_movement_vars)
 }
 
-get_all_movement_vars <- function(demo, space_use, movement, roost_behavior){
+get_all_movement_vars <- function(demo, space_use){
   all_movement_vars <- demo %>%
     left_join(space_use) %>%
-    left_join(movement) %>%
-    left_join(roost_behavior) %>%
-    rename("space_use" = "space_pc1",
-           "movement" = "movement_pc1",
-           "roost_div" = "roost_pc1") %>%
-    filter(!is.na(movement))
+    rename("space_use" = "space_pc1")
   return(all_movement_vars)
-}
-
-get_correlation_scatterplots <- function(data, xcol, ycols, title){
-  p <- data %>%
-    pivot_longer(cols = all_of(ycols),
-                 names_to = "measure", values_to = "value") %>%
-    ggplot(aes(x = !!sym(xcol), y = value)) +
-    geom_point() + geom_smooth(method = "lm") + theme_minimal()+
-    facet_wrap(~measure)+
-    ylab("Value (scaled)")+
-    theme(legend.position = "none",
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank())+
-    ggtitle(title)
-  return(p)
 }
 
 # Social networks ---------------------------------------------------------
@@ -1081,33 +872,6 @@ join_movement_soc <- function(new_movement_vars, metrics_summary, season_names){
   
   return(linked)
 }
-
-report <- function(dataset, id){
-  n_points <- nrow(dataset)
-  n_vultures <- length(unique(dataset[[id]]))
-  vultures <- unique(dataset[[id]])
-  return(c("points" = n_points, "vultures" = n_vultures))
-}
-
-# Models
-# Code for these is taken over from 04.0_mixedModels.R once I'm done testing them.
-# get_deg_mod <- function(linked){
-#   deg_mod <- glmmTMB(degree ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-#   return(deg_mod)
-# }
-# get_deg_z_mod <- function(linked){
-#   deg_z_mod <-glmmTMB(z_deg ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-#   return(deg_z_mod)
-# }
-# get_str_mod <- function(linked){
-#   str_mod <- glmmTMB(strength ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-#   return(str_mod)
-# }
-# get_str_z_mod <- function(linked){
-#   str_z_mod <- glmmTMB(z_str ~ space_use*situ + (1|seasonUnique) + (1|Nili_id), data = linked, family = gaussian())
-#   return(str_z_mod)
-# }
-
 
 get_n_in_network <- function(season_names, flightGraphs, feedingGraphs, roostingGraphs){
   ns <- data.frame(seasonUnique = season_names,
