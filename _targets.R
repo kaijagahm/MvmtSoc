@@ -17,7 +17,7 @@ list(
   tar_target(situcolors, get_situcolors(cc)),
   tar_target(seasoncolors, get_seasoncolors(cc)), 
   ## Get movebank credentials, which will allow us to download data from movebank
-  tar_target(pw, "movebankCredentials/pw.Rda", format = "file"),
+  tar_target(pw, "credentials/pw.Rda", format = "file"),
   tar_target(loginObject, get_loginObject(pw)),
   ## Download the vulture data from movebank
   tar_target(inpa, get_inpa(loginObject)),
@@ -25,7 +25,7 @@ list(
   ## Join together the inpa and ornitela datases
   tar_target(joined0, join_inpa_ornitela(inpa, ornitela)),
   ## Load the who's who file, which has additional information about the vultures
-  tar_target(ww_file, "data/whoswho_vultures_20230920_new.xlsx", format = "file"),
+  tar_target(ww_file, "data/raw/whoswho_vultures_20230920_new.xlsx", format = "file"),
   ## Fix the names
   tar_target(fixed_names, fix_names(joined0, ww_file)),
   ## Remove hospital/invalid periods
@@ -33,13 +33,13 @@ list(
   ## Clean the data with the various steps in the vultureUtils::cleanData function.
   tar_target(cleaned, clean_data(removed_periods)),
   ## Load in data about capture sites and remove carmel captures
-  tar_target(capture_sites, "data/capture_sites.csv", format = "file"),
-  tar_target(carmel, "data/all_captures_carmel_2010-2021.csv", format = "file"),
+  tar_target(capture_sites, "data/raw/capture_sites.csv", format = "file"),
+  tar_target(carmel, "data/raw/all_captures_carmel_2010-2021.csv", format = "file"),
   tar_target(removed_captures, remove_captures(capture_sites, carmel, cleaned)),
   ## Attach age and sex information from the who's who file.
   tar_target(with_age_sex, attach_age_sex(removed_captures, ww_file)),
   ## Mask data with the israel region mask
-  tar_target(mask, "data/CutOffRegion.kml", format = "file"),
+  tar_target(mask, "data/raw/CutOffRegion.kml", format = "file"),
   tar_target(data_masked, mask_data(with_age_sex, mask)),
   ## Split the data into seasons and extract the season names
   tar_target(seasons_list, split_seasons(data_masked)),
@@ -73,7 +73,7 @@ list(
   ## Get how many days each individual was tracked per season XXX remove?
   tar_target(daysTracked_seasons, get_daystracked(downsampled_10min, season_names)),
   ## Load roost polygons (will use this later for the social networks)
-  tar_target(roostPolygons, "data/roosts50_kde95_cutOffRegion.kml", format = "file"),
+  tar_target(roostPolygons, "data/raw/roosts50_kde95_cutOffRegion.kml", format = "file"),
   ## Convert to sf object
   tar_target(downsampled_10min_sf, convertsf(downsampled_10min)),
   ## Get home range and core area sizes
@@ -115,6 +115,3 @@ list(
   # Data for mixed models
   tar_target(linked, join_movement_soc(new_movement_vars, metrics_summary, season_names, ns))
 )
-
-
-
