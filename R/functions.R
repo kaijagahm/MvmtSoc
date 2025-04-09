@@ -38,6 +38,7 @@ get_loginObject <- function(pw){
   rm(pw)
   return(loginObject)
 }
+
 get_inpa <- function(loginObject){
   inpa <- move::getMovebankData(study = 6071688, 
                                 login = loginObject, 
@@ -107,7 +108,7 @@ fix_names <- function(joined0, ww_file){
   
   # Are there any remaining NA's for Nili_id?
   nas <- joined %>% filter(is.na(Nili_id)) %>% pull(local_identifier) %>% unique()
-  length(nas) # yay, no more!
+  length(nas) # yay, no more! # XXX THIS IS THE PROBLEM--i wrote this comment about there being no more NAs back when I was running the pipeline only on ornitela birds, but then I didn't add more manual corrections (or, not enough of them) when I added the INPA data, which means that some individuals were left unidentified.
   return(joined)
 }
 
