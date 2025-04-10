@@ -69,8 +69,7 @@ get_ornitela <- function(loginObject){
          year = as.numeric(lubridate::year(timestamp)))
   
   ornitela <- ornitela %>%
-    select(c("tag_id", "battery_cha
-             rge_percent", "gps_satellite_count", "gps_time_to_fix", "ground_speed", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
+    select(c("tag_id", "battery_charge_percent", "gps_satellite_count", "gps_time_to_fix", "ground_speed", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
   return(ornitela)
 }
 
