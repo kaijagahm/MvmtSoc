@@ -108,7 +108,22 @@ fix_names <- function(joined0, ww_file){
   
   # Are there any remaining NA's for Nili_id?
   nas <- joined %>% filter(is.na(Nili_id)) %>% pull(local_identifier) %>% unique()
-  length(nas) # yay, no more! # XXX THIS IS THE PROBLEM--i wrote this comment about there being no more NAs back when I was running the pipeline only on ornitela birds, but then I didn't add more manual corrections (or, not enough of them) when I added the INPA data, which means that some individuals were left unidentified.
+  length(nas) 
+  
+  # There are still 5 more Nas remaining. 
+  joined %>%
+    filter(is.na(Nili_id)) %>%
+    select(local_identifier, tag_id, tag_local_identifier) %>%
+    distinct()
+  
+  joined <- joined %>%
+    mutate(Nili_id = case_when(is.na(Nili_id) & local_identifier == "B36w (T51w)" ~ "lima",
+                               is.na(Nili_id) & local_identifier == "E97w (A67>T40>Y14)" ~ "kfir",
+                               is.na(Nili_id) & local_identifier == "E98 W (T42w>L05>A92>Y09)" ~ "yagur",
+                               is.na(Nili_id) & local_identifier == "Y11>T98 W>E99 w" ~ "richard",
+                               is.na(Nili_id) & local_identifier == "B38w (T61w)" ~ "cochav",
+                               .default = Nili_id))
+  
   return(joined)
 }
 
@@ -126,16 +141,6 @@ clean_data <- function(removed_periods){
                                      idCol = "Nili_id",
                                      report = F)
   return(cleaned)
-}
-
-remove_captures <- function(capture_sites, carmel, cleaned){
-  cs <- read.csv(capture_sites)
-  cml <- read.csv(carmel)
-  removed_captures <- removeCaptures(data = cleaned, 
-                                     captureSites = cs, 
-                                     AllCarmelDates = cml, 
-                                     distance = 500, idCol = "Nili_id")
-  return(removed_captures)
 }
 
 attach_age_sex <- function(removed_captures, ww_file){

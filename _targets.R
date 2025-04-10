@@ -4,7 +4,7 @@ library(targets)
 
 # Load packages that the functions here will need in order to complete their tasks
 tar_option_set(
-  packages = c("vultureUtils", "sf", "tidyverse", "move", "feather", "readxl", "elevatr", "here", "furrr", "future", "ctmm", "purrr", "igraph", "mapview", "adehabitatHR", "sp", "raster", "parallel", "car", "factoextra", "ggfortify", "ggpmisc", "lme4", "ggpubr", "rstatix", "easystats", "performance", "lmerTest", "glmmTMB", "DHARMa", "sjPlot", "broom.mixed", "jtools", "emmeans", "ggeffects", "gtsummary", "ade4", "extrafont", "ggplot2", "ggspatial", "grid", "ggmap", "Polychrome", "ggraph", "tidygraph")
+  packages = c("vultureUtils", "sf", "tidyverse", "dplyr", "move", "feather", "readxl", "here", "furrr", "future", "ctmm", "purrr", "igraph", "mapview", "adehabitatHR", "sp", "raster", "parallel", "car", "factoextra", "ggfortify", "ggpmisc", "lme4", "ggpubr", "rstatix", "easystats", "performance", "lmerTest", "glmmTMB", "DHARMa", "sjPlot", "broom.mixed", "jtools", "emmeans", "ggeffects", "gtsummary", "ade4", "extrafont", "ggplot2", "ggspatial", "grid", "ggmap", "Polychrome", "ggraph", "tidygraph")
 )
 
 # The functions needed for data cleaning are defined in the script(s) in the R/ folder. Let's source all those scripts so we have access to the functions.
@@ -32,10 +32,6 @@ list(
   tar_target(removed_periods, remove_periods(ww_file, fixed_names)),
   ## Clean the data with the various steps in the vultureUtils::cleanData function.
   tar_target(cleaned, clean_data(removed_periods)),
-  ## Load in data about capture sites and remove carmel captures
-  tar_target(capture_sites, "data/raw/capture_sites.csv", format = "file"),
-  tar_target(carmel, "data/raw/all_captures_carmel_2010-2021.csv", format = "file"),
-  tar_target(removed_captures, remove_captures(capture_sites, carmel, cleaned)),
   ## Attach age and sex information from the who's who file.
   tar_target(with_age_sex, attach_age_sex(removed_captures, ww_file)),
   ## Mask data with the israel region mask
@@ -79,7 +75,7 @@ list(
   ## Get home range and core area sizes
   tar_target(areas_list, compile_areas(stats_w_95_df, stats_w_50_df)),
   ## Compile and label area data
-  tar_target(movementBehavior, compile_movement_behavior(areas_list, dailyAltitudesSumm, roostSwitches, shannon, dfdSumm, mnMvmt, daysTracked_seasons, season_names, downsampled_10min_sf)),
+  tar_target(movementBehavior, compile_movement_behavior(areas_list,  daysTracked_seasons, season_names, downsampled_10min_sf)),
   # Categorize movement (PCAs)
   ## Scale movement behavior
   tar_target(movementBehaviorScaled, scale_movement_behavior(movementBehavior)),
