@@ -52,7 +52,7 @@ get_inpa <- function(loginObject){
   
   # Remove irrelevant cols
   inpa <- inpa %>%
-    select(c("tag_id", "battery_charge_percent", "gps_satellite_count", "gps_time_to_fix", "ground_speed", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
+    select(c("tag_id", "heading", "battery_charge_percent", "gps_satellite_count", "gps_time_to_fix", "external_temperature", "barometric_height", "ground_speed", "height_above_msl", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
   return(inpa)
 }
 
@@ -69,7 +69,7 @@ get_ornitela <- function(loginObject){
          year = as.numeric(lubridate::year(timestamp)))
   
   ornitela <- ornitela %>%
-    select(c("tag_id", "battery_charge_percent", "gps_satellite_count", "gps_time_to_fix", "ground_speed", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
+    select(c("tag_id", "heading", "battery_charge_percent", "gps_satellite_count", "gps_time_to_fix", "external_temperature", "barometric_height", "ground_speed", "height_above_msl", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
   return(ornitela)
 }
 
@@ -113,14 +113,14 @@ fix_names <- function(joined0, ww_file){
                       by = c("local_identifier" = "Movebank_id"))
   joined <- joined %>%
     mutate(Nili_id = case_when(is.na(Nili_id) & local_identifier == "E66 White" ~ "E66",
-                               is.na(Nili_id) & local_identifier == "Y01>T60 W" ~ "tammy",
+                               is.na(Nili_id) & local_identifier == "B01w (Y01>T60 W)" ~ "tammy",
                                .default = Nili_id))
   
   # Are there any remaining NA's for Nili_id?
   nas <- joined %>% filter(is.na(Nili_id)) %>% pull(local_identifier) %>% unique()
   length(nas) 
   
-  # There are still 5 more Nas remaining. 
+  # There are still NAs remaining 
   joined %>%
     filter(is.na(Nili_id)) %>%
     select(local_identifier, tag_id, tag_local_identifier) %>%
@@ -132,7 +132,18 @@ fix_names <- function(joined0, ww_file){
                                is.na(Nili_id) & local_identifier == "E98 W (T42w>L05>A92>Y09)" ~ "yagur",
                                is.na(Nili_id) & local_identifier == "Y11>T98 W>E99 w" ~ "richard",
                                is.na(Nili_id) & local_identifier == "B38w (T61w)" ~ "cochav",
+                               is.na(Nili_id) & local_identifier == "B41w (A73>Y31>T08 B>J62 W)" ~ "uri",
+                               is.na(Nili_id) & local_identifier == "B43w (T35 White)" ~ "tyra",
+                               is.na(Nili_id) & local_identifier == "B55w" ~ "UNK1",
+                               is.na(Nili_id) & local_identifier == "J29w" ~ "chegovar",
+                               is.na(Nili_id) & local_identifier == "J52w" ~ "juno",
+                               is.na(Nili_id) & local_identifier == "T24b" ~ "levy",
                                .default = Nili_id))
+  
+  joined %>%
+    filter(is.na(Nili_id)) %>%
+    select(local_identifier, tag_id, tag_local_identifier) %>%
+    distinct() # no more left
   
   return(joined)
 }
@@ -146,6 +157,7 @@ remove_periods <- function(ww_file, fixed_names){
 clean_data <- function(removed_periods){
   cleaned <- vultureUtils::cleanData(dataset = removed_periods,
                                      precise = F,
+                                     removeVars = F,
                                      longCol = "location_long",
                                      latCol = "location_lat",
                                      idCol = "Nili_id",
@@ -153,12 +165,12 @@ clean_data <- function(removed_periods){
   return(cleaned)
 }
 
-attach_age_sex <- function(removed_captures, ww_file){
+attach_age_sex <- function(cleaned, ww_file){
   age_sex <- read_excel(ww_file, sheet = "all gps tags")[,1:35] %>%
     dplyr::select(Nili_id, birth_year, sex) %>%
     distinct()
   
-  with_age_sex <- removed_captures %>%
+  with_age_sex <- cleaned %>%
     dplyr::select(-c("sex")) %>%
     left_join(age_sex, by = "Nili_id")
   
@@ -881,10 +893,6 @@ join_movement_soc <- function(new_movement_vars, metrics_summary, season_names){
   #linked %>% filter(is.infinite(z_deg) | is.infinite(z_str)) # likewise, removing the infinite individual
   linked <- linked %>%
     filter(!is.infinite(z_deg), !is.infinite(z_str))
-  
-  # Add number of individuals per season
-  linked <- linked %>%
-    left_join(ns, by = c("seasonUnique", situ))
   
   return(linked)
 }
