@@ -113,7 +113,7 @@ fix_names <- function(joined0, ww_file){
                       by = c("local_identifier" = "Movebank_id"))
   joined <- joined %>%
     mutate(Nili_id = case_when(is.na(Nili_id) & local_identifier == "E66 White" ~ "E66",
-                               is.na(Nili_id) & local_identifier == "B01w (Y01>T60 W)" ~ "tammy",
+                               is.na(Nili_id) & local_identifier == "B01w (Y01>T60 W)" ~ "tammy", # I had this in there but they changed how they encoded it in the who's who
                                .default = Nili_id))
   
   # Are there any remaining NA's for Nili_id?
@@ -398,6 +398,13 @@ get_variograms <- function(telems_list){
 get_guesses <- function(telems_list){
   guesses_list <- furrr::future_map(telems_list, ~map(.x, ~ctmm.guess(.x, interactive = FALSE), .progress = T))
   return(guesses_list)
+}
+
+get_fits_1season <- function(telems_list, guesses_list, season){
+  tl <- telems_list[[season]]
+  gl <- guesses_list[[season]]
+  fits <- map2(.x = tl, .y = gl, ~ctmm.select(.x, .y, method = "pHREML"), .progress = T)
+  return(fits)
 }
 
 get_fits <- function(telems_list, guesses_list){
@@ -797,20 +804,44 @@ rotate_data_table <- function(dataset, shiftMax, idCol = "indiv", dateCol = "dat
   return(out)
 }
 
-get_metrics_wrapped <- function(with_times, roosts, season_names, roostPolygons, reps, shiftMax){
+get_metrics_wrapped_1season <- function(with_times, roosts, season_names, roostPolygons, reps, shiftMax, season){
   rp <- sf::st_read(roostPolygons)
-  options(future.globals.maxSize = 1.0 * 1e9)
-  future::plan(future::multisession, workers = 15)
+  dat <- with_times[[season]]
+  rst <- roosts[[season]]
+  metrics <- map(1:reps, ~fn(dataset = dat, rst = rst, iter = .x, shiftMax = shiftMax, roostPolygons = rp), .progress = T)
+  
+  metrics <- purrr::list_rbind(map2(metrics, 1:reps, ~.x %>% mutate(rep = .y))) %>% mutate(seasonUnique = season_names[season])
+  
+  return(metrics)
+}
+
+compile_metrics_wrapped <- function(lst){
+  metrics_wrapped <- purrr::list_rbind(lst)
+  metrics_wrapped <- metrics_wrapped %>%
+    group_by(seasonUnique, situ, rep) %>%
+    mutate(n = length(unique(Nili_id)))
+  
+  metrics_wrapped <- metrics_wrapped %>%
+    group_by(seasonUnique, situ, rep) %>%
+    mutate(normDegree = degree/(n-1),
+           normStrength = strength/sum(strength, na.rm = T)) %>%
+    ungroup()
+  return(metrics_wrapped)
+}
+
+get_metrics_wrapped <- function(with_times, roosts, season_names, roostPolygons, reps, shiftMax){
+  future::plan(future::multisession, workers = 5)
+  rp <- sf::st_read(roostPolygons)
   metrics_seasons <- vector(mode = "list", length = length(with_times))
   for(i in 1:length(with_times)){
     cat("Working on season ", i)
     dat <- with_times[[i]]
     rst <- roosts[[i]]
-    metrics_seasons[[i]] <- suppressWarnings(furrr::future_map(1:reps, ~fn(dataset = dat, 
+    metrics_seasons[[i]] <- furrr::future_map(1:reps, ~fn(dataset = dat, 
                                                                            rst = rst, iter = .x, 
                                                                            shiftMax = shiftMax,
                                                                            roostPolygons = rp),
-                                                               .progress = T))
+                                                               .progress = T)
   }
   
   for(i in 1:length(metrics_seasons)){
