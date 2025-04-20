@@ -28,15 +28,12 @@ tar_load(season_names)
 tar_load(flightGraphs)
 tar_load(feedingGraphs)
 tar_load(roostingGraphs)
-ns <- data.frame(seasonUnique = season_names,
-                  Fl = map_dbl(flightGraphs, ~length(igraph::V(.x))),
-                  Fe = map_dbl(feedingGraphs, ~length(igraph::V(.x))),
-                  Ro = map_dbl(roostingGraphs, ~length(igraph::V(.x)))) %>%
-  pivot_longer(cols = -seasonUnique, names_to = "situ", values_to = "nInNetwork")
-linked <- linked %>%
-  left_join(ns, by = c("seasonUnique", "situ"))
+tar_load(ns)
 
-linked2 <- linked
+linked2 <- linked %>%
+  left_join(ns, by = c("seasonUnique", "situ")) %>%
+  mutate(seasonUnique = factor(seasonUnique, levels = season_names))
+
 write_rds(linked2, file = here("data/created/linked2.RDS"))
 
 # Models: space use only --------------------------------------------------
@@ -53,7 +50,7 @@ sp_deg_obs_mod
 sp_deg_int <- glmmTMB(z_deg ~ space_use*situ + season +(1|seasonUnique) + (1|Nili_id), data = linked2, family = gaussian())
 summary(sp_deg_int)
 
-sp_deg_int_mod <- sp_deg_int_2
+sp_deg_int_mod <- sp_deg_int
 
 ## Strength ------------------------------------------------------------------
 

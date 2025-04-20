@@ -599,7 +599,8 @@ get_flight <- function(sfdata, roostPolygons){
                                        roostPolygons = rp,
                                        distThreshold = 1000,
                                        idCol = "Nili_id",
-                                       return = "both", getLocs = T)
+                                       return = "both",
+                                       getLocs = T)
     flight[[i]] <- fl
     rm(fl)
   }
@@ -641,8 +642,11 @@ get_list_element <- function(lst, element){
   return(out)
 }
 
-get_graphs <- function(sri){
-  g <- map(sri, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+get_graphs <- function(sri, sfdata){
+  g <- map2(sri, sfdata, ~{
+    v <- unique(.y$Nili_id)
+    g <- vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T, vertices = v)
+    return(g)})
   return(g)
 }
 
