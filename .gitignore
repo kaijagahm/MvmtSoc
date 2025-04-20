@@ -11,3 +11,4 @@ data/
 *.html
 stadia_key.Rda
 rosm.cache/
+scripts/shiftCoords.R

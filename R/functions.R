@@ -49,6 +49,10 @@ get_inpa <- function(loginObject){
   inpa <- inpa %>%
     mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
            year = as.numeric(lubridate::year(timestamp)))
+  
+  # Remove irrelevant cols
+  inpa <- inpa %>%
+    select(c("tag_id", "heading", "battery_charge_percent", "gps_satellite_count", "gps_time_to_fix", "external_temperature", "barometric_height", "ground_speed", "height_above_msl", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
   return(inpa)
 }
 
@@ -60,6 +64,12 @@ get_ornitela <- function(loginObject){
                                              quiet = T, 
                                              dateTimeStartUTC = minDate, 
                                              dateTimeEndUTC = maxDate)
+  
+  ornitela <- ornitela %>% mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
+         year = as.numeric(lubridate::year(timestamp)))
+  
+  ornitela <- ornitela %>%
+    select(c("tag_id", "heading", "battery_charge_percent", "gps_satellite_count", "gps_time_to_fix", "external_temperature", "barometric_height", "ground_speed", "height_above_msl", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
   return(ornitela)
 }
 
@@ -103,12 +113,38 @@ fix_names <- function(joined0, ww_file){
                       by = c("local_identifier" = "Movebank_id"))
   joined <- joined %>%
     mutate(Nili_id = case_when(is.na(Nili_id) & local_identifier == "E66 White" ~ "E66",
-                               is.na(Nili_id) & local_identifier == "Y01>T60 W" ~ "tammy",
+                               is.na(Nili_id) & local_identifier == "B01w (Y01>T60 W)" ~ "tammy", # I had this in there but they changed how they encoded it in the who's who
                                .default = Nili_id))
   
   # Are there any remaining NA's for Nili_id?
   nas <- joined %>% filter(is.na(Nili_id)) %>% pull(local_identifier) %>% unique()
-  length(nas) # yay, no more! # XXX THIS IS THE PROBLEM--i wrote this comment about there being no more NAs back when I was running the pipeline only on ornitela birds, but then I didn't add more manual corrections (or, not enough of them) when I added the INPA data, which means that some individuals were left unidentified.
+  length(nas) 
+  
+  # There are still NAs remaining 
+  joined %>%
+    filter(is.na(Nili_id)) %>%
+    select(local_identifier, tag_id, tag_local_identifier) %>%
+    distinct()
+  
+  joined <- joined %>%
+    mutate(Nili_id = case_when(is.na(Nili_id) & local_identifier == "B36w (T51w)" ~ "lima",
+                               is.na(Nili_id) & local_identifier == "E97w (A67>T40>Y14)" ~ "kfir",
+                               is.na(Nili_id) & local_identifier == "E98 W (T42w>L05>A92>Y09)" ~ "yagur",
+                               is.na(Nili_id) & local_identifier == "Y11>T98 W>E99 w" ~ "richard",
+                               is.na(Nili_id) & local_identifier == "B38w (T61w)" ~ "cochav",
+                               is.na(Nili_id) & local_identifier == "B41w (A73>Y31>T08 B>J62 W)" ~ "uri",
+                               is.na(Nili_id) & local_identifier == "B43w (T35 White)" ~ "tyra",
+                               is.na(Nili_id) & local_identifier == "B55w" ~ "UNK1",
+                               is.na(Nili_id) & local_identifier == "J29w" ~ "chegovar",
+                               is.na(Nili_id) & local_identifier == "J52w" ~ "juno",
+                               is.na(Nili_id) & local_identifier == "T24b" ~ "levy",
+                               .default = Nili_id))
+  
+  joined %>%
+    filter(is.na(Nili_id)) %>%
+    select(local_identifier, tag_id, tag_local_identifier) %>%
+    distinct() # no more left
+  
   return(joined)
 }
 
@@ -121,6 +157,7 @@ remove_periods <- function(ww_file, fixed_names){
 clean_data <- function(removed_periods){
   cleaned <- vultureUtils::cleanData(dataset = removed_periods,
                                      precise = F,
+                                     removeVars = F,
                                      longCol = "location_long",
                                      latCol = "location_lat",
                                      idCol = "Nili_id",
@@ -128,22 +165,12 @@ clean_data <- function(removed_periods){
   return(cleaned)
 }
 
-remove_captures <- function(capture_sites, carmel, cleaned){
-  cs <- read.csv(capture_sites)
-  cml <- read.csv(carmel)
-  removed_captures <- removeCaptures(data = cleaned, 
-                                     captureSites = cs, 
-                                     AllCarmelDates = cml, 
-                                     distance = 500, idCol = "Nili_id")
-  return(removed_captures)
-}
-
-attach_age_sex <- function(removed_captures, ww_file){
+attach_age_sex <- function(cleaned, ww_file){
   age_sex <- read_excel(ww_file, sheet = "all gps tags")[,1:35] %>%
     dplyr::select(Nili_id, birth_year, sex) %>%
     distinct()
   
-  with_age_sex <- removed_captures %>%
+  with_age_sex <- cleaned %>%
     dplyr::select(-c("sex")) %>%
     left_join(age_sex, by = "Nili_id")
   
@@ -373,6 +400,13 @@ get_guesses <- function(telems_list){
   return(guesses_list)
 }
 
+get_fits_1season <- function(telems_list, guesses_list, season){
+  tl <- telems_list[[season]]
+  gl <- guesses_list[[season]]
+  fits <- map2(.x = tl, .y = gl, ~ctmm.select(.x, .y, method = "pHREML"), .progress = T)
+  return(fits)
+}
+
 get_fits <- function(telems_list, guesses_list){
   fits_list <- vector(mode = "list", length = length(telems_list))
   future::plan(future::multisession, workers = 15)
@@ -565,7 +599,8 @@ get_flight <- function(sfdata, roostPolygons){
                                        roostPolygons = rp,
                                        distThreshold = 1000,
                                        idCol = "Nili_id",
-                                       return = "both", getLocs = T)
+                                       return = "both",
+                                       getLocs = T)
     flight[[i]] <- fl
     rm(fl)
   }
@@ -607,8 +642,11 @@ get_list_element <- function(lst, element){
   return(out)
 }
 
-get_graphs <- function(sri){
-  g <- map(sri, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
+get_graphs <- function(sri, sfdata){
+  g <- map2(sri, sfdata, ~{
+    v <- unique(.y$Nili_id)
+    g <- vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T, vertices = v)
+    return(g)})
   return(g)
 }
 
@@ -770,20 +808,44 @@ rotate_data_table <- function(dataset, shiftMax, idCol = "indiv", dateCol = "dat
   return(out)
 }
 
-get_metrics_wrapped <- function(with_times, roosts, season_names, roostPolygons, reps, shiftMax){
+get_metrics_wrapped_1season <- function(with_times, roosts, season_names, roostPolygons, reps, shiftMax, season){
   rp <- sf::st_read(roostPolygons)
-  options(future.globals.maxSize = 1.0 * 1e9)
-  future::plan(future::multisession, workers = 15)
+  dat <- with_times[[season]]
+  rst <- roosts[[season]]
+  metrics <- map(1:reps, ~fn(dataset = dat, rst = rst, iter = .x, shiftMax = shiftMax, roostPolygons = rp), .progress = T)
+  
+  metrics <- purrr::list_rbind(map2(metrics, 1:reps, ~.x %>% mutate(rep = .y))) %>% mutate(seasonUnique = season_names[season])
+  
+  return(metrics)
+}
+
+compile_metrics_wrapped <- function(lst){
+  metrics_wrapped <- purrr::list_rbind(lst)
+  metrics_wrapped <- metrics_wrapped %>%
+    group_by(seasonUnique, situ, rep) %>%
+    mutate(n = length(unique(Nili_id)))
+  
+  metrics_wrapped <- metrics_wrapped %>%
+    group_by(seasonUnique, situ, rep) %>%
+    mutate(normDegree = degree/(n-1),
+           normStrength = strength/sum(strength, na.rm = T)) %>%
+    ungroup()
+  return(metrics_wrapped)
+}
+
+get_metrics_wrapped <- function(with_times, roosts, season_names, roostPolygons, reps, shiftMax){
+  future::plan(future::multisession, workers = 5)
+  rp <- sf::st_read(roostPolygons)
   metrics_seasons <- vector(mode = "list", length = length(with_times))
   for(i in 1:length(with_times)){
     cat("Working on season ", i)
     dat <- with_times[[i]]
     rst <- roosts[[i]]
-    metrics_seasons[[i]] <- suppressWarnings(furrr::future_map(1:reps, ~fn(dataset = dat, 
+    metrics_seasons[[i]] <- furrr::future_map(1:reps, ~fn(dataset = dat, 
                                                                            rst = rst, iter = .x, 
                                                                            shiftMax = shiftMax,
                                                                            roostPolygons = rp),
-                                                               .progress = T))
+                                                               .progress = T)
   }
   
   for(i in 1:length(metrics_seasons)){
@@ -866,10 +928,6 @@ join_movement_soc <- function(new_movement_vars, metrics_summary, season_names){
   #linked %>% filter(is.infinite(z_deg) | is.infinite(z_str)) # likewise, removing the infinite individual
   linked <- linked %>%
     filter(!is.infinite(z_deg), !is.infinite(z_str))
-  
-  # Add number of individuals per season
-  linked <- linked %>%
-    left_join(ns, by = c("seasonUnique", situ))
   
   return(linked)
 }
