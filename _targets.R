@@ -7,7 +7,7 @@ library(crew)
 # Load packages that the functions here will need in order to complete their tasks
 tar_option_set(
   packages = c("vultureUtils", "sf", "tidyverse", "dplyr", "move", "feather", "readxl", "here", "furrr", "future", "ctmm", "purrr", "igraph", "mapview", "adehabitatHR", "sp", "raster", "parallel", "car", "factoextra", "ggfortify", "ggpmisc", "lme4", "ggpubr", "rstatix", "easystats", "performance", "lmerTest", "glmmTMB", "DHARMa", "sjPlot", "broom.mixed", "jtools", "emmeans", "ggeffects", "gtsummary", "ade4", "extrafont", "ggplot2", "ggspatial", "grid", "ggmap", "Polychrome", "ggraph", "tidygraph"),
-  controller = crew_controller_local(workers = 9, seconds_idle = 5),
+  #controller = crew_controller_local(workers = 9, seconds_idle = 5),
   error = "null"
 )
 

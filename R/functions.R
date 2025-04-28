@@ -66,7 +66,7 @@ get_ornitela <- function(loginObject){
                                              dateTimeEndUTC = maxDate)
   
   ornitela <- ornitela %>% mutate(dateOnly = lubridate::ymd(substr(timestamp, 1, 10)),
-         year = as.numeric(lubridate::year(timestamp)))
+                                  year = as.numeric(lubridate::year(timestamp)))
   
   ornitela <- ornitela %>%
     select(c("tag_id", "heading", "battery_charge_percent", "gps_satellite_count", "gps_time_to_fix", "external_temperature", "barometric_height", "ground_speed", "height_above_msl", "location_lat", "location_long", "timestamp", "tag_local_identifier", "trackId", "individual_id", "local_identifier", "sex", "dateOnly", "year"))
@@ -642,11 +642,8 @@ get_list_element <- function(lst, element){
   return(out)
 }
 
-get_graphs <- function(sri, sfdata){
-  g <- map2(sri, sfdata, ~{
-    v <- unique(.y$Nili_id)
-    g <- vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T, vertices = v)
-    return(g)})
+get_graphs <- function(sri){
+  g <- map(sri, ~vultureUtils::makeGraph(mode = "sri", data = .x, weighted = T))
   return(g)
 }
 
@@ -842,10 +839,10 @@ get_metrics_wrapped <- function(with_times, roosts, season_names, roostPolygons,
     dat <- with_times[[i]]
     rst <- roosts[[i]]
     metrics_seasons[[i]] <- furrr::future_map(1:reps, ~fn(dataset = dat, 
-                                                                           rst = rst, iter = .x, 
-                                                                           shiftMax = shiftMax,
-                                                                           roostPolygons = rp),
-                                                               .progress = T)
+                                                          rst = rst, iter = .x, 
+                                                          shiftMax = shiftMax,
+                                                          roostPolygons = rp),
+                                              .progress = T)
   }
   
   for(i in 1:length(metrics_seasons)){
@@ -934,9 +931,9 @@ join_movement_soc <- function(new_movement_vars, metrics_summary, season_names){
 
 get_n_in_network <- function(season_names, flightGraphs, feedingGraphs, roostingGraphs){
   ns <- data.frame(seasonUnique = season_names,
-             Fl = map_dbl(flightGraphs, ~length(igraph::V(.x))),
-             Fe = map_dbl(feedingGraphs, ~length(igraph::V(.x))),
-             Ro = map_dbl(roostingGraphs, ~length(igraph::V(.x)))) %>%
+                   Fl = map_dbl(flightGraphs, ~length(igraph::V(.x))),
+                   Fe = map_dbl(feedingGraphs, ~length(igraph::V(.x))),
+                   Ro = map_dbl(roostingGraphs, ~length(igraph::V(.x)))) %>%
     pivot_longer(cols = -seasonUnique, names_to = "situ", values_to = "nInNetwork")
   return(ns)
 }
