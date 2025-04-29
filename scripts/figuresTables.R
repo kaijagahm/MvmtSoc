@@ -161,6 +161,7 @@ forestplots <- map(forforest, ~{
     scale_color_manual(values = situcolors, guide = "none")+
     scale_y_discrete(limits = rev, position = "right")+
     labs(x = "Effect")+
+    theme_classic()+
     theme(text = element_text(size = 10),
           axis.title.y = element_blank(),
           axis.text.y = element_blank(),
@@ -303,12 +304,13 @@ season_effects <- pmap(list(x = models, y = responses, z = mods), function(x, y,
   purrr::list_rbind()
 
 # figure out if any of them are significantly different
-summary(sp_deg_int_mod)
-summary(sp_str_int_mod) 
-summary(sp_deg_obs_mod) 
-summary(sp_str_obs_mod) 
+summary(sp_deg_int_mod) # ns
+summary(sp_str_int_mod) # ns
+summary(sp_deg_obs_mod) # ns
+summary(sp_str_obs_mod) # ns
 
 season_plot <- season_effects %>%
+  mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
   ggplot(aes(x = x, y = predicted, col = x))+
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
                 size = 0.7, width = 0)+
@@ -322,7 +324,9 @@ season_plot <- season_effects %>%
         axis.text.y = element_text(size = 12),
         axis.text.x = element_text(size = 11),
         strip.text = element_text(size = 12))+
-  labs(caption = "Error bars represent standard error (thick) and 95% confidence intervals (thin)")+
+  labs(caption = "Error bars represent standard error (thick) and 95% confidence intervals (thin)",
+       y = "Marginal mean",
+       x = "Season")+
   NULL
 season_plot
 
@@ -336,10 +340,7 @@ effs_modified <- effs %>%
   mutate("95% CI" = paste(round(`lower.CL`, 3), round(`upper.CL`, 3), 
                           sep = ", "),
          "Estimate±SE" = paste(round(Estimate, 3), "±", round(SE, 3))) %>%
-  select(`Social network`, Situation, `Estimate±SE`, `95% CI`) %>%
-  mutate(`Predictor variable` = paste0("Space use * Situation (", str_to_lower(Situation), ")")) %>%
-  select(-Situation) %>%
-  relocate(`Predictor variable`, .after = `Social network`)
+  select(`Social network`, Situation, `Estimate±SE`, `95% CI`)
 
 em_obs <- effs_modified %>%
   filter(grepl("observed", `Social network`))
@@ -348,43 +349,22 @@ em_int <- effs_modified %>%
 
 sig_obs <- stringr::str_count(em_obs$`95% CI`, "-") %in% c(0, 2)
 sig_int <- stringr::str_count(em_int$`95% CI`, "-") %in% c(0, 2)
-conditional_effects_tab_obs <- em_obs %>%
-  group_by(`Social network`) %>%
-  gt(row_group_as_column = T) %>%
-  tab_style(style = list(
-    cell_text(weight = "bold")
-  ),
-  locations = list(cells_column_labels(), cells_row_groups())) %>%
-  tab_style(
-    style = list(
-      cell_text(weight = "bold")
-    ),
-    locations = cells_body(
-      columns = "95% CI",
-      rows = sig_obs
-    )
-  )
+em_all <- bind_rows(em_obs, em_int) %>%
+  mutate(`Social network` = factor(`Social network`, levels = c("Degree (observed)", "Degree (intentional)", "Strength (observed)", "Strength (intentional)")))
 
-conditional_effects_tab_int <- em_int %>%
+tab_all <- em_all %>%
+  arrange(`Social network`) %>%
   group_by(`Social network`) %>%
   gt(row_group_as_column = T) %>%
   tab_style(style = list(
     cell_text(weight = "bold")
-  ),
-  locations = list(cells_column_labels(), cells_row_groups())) %>%
-  tab_style(
-    style = list(
-      cell_text(weight = "bold")
-    ),
-    locations = cells_body(
-      columns = "95% CI",
-      rows = sig_int
-    )
-  )
-gtsave(conditional_effects_tab_obs, filename = here("fig/tab1_obs.rtf"))
-gtsave(conditional_effects_tab_obs, filename = here("fig/tab1_obs.png"))
-gtsave(conditional_effects_tab_int, filename = here("fig/tab1_int.rtf"))
-gtsave(conditional_effects_tab_int, filename = here("fig/tab1_int.png"))
+  ), locations = list(cells_column_labels(), 
+                   cells_row_groups(),
+                   cells_body(columns = "95% CI", rows = str_count(`95% CI`, "-") != 1))) 
+tab_all
+
+gtsave(tab_all, filename = here("fig/tab1.rtf"))
+gtsave(tab_all, filename = here("fig/tab1.png"))
 
 # TABLE S1 ----------------------------------------------------------------
 all <- data.frame(seasonUnique = season_names,
