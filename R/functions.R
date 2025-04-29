@@ -574,6 +574,13 @@ get_space_use <- function(movementBehaviorScaled){
   return(distinct(space_use))
 }
 
+get_space_use_pca <- function(movementBehaviorScaled){
+  space_use <- movementBehaviorScaled %>%
+    dplyr::select(Nili_id, seasonUnique, coreArea_log, homeRange_log, coreAreaFidelity)
+  pca <- prcomp(space_use[,-c(1:3)])
+  return(pca)
+}
+
 get_new_movement_vars <- function(demo, space_use){
   new_movement_vars <- demo %>%
     left_join(space_use %>% dplyr::select(Nili_id, seasonUnique, space_pc1)) %>%

@@ -1,5 +1,5 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|6af09594c18fe22c|||||||||||||||
+.Random.seed|object|e01159818e597154|||||||||||||||
 all_movement_vars|stem|fbb2a6da8d1ffa44|476760c3bb6a481d|108e63a045517083|-1613290649||t20195.8220742515s|fff8b93a4c703178|22066|rds|local|vector|||0.047||
 allMetrics|stem|57a1e7297478d29d|2470e0a4c7866c9a|01b15a6ecd095dba|1991307673||t20203.6889732805s|1b1b86556c215abd|1880434|rds|local|vector|||0.641||
 animals|stem|1b5ff02d226e6e2c|8c4332e7df9314c8|d9f7f1e417a9743f|-180304413||t20192.8957302899s|e4107c22458d8c87|1014|rds|local|vector|||0.08||
@@ -81,6 +81,7 @@ get_seasoncolors|function|cd5b16e4f712a9c2|||||||||||||||
 get_shannon|function|b451e123e8064e73|||||||||||||||
 get_situcolors|function|8d4c9a3b2eba20b3|||||||||||||||
 get_space_use|function|86777cbfdd6829f6|||||||||||||||
+get_space_use_pca|function|efcffb85f2309281|||||||||||||||
 get_telems|function|47297fdee2ffcea0|||||||||||||||
 get_uds_w|function|628141fb66ada64e|||||||||||||||
 get_variograms|function|69cae5cacc2aacdf|||||||||||||||
@@ -143,6 +144,7 @@ sfdata|stem|d1e12347d4aaca21|2ae0e98c4b7c48c5|e1e47e66db785a2c|1969769587||t2019
 sfs_est_centroids|stem|cb6b77b6924f3332|a7c55a8910c39818|821a3dc5cee1c2f8|-510025618||t20195.8218743922s|cf7fe66a4c3225c9|18142|rds|local|vector|||186.39|st_centroid assumes attributes are constant over geometries|
 situcolors|stem|f2f295f424c0c3f7|22e4b789e81b9ce6|5a29eab8e330d8c9|1185826822||t20028.9600365938s|87bbe5f41aaaedf6|80|rds|local|vector|||0||
 space_use|stem|76b3ee440aedee65|1c65834bb4908a92|cd3ccdc63d36247a|198738352||t20195.8220710403s|8075e6da9d77e96f|17807|rds|local|vector|||0||
+space_use_pca|stem|4fa0f6cbfbc96aea|0701996dc1f75e9b|da6f5e53226952eb|-549084160||t20207.7358401073s|bfc55a7cc843c438|8470|rds|local|vector|||0.11||
 split_seasons|function|351942da17a95c00|||||||||||||||
 stats_w_50_df|stem|6aaa2aa72427533f|f98016ec9677d54f|402dd9d12c67ee0f|231437819||t20195.6340199493s|e1863e5e4e89d31a|26084|rds|local|vector|||31.703||
 stats_w_95_df|stem|f7ff633c71154ade|1dbba58faa5c7ba5|402dd9d12c67ee0f|-1634343218||t20195.8195283824s|aedd6101f2161ca9|26120|rds|local|vector|||10.359||

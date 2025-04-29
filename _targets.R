@@ -97,6 +97,7 @@ list(
   tar_target(demo, get_demo(movementBehaviorScaled)),
   ## Calculate space use
   tar_target(space_use, get_space_use(movementBehaviorScaled)),
+  tar_target(space_use_pca, get_space_use_pca(movementBehaviorScaled)),
   tar_target(new_movement_vars, get_new_movement_vars(demo, space_use)),
   tar_target(all_movement_vars, get_all_movement_vars(demo, space_use)),
   

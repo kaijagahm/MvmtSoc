@@ -13,6 +13,7 @@ library(scales)
 library(ggmap)
 library(glmmTMB) # have to have this loaded because emmeans cannot actually handle models of class glmmTMB, but the glmmTMB package has implemented its own methods for this.
 library(gt)
+library(ggfortify)
 
 tar_config_set(store = here::here('_targets'))
 tar_load(cc)
@@ -582,8 +583,10 @@ gtsave(fixed_tab_obs, filename = here("fig/tabS3_obs.png"))
 gtsave(fixed_tab_int, filename = here("fig/tabS3_int.rtf"))
 gtsave(fixed_tab_int, filename = here("fig/tabS3_int.png"))
 
-
-# XXX code for pca biplot included in the supplementary material
-# autoplot(pca, data = space_use, 
-#          +          loadings = TRUE, loadings.colour = 'blue',
-#          +          loadings.label = TRUE, loadings.label.size = 3, loadings.label.color = "blue")+theme_classic() + labs(x = "PC1 (84.51%)--Space use")
+tar_load(space_use_pca)
+summ <- summary(space_use_pca)$importance
+figS3 <- autoplot(space_use_pca, loadings = TRUE, loadings.colour = "blue", loadings.label = TRUE, loadings.label.size = 5, loadings.label.color = "blue")+
+  theme_classic()+
+  labs(x = paste0("PC1 (", round(summ[2,1]*100, 2), "%)"),
+       y = paste0("PC2 (", round(summ[2,2]*100, 2), "%)"))
+ggsave(figS3, file = here("fig/figS3.png"))
