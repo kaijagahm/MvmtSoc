@@ -381,7 +381,9 @@ conditional_effects_tab_int <- em_int %>%
     )
   )
 gtsave(conditional_effects_tab_obs, filename = here("fig/tab1_obs.rtf"))
+gtsave(conditional_effects_tab_obs, filename = here("fig/tab1_obs.png"))
 gtsave(conditional_effects_tab_int, filename = here("fig/tab1_int.rtf"))
+gtsave(conditional_effects_tab_int, filename = here("fig/tab1_int.png"))
 
 # TABLE S1 ----------------------------------------------------------------
 all <- data.frame(seasonUnique = season_names,
@@ -425,6 +427,7 @@ tab <- indivs %>%
   )
 tab
 gtsave(tab, filename = here("fig/tabS1.rtf"))
+gtsave(tab, filename = here("fig/tabS1.png"))
 
 # TABLE S2 ----------------------------------------------------------------
 summ <- linked %>%
@@ -464,6 +467,7 @@ tab2 <- summ %>%
   )
 tab2
 gtsave(tab2, filename = here("fig/tabS2.rtf"))
+gtsave(tab2, filename = here("fig/tabS2.png"))
 
 # TABLE S3 ----------------------------------------------------------------
 do <- broom.mixed::tidy(sp_deg_obs_mod) %>% mutate(model = "Degree (observed)")
@@ -574,8 +578,9 @@ fixed_tab_int <- fixed_int %>%
 fixed_tab_int
 
 gtsave(fixed_tab_obs, filename = here("fig/tabS3_obs.rtf"))
+gtsave(fixed_tab_obs, filename = here("fig/tabS3_obs.png"))
 gtsave(fixed_tab_int, filename = here("fig/tabS3_int.rtf"))
-
+gtsave(fixed_tab_int, filename = here("fig/tabS3_int.png"))
 
 
 # XXX code for pca biplot included in the supplementary material
