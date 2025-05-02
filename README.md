@@ -1,4 +1,6 @@
 # Code for "Social interactions in an avian scavenger are driven by social preference and movement, depending on the social situation"
+<a href="https://doi.org/10.5281/zenodo.15328133"><img src="https://zenodo.org/badge/605808003.svg" alt="DOI"></a>
+
 ## Authors
 Kaija Gahm, Marta Acácio, Nili Anglister, Gideon Vaadia, Orr Spiegel, Noa Pinter-Wollman
 Corresponding author: Kaija Gahm (kgahm@ucla.edu)
@@ -37,4 +39,4 @@ Info for renv--package management
 ### scripts/
 Folder containing the modeling script and the script for creating figures and tables.
 
-## Dryad link for data:
+## Dryad link for data: https://doi.org/10.5061/dryad.7sqv9s54b
