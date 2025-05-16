@@ -29,7 +29,7 @@ list(
   ## Join together the inpa and ornitela datases
   tar_target(joined0, join_inpa_ornitela(inpa, ornitela)),
   ## Load the who's who file, which has additional information about the vultures
-  tar_target(ww_file, "data/raw/whoswho_vultures_20230920_reduced.xlsx", format = "file"),
+  tar_target(ww_file, "data/raw/whoswho_vultures_20230920_new.xlsx", format = "file"),
   ## Fix the names
   tar_target(fixed_names, fix_names(joined0, ww_file)),
   ## Remove hospital/invalid periods
