@@ -32,8 +32,13 @@ list(
   tar_target(ww_file, "data/raw/whoswho_vultures_20230920_new.xlsx", format = "file"),
   ## Fix the names
   tar_target(fixed_names, fix_names(joined0, ww_file)),
+  ## Remove dates before/after the deploy period
+  tar_target(removed_beforeafter_deploy, process_deployments(ww_file,
+                                                             fixed_names,
+                                                             default_end_date = as.Date("2023-09-15"),
+                                                             verbose = TRUE)),
   ## Remove hospital/invalid periods
-  tar_target(removed_periods, remove_periods(ww_file, fixed_names)),
+  tar_target(removed_periods, remove_periods(ww_file, removed_beforeafter_deploy)),
   ## Clean the data with the various steps in the vultureUtils::cleanData function.
   tar_target(cleaned, clean_data(removed_periods)),
   ## Attach age and sex information from the who's who file.
