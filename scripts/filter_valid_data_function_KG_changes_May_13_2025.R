@@ -94,6 +94,9 @@ process_deployments <- function(ww,
   #Join back to Movebank data
   valid_periods_to_keep <- movebank_dataset %>%
     dplyr::left_join(periods_to_keep, by = c("Nili_id", "dateOnly")) %>%
+    ## If the individual's name does not appear in the who's who, keep all of its data
+    mutate(keep = case_when(!(Nili_id %in% periods_to_keep$Nili_id) ~ T,
+                                       .default = keep)) %>%
     filter(keep == TRUE)
   
   return(valid_periods_to_keep)
