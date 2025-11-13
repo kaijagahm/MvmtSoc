@@ -18,6 +18,7 @@ library(ggfortify)
 tar_config_set(store = here::here('_targets'))
 tar_load(cc)
 tar_load(linked)
+linked2 <- readRDS(here("data/created/linked2.RDS"))
 tar_load(situcolors)
 tar_load(seasoncolors)
 linked2 <- readRDS(here("data/created/linked2.RDS"))
@@ -81,7 +82,7 @@ models <- list(sp_deg_obs_mod, sp_deg_int_mod, sp_str_obs_mod, sp_str_int_mod)
 effs <- effs <- map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
 preds <- map(models, ~as.data.frame(ggeffect(.x, terms = c("space_use", "situ"))))
 responses <- rep(c("degree", "strength"), each = 2)
-mods <- rep(c("Observed", "Intentional"), 2)
+mods <- rep(c("Observed", "Non-incidental"), 2)
 
 effs <- pmap(.l = list(x = effs, y = responses, z = mods), 
              .f = function(x, y, z){x %>% mutate(response = y,
@@ -90,7 +91,7 @@ effs <- pmap(.l = list(x = effs, y = responses, z = mods),
   mutate(situ = case_when(situ == "Fe" ~ "Feeding",
                           situ == "Fl" ~ "Flight",
                           situ == "Ro" ~ "Roosting"),
-         mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+         mod = factor(mod, levels = c("Observed", "Non-incidental"))) %>%
   mutate(sig = case_when(sign(lower.CL) == sign(upper.CL) ~ T,
                          .default = F))
 
@@ -101,7 +102,7 @@ preds <- pmap(.l = list(x = preds, y = responses, z = mods),
   mutate(group = case_when(group == "Fe" ~ "Feeding",
                            group == "Fl" ~ "Flight",
                            group == "Ro" ~ "Roosting"),
-         mod = factor(mod, levels = c("Observed", "Intentional")))
+         mod = factor(mod, levels = c("Observed", "Non-incidental")))
 
 preds <- preds %>%
   left_join(effs %>%
@@ -120,10 +121,10 @@ prepdata_forforestplots <- function(variable, mod, z_mod){
   names(eff1)[5:6] <- c("lower", "upper")
   eff2 <- as.data.frame(emmeans::emtrends(z_mod, specs = "situ", 
                                           var = variable)) %>% 
-    mutate(mod = "Intentional")
+    mutate(mod = "Non-incidental")
   names(eff2)[5:6] <- c("lower", "upper")
   eff <- bind_rows(eff1, eff2) %>%
-    mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+    mutate(mod = factor(mod, levels = c("Observed", "Non-incidental"))) %>%
     mutate(situ = case_when(situ == "Fe" ~ "Feeding",
                             situ == "Fl" ~ "Flight",
                             situ == "Ro" ~ "Roosting"),
@@ -175,34 +176,75 @@ preds_list <- preds %>%
   group_split() %>%
   map(., ~.x %>% mutate(sig = factor(sig, levels = c(F, T))))
 
-labs <- c("Degree", "Strength", "Degree z-score", "Strength z-score")
-titles <- c("Observed", "Observed", "Intentional", "Intentional")
+labs <- c("Degree", "Strength", "Non-incidental degree", "Non-incidental strength")
+titles <- c("Observed", "Observed", "Non-incidental", "Non-incidental")
 
-lineplots <- pmap(list(a = preds_list, b = labs), .f = function(a, b){
+pts_deg <- linked2 %>% select(Nili_id, seasonUnique, situ, space_use, degree)
+pts_str <- linked2 %>% select(Nili_id, seasonUnique, situ, space_use, strength)
+pts_degZ <- linked2 %>% select(Nili_id, seasonUnique, situ, space_use, z_deg)
+pts_strZ <- linked2 %>% select(Nili_id, seasonUnique, situ, space_use, z_str)
+pts_list <- list(pts_deg, pts_str, pts_degZ, pts_strZ)
+pts_list <- map(pts_list, ~{
+  names(.x)[5] <- "response"
+  .x <- ungroup(.x)
+  .x <- .x %>% mutate(situ = case_when(situ == "Fl" ~ "Flight",
+                                       situ == "Fe" ~ "Feeding",
+                                       situ == "Ro" ~ "Roosting",
+                                       .default = situ))
+  return(.x)})
+lineplots <- pmap(list(a = preds_list, b = labs, c = pts_list), .f = function(a, b, c){
   p <- a %>%
     ggplot(aes(x = x, y = predicted, col = group))+
+    geom_point(data = c, aes(x = space_use, y = response, color = situ, pch = situ), alpha = 0.5, size = 1.5)+
+    scale_shape_manual(values = c(1,2,4), name = "Situation")+
     geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
                 alpha = 0.2)+
-    geom_line(aes(linetype = sig), show.legend = T, linewidth = 1.5)+
+    geom_line(aes(linetype = sig), show.legend = F, linewidth = 1.5)+
     scale_linetype_manual(drop = FALSE, values = c(2, 1))+
     scale_color_manual(name = "Situation", values = situcolors)+
     scale_fill_manual(name = "Situation", values = situcolors)+
     labs(y = b, x = NULL)+
-    #geom_point(data = e, pch = 1, alpha = 0.5)+
     theme_classic()+
-    theme(legend.position = "none",
-          text = element_text(size = 14))
+    theme(text = element_text(size = 14),
+          legend.position = "none")
   return(p)
 })
 
-a <- lineplots[[1]] + ggtitle("Observed") + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
-b <- lineplots[[3]] + ggtitle("Intentional") + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
-c <- lineplots[[2]] + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
-d <- lineplots[[4]] + theme(plot.margin = unit(c(1.4, 1.1, 0.1, 0.1), "cm"))
+marg <- c(1.4, 1.1, 0.1, 0.1)
+a <- lineplots[[1]] + ggtitle("Observed") + theme(plot.margin = unit(marg, "cm"))
+b <- lineplots[[3]] + ggtitle("Non-incidental") + theme(plot.margin = unit(marg, "cm"))
+c <- lineplots[[2]] + theme(plot.margin = unit(marg, "cm"))
+d <- lineplots[[4]] + theme(plot.margin = unit(marg, "cm"))
+results_withpoints <- (a+b)/(c+d)
+results_withpoints
 results <- (a + b)/(c + d)
 results
 
+a1 <- preds_list[[1]]
+b1 <- labs[[1]]
+c1 <- pts_list[[1]]
+legendplot <- a1 %>%
+  ggplot(aes(x = x, y = predicted, col = group))+
+  geom_point(data = c1, aes(x = space_use, y = response, color = situ, pch = situ), alpha = 0.75)+
+  scale_shape_manual(values = c(1,2,4), name = "Situation")+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
+              alpha = 0.2)+
+  geom_line(aes(linetype = sig), show.legend = F, linewidth = 1.5)+
+  scale_linetype_manual(drop = FALSE, values = c(2, 1))+
+  scale_color_manual(name = "Situation", values = situcolors)+
+  scale_fill_manual(name = "Situation", values = situcolors)+
+  labs(y = b1, x = NULL)+
+  theme_classic()+
+  theme(text = element_text(size = 14),
+        legend.position = "bottom")
+legend <- ggpubr::get_legend(legendplot)
+
+rl <- results_withpoints + legend
+
+ggsave(rl, width =9, height = 10, file = here("fig/fig3_line_withpoints.png"))
+
 ggsave(results, width =9, height = 6.5, file = here("fig/fig3_line.png"))
+ggsave(legend, width = 3, height = 1, file = here("fig/fig3_legend.png"))
 
 ggsave(forestplots[[1]], filename = here("fig/fig3_forest1.png"), width = 1.5, height = 1)
 ggsave(forestplots[[2]], filename = here("fig/fig3_forest2.png"), width = 1.5, height = 1)
@@ -277,7 +319,7 @@ int_deg_box <- linked3 %>%
   scale_color_manual(name = "Behavioral situation", values = bordercolors)+
   theme(axis.title.x = element_blank(),
         legend.position = "bottom")+
-  labs(y = "Degree (intentional)", x = "Season")
+  labs(y = "Degree (non-incidental)", x = "Season")
 int_deg_box
 
 int_str_box <- linked3 %>%
@@ -288,7 +330,7 @@ int_str_box <- linked3 %>%
   scale_color_manual(name = "Behavioral situation", values = bordercolors)+
   theme(axis.title.x = element_blank(),
         legend.position = "bottom")+
-  labs(y = "Strength (intentional)", x = "Season")
+  labs(y = "Strength (non-incidental)", x = "Season")
 int_str_box
 
 boxplots <- ((obs_deg_box/obs_str_box) + plot_layout(axes = "collect") | (int_deg_box/int_str_box) + plot_layout(axes = "collect")) + plot_layout(guides = "collect") & theme(legend.position = 'bottom', panel.grid.minor.x = element_blank())
@@ -310,7 +352,7 @@ summary(sp_deg_obs_mod) # ns
 summary(sp_str_obs_mod) # ns
 
 season_plot <- season_effects %>%
-  mutate(mod = factor(mod, levels = c("Observed", "Intentional"))) %>%
+  mutate(mod = factor(mod, levels = c("Observed", "Non-incidental"))) %>%
   ggplot(aes(x = x, y = predicted, col = x))+
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
                 size = 0.7, width = 0)+
@@ -345,12 +387,13 @@ effs_modified <- effs %>%
 em_obs <- effs_modified %>%
   filter(grepl("observed", `Social network`))
 em_int <- effs_modified %>%
-  filter(grepl("intentional", `Social network`))
+  filter(grepl("non-incidental", `Social network`))
 
 sig_obs <- stringr::str_count(em_obs$`95% CI`, "-") %in% c(0, 2)
 sig_int <- stringr::str_count(em_int$`95% CI`, "-") %in% c(0, 2)
 em_all <- bind_rows(em_obs, em_int) %>%
-  mutate(`Social network` = factor(`Social network`, levels = c("Degree (observed)", "Degree (intentional)", "Strength (observed)", "Strength (intentional)")))
+  mutate(`Social network` = str_replace(`Social network`, "intentional", "non-incidental")) %>%
+  mutate(`Social network` = factor(`Social network`, levels = c("Degree (observed)", "Degree (non-incidental)", "Strength (observed)", "Strength (non-incidental)")))
 
 tab_all <- em_all %>%
   arrange(`Social network`) %>%
@@ -359,8 +402,8 @@ tab_all <- em_all %>%
   tab_style(style = list(
     cell_text(weight = "bold")
   ), locations = list(cells_column_labels(), 
-                   cells_row_groups(),
-                   cells_body(columns = "95% CI", rows = str_count(`95% CI`, "-") != 1))) 
+                      cells_row_groups(),
+                      cells_body(columns = "95% CI", rows = str_count(`95% CI`, "-") != 1))) 
 tab_all
 
 gtsave(tab_all, filename = here("fig/tab1.rtf"))
@@ -425,8 +468,8 @@ summ <- linked %>%
                            min, "-", max)) %>%
   mutate(measure = case_when(measure == "degree" ~ "Degree (observed)",
                              measure == "strength" ~ "Strength (observed)",
-                             measure == "z_deg" ~ "Degree (intentional)",
-                             measure == "z_str" ~ "Strength (intentional)"))
+                             measure == "z_deg" ~ "Degree (non-incidental)",
+                             measure == "z_str" ~ "Strength (non-incidental)"))
 
 tab2 <- summ %>%
   ungroup() %>%
@@ -452,9 +495,9 @@ gtsave(tab2, filename = here("fig/tabS2.png"))
 
 # TABLE S3 ----------------------------------------------------------------
 do <- broom.mixed::tidy(sp_deg_obs_mod) %>% mutate(model = "Degree (observed)")
-di <- broom.mixed::tidy(sp_deg_int_mod) %>% mutate(model = "Degree (intentional)")
+di <- broom.mixed::tidy(sp_deg_int_mod) %>% mutate(model = "Degree (non-incidental)")
 so <- broom.mixed::tidy(sp_str_obs_mod) %>% mutate(model = "Strength (observed)")
-si <- broom.mixed::tidy(sp_str_int_mod) %>% mutate(model = "Strength (intentional)")
+si <- broom.mixed::tidy(sp_str_int_mod) %>% mutate(model = "Strength (non-incidental)")
 
 confint_fun <- function(mod, mod_name){
   mat <- confint(mod)
@@ -466,7 +509,7 @@ confint_fun <- function(mod, mod_name){
   return(df)
 }
 
-cis <- map2(models, c("Degree (observed)", "Degree (intentional)", "Strength (observed)", "Strength (intentional)"),  ~confint_fun(.x, .y)) %>% purrr::list_rbind()
+cis <- map2(models, c("Degree (observed)", "Degree (non-incidental)", "Strength (observed)", "Strength (non-incidental)"),  ~confint_fun(.x, .y)) %>% purrr::list_rbind()
 
 all <- bind_rows(do, di, so, si)
 fixed <- all %>%
@@ -516,7 +559,7 @@ fixed_tab <- fixed %>%
 fixed_tab # this is too long... let me try doing it in two separate ones
 
 fixed_obs <- fixed %>% filter(grepl("observed", `Social network`))
-fixed_int <- fixed %>% filter(grepl("intentional", `Social network`))
+fixed_int <- fixed %>% filter(grepl("non-incidental", `Social network`))
 
 fixed_tab_obs <- fixed_obs %>%
   group_by(`Social network`) %>%
