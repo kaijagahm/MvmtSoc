@@ -21,7 +21,6 @@ tar_load(linked)
 linked2 <- readRDS(here("data/created/linked2.RDS"))
 tar_load(situcolors)
 tar_load(seasoncolors)
-linked2 <- readRDS(here("data/created/linked2.RDS"))
 tar_load(flightGraphs)
 tar_load(feedingGraphs)
 tar_load(roostingGraphs)
@@ -79,7 +78,7 @@ load(here("data/created/sp_str_int_mod.Rda"))
 # List models so we can operate on them
 models <- list(sp_deg_obs_mod, sp_deg_int_mod, sp_str_obs_mod, sp_str_int_mod)
 
-effs <- effs <- map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
+effs <- map(models, ~as.data.frame(emmeans::emtrends(.x, specs = "situ", var = "space_use")))
 preds <- map(models, ~as.data.frame(ggeffect(.x, terms = c("space_use", "situ"))))
 responses <- rep(c("degree", "strength"), each = 2)
 mods <- rep(c("Observed", "Non-incidental"), 2)
@@ -93,6 +92,7 @@ effs <- pmap(.l = list(x = effs, y = responses, z = mods),
                           situ == "Ro" ~ "Roosting"),
          mod = factor(mod, levels = c("Observed", "Non-incidental"))) %>%
   mutate(sig = case_when(sign(lower.CL) == sign(upper.CL) ~ T,
+                         sign(asymp.LCL) == sign(asymp.UCL) ~ T,
                          .default = F))
 
 preds <- pmap(.l = list(x = preds, y = responses, z = mods), 
@@ -192,10 +192,27 @@ pts_list <- map(pts_list, ~{
                                        situ == "Ro" ~ "Roosting",
                                        .default = situ))
   return(.x)})
-lineplots <- pmap(list(a = preds_list, b = labs, c = pts_list), .f = function(a, b, c){
+lineplots_withpoints <- pmap(list(a = preds_list, b = labs, c = pts_list), .f = function(a, b, c){
   p <- a %>%
     ggplot(aes(x = x, y = predicted, col = group))+
     geom_point(data = c, aes(x = space_use, y = response, color = situ, pch = situ), alpha = 0.5, size = 1.5)+
+    scale_shape_manual(values = c(1,2,4), name = "Situation")+
+    geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
+                alpha = 0.2)+
+    geom_line(aes(linetype = sig), show.legend = F, linewidth = 1.5)+
+    scale_linetype_manual(drop = FALSE, values = c(2, 1))+
+    scale_color_manual(name = "Situation", values = situcolors)+
+    scale_fill_manual(name = "Situation", values = situcolors)+
+    labs(y = b, x = NULL)+
+    theme_classic()+
+    theme(text = element_text(size = 14),
+          legend.position = "none")
+  return(p)
+})
+
+lineplots <- pmap(list(a = preds_list, b = labs, c = pts_list), .f = function(a, b, c){
+  p <- a %>%
+    ggplot(aes(x = x, y = predicted, col = group))+
     scale_shape_manual(values = c(1,2,4), name = "Situation")+
     geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group, col = NULL),
                 alpha = 0.2)+
@@ -215,10 +232,16 @@ a <- lineplots[[1]] + ggtitle("Observed") + theme(plot.margin = unit(marg, "cm")
 b <- lineplots[[3]] + ggtitle("Non-incidental") + theme(plot.margin = unit(marg, "cm"))
 c <- lineplots[[2]] + theme(plot.margin = unit(marg, "cm"))
 d <- lineplots[[4]] + theme(plot.margin = unit(marg, "cm"))
-results_withpoints <- (a+b)/(c+d)
-results_withpoints
 results <- (a + b)/(c + d)
 results
+
+ap <- lineplots_withpoints[[1]] + ggtitle("Observed") + theme(plot.margin = unit(marg, "cm"))
+bp <- lineplots_withpoints[[3]] + ggtitle("Non-incidental") + theme(plot.margin = unit(marg, "cm"))
+cp <- lineplots_withpoints[[2]] + theme(plot.margin = unit(marg, "cm"))
+dp <- lineplots_withpoints[[4]] + theme(plot.margin = unit(marg, "cm"))
+results_withpoints <- (ap+bp)/(cp+dp)
+results_withpoints
+
 
 a1 <- preds_list[[1]]
 b1 <- labs[[1]]
@@ -268,7 +291,16 @@ centroids <- map(seasons_sf, ~.x %>%
 
 centroids_df <- map2(centroids, season_names, ~.x %>% mutate(seasonUnique = .y) %>% bind_cols(sf::st_coordinates(.))) %>% purrr::list_rbind()
 
-centroids_hist <- centroids_df %>%
+centroids_hist_df <- centroids_df %>%
+  st_drop_geometry() %>%
+  add_row(Y = 3550000, X = mean(centroids_df$X, na.rm = T), Nili_id = "sample_line") %>% # adding in the cutoff point so it gets converted to longitude too
+  sf::st_as_sf(coords = c("X", "Y"), crs = 32636) %>%
+  sf::st_transform("WGS84") %>%
+  bind_cols(., sf::st_coordinates(.))
+
+lat_sample <- centroids_hist_df %>% filter(Nili_id == "sample_line") %>% pull(Y)
+centroids_hist <- centroids_hist_df %>%
+  filter(Nili_id != "sample_line") %>%
   ggplot(aes(x = Y))+
   geom_histogram(aes(fill = seasonUnique))+
   theme_classic()+
@@ -276,9 +308,9 @@ centroids_hist <- centroids_df %>%
   theme(legend.position = "none",
         text = element_text(size = 14))+
   labs(y = "Frequency",
-       x = "UTM northing")+
-  geom_vline(col = "black", linetype = 2, aes(xintercept = 3550000))+
-  annotate("rect", xmin = 3550000, xmax = max(centroids_df$Y), ymin = -Inf, ymax = Inf, alpha = 0.2, fill = "black") 
+       x = "Latitude")+ 
+  geom_vline(col = "black", linetype = 2, aes(xintercept = lat_sample))+
+  annotate("rect", xmin = lat_sample, xmax = max(centroids_hist_df$Y), ymin = -Inf, ymax = Inf, alpha = 0.2, fill = "black") 
 
 ggsave(centroids_hist, file = here("fig/figS1.png"), width = 8, height = 6)
 
@@ -613,3 +645,330 @@ figS3 <- autoplot(space_use_pca, loadings = TRUE, loadings.colour = "blue", load
   labs(x = paste0("PC1 (", round(summ[2,1]*100, 2), "%)"),
        y = paste0("PC2 (", round(summ[2,2]*100, 2), "%)"))
 ggsave(figS3, file = here("fig/figS3.png"))
+
+# Number of days tracked per individual -----------------------------------
+tar_load(downsampled_10min_forSocial)
+tar_load(season_names)
+tar_load(roosts)
+
+## Days per individual, only for the ones we used for movement analysis?
+tar_load(daysTracked_seasons)
+
+daysTracked_seasons_df <- purrr::list_rbind(daysTracked_seasons, names_to = "seasonUnique")
+test <- left_join(linked2 %>% select(-c("daysTracked", "propDaysTracked")), daysTracked_seasons_df, by = c("Nili_id", "seasonUnique"))
+
+summs2_roosts <- map(roosts, ~{
+  .x %>% sf::st_drop_geometry() %>%
+    group_by(Nili_id) %>%
+    summarize(dates = length(unique(roost_date)))
+}) %>% setNames(., season_names) %>% purrr::list_rbind(names_to = "seasonUnique")
+
+tar_load(flightSRI)
+tar_load(feedingSRI)
+tar_load(roostingSRI)
+fls <- setNames(flightSRI, season_names) %>%
+  purrr::list_rbind(., names_to = "seasonUnique") %>%
+  left_join(daysTracked_seasons_df, by = c("ID1" = "Nili_id", "seasonUnique")) %>%
+  rename("daysTracked1" = daysTracked, "propDaysTracked1" = propDaysTracked) %>%
+  left_join(daysTracked_seasons_df, by = c("ID2" = "Nili_id", "seasonUnique")) %>%
+  rename("daysTracked2" = daysTracked, "propDaysTracked2" = propDaysTracked) %>%
+  filter(!is.na(daysTracked1) & !is.na(daysTracked2)) %>%
+  mutate(diff2_1 = daysTracked2-daysTracked1,
+         diff1_2 = daysTracked1-daysTracked2,
+         diffprop2_1_1 = diff2_1/daysTracked1,
+         diffprop2_1_2 = diff2_1/daysTracked2) %>%
+  mutate(type = "flight")
+
+fes <- setNames(feedingSRI, season_names) %>%
+  purrr::list_rbind(., names_to = "seasonUnique") %>%
+  left_join(daysTracked_seasons_df, by = c("ID1" = "Nili_id", "seasonUnique")) %>%
+  rename("daysTracked1" = daysTracked, "propDaysTracked1" = propDaysTracked) %>%
+  left_join(daysTracked_seasons_df, by = c("ID2" = "Nili_id", "seasonUnique")) %>%
+  rename("daysTracked2" = daysTracked, "propDaysTracked2" = propDaysTracked) %>%
+  filter(!is.na(daysTracked1) & !is.na(daysTracked2)) %>%
+  mutate(diff2_1 = daysTracked2-daysTracked1,
+         diff1_2 = daysTracked1-daysTracked2,
+         diffprop2_1_1 = diff2_1/daysTracked1,
+         diffprop2_1_2 = diff2_1/daysTracked2) %>%
+  mutate(type = "feeding")
+
+
+ros <- setNames(roostingSRI, season_names) %>%
+  purrr::list_rbind(., names_to = "seasonUnique") %>%
+  left_join(daysTracked_seasons_df, by = c("ID1" = "Nili_id", "seasonUnique")) %>%
+  rename("daysTracked1" = daysTracked, "propDaysTracked1" = propDaysTracked) %>%
+  left_join(daysTracked_seasons_df, by = c("ID2" = "Nili_id", "seasonUnique")) %>%
+  rename("daysTracked2" = daysTracked, "propDaysTracked2" = propDaysTracked) %>%
+  filter(!is.na(daysTracked1) & !is.na(daysTracked2)) %>%
+  mutate(diff2_1 = daysTracked2-daysTracked1,
+         diff1_2 = daysTracked1-daysTracked2,
+         diffprop2_1_1 = diff2_1/daysTracked1,
+         diffprop2_1_2 = diff2_1/daysTracked2) %>%
+  mutate(type = "roosting")
+
+all <- bind_rows(fls, fes, ros)
+
+all %>%
+  ggplot(aes(x = log(diffprop2_1_1), y = log(sri), color = factor(seasonUnique)))+
+  geom_point(pch = 1, alpha = 0.2)+
+  geom_smooth(method = "lm")+
+  labs(x = "Proportion difference in # days tracked (log-transformed)",
+       color = "Season",
+       y = "SRI (flight) (log_transformed)")+
+  facet_wrap(~type, ncol = 3)
+
+## Mean SRI vs. days tracked
+all_summ <- all %>%
+  select(type, ID1, seasonUnique, daysTracked1, sri) %>%
+  group_by(type, ID1, seasonUnique, daysTracked1) %>%
+  summarize(mnsri = mean(sri, na.rm = T),
+            sdsri = sd(sri, na.rm = T))
+
+#Statistical model mean SRI ~ days tracked * situation
+mod <- lmer(mnsri ~ daysTracked1*type + (1|seasonUnique), data = all_summ)
+summary(mod)0
+
+all_summ %>%
+  ggplot(aes(x = daysTracked1, y = mnsri, color = factor(seasonUnique)))+
+  geom_point(pch = 1, alpha = 0.5)+
+  geom_smooth(method = "lm")+
+  facet_wrap(~type, ncol = 3, scales = "free_y")+
+  labs(y = "Mean SRI", x = "Dates tracked", color = "Season")# No effect of the number of dates an individual was tracked on either its mean SRI or the SD of its SRI.
+
+tar_load(linked)
+glimpse(linked)
+
+test %>%
+  ggplot(aes(x = daysTracked, y = degree, color = seasonUnique))+
+  geom_point(pch = 1, alpha = 0.5)+
+  facet_wrap(~situ, scales = "free_y")+
+  geom_smooth(method = "lm")
+
+l2 %>%
+  ggplot(aes(x = daysTracked, y = strength, color = seasonUnique))+
+  geom_point(pch = 1, alpha = 0.5)+
+  facet_wrap(~situ, scales = "free_y")+
+  geom_smooth(method = "lm")
+
+# Need to report the mean and range of observations per dyad, per network
+tar_load(flightEdges)
+tar_load(feedingEdges)
+tar_load(roostingEdges)
+
+
+## Flight
+obs_interacting_flight <- purrr::map(flightEdges, ~{
+  .x %>%
+    sf::st_drop_geometry() %>%
+    select(ID1, ID2, timegroup, distance) %>%
+    group_by(ID1, ID2) %>%
+    summarize(n = n(), .groups = "drop")})
+names(obs_interacting_flight) <- season_names
+obs_int_flight_df <- purrr::list_rbind(obs_interacting_flight, names_to = "seasonUnique") %>%
+  mutate(situ = "Flight")
+
+## Feeding
+obs_interacting_feeding <- purrr::map(feedingEdges, ~{
+  .x %>%
+    sf::st_drop_geometry() %>%
+    select(ID1, ID2, timegroup, distance) %>%
+    group_by(ID1, ID2) %>%
+    summarize(n = n(), .groups = "drop")})
+names(obs_interacting_feeding) <- season_names
+obs_int_feeding_df <- purrr::list_rbind(obs_interacting_feeding, names_to = "seasonUnique") %>%
+  mutate(situ = "Feeding")
+
+## Roosting
+nights_interacting_roosting <- purrr::map(roostingEdges, ~{
+  .x %>%
+    sf::st_drop_geometry() %>%
+    select(ID1, ID2, roost_date, distance) %>%
+    group_by(ID1, ID2) %>%
+    summarize(n = n(), .groups = "drop")})
+names(nights_interacting_roosting) <- season_names
+nights_int_roosting_df <- purrr::list_rbind(nights_interacting_roosting, names_to = "seasonUnique") %>%
+  mutate(situ = "Roosting")
+
+int <- purrr::list_rbind(list(obs_int_flight_df, obs_int_feeding_df, nights_int_roosting_df))
+int %>%
+  group_by(seasonUnique, situ) %>%
+  summarize(min = min(n), max = max(n), mean = mean(n)) %>%
+  mutate("# dyad obs. together" = paste0(round(mean, 2), " (", min, ", ", max, ")")) %>%
+  rename("Season" = seasonUnique,
+         "Situation" = situ) %>%
+  select(Season, Situation, "# dyad obs. together") %>%
+  pivot_wider(names_from = "Situation", values_from = "# dyad obs. together") %>% View()
+
+# SRI means and ranges for each network
+tar_load(flightSRI)
+tar_load(feedingSRI)
+tar_load(roostingSRI)
+names(flightSRI) <- season_names
+names(feedingSRI) <- season_names
+names(roostingSRI) <- season_names
+
+flsri_df <- purrr::list_rbind(flightSRI, names_to = "seasonUnique") %>% mutate(Situation = "Flight")
+fesri_df <- purrr::list_rbind(feedingSRI, names_to = "seasonUnique") %>% mutate(Situation = "Feeding")
+rosri_df <- purrr::list_rbind(roostingSRI, names_to = "seasonUnique") %>% mutate(Situation = "Roosting")
+
+sri_df <- bind_rows(flsri_df, fesri_df, rosri_df)
+
+sri_df %>%
+  group_by(seasonUnique, Situation) %>%
+  summarize(min = min(sri, na.rm = T), max = max(sri, na.rm = T), mean = mean(sri, na.rm = T)) %>%
+  mutate("SRI" = paste0(round(mean, 3), " (", round(min, 3), ", ", round(max, 3), ")")) %>%
+  rename("Season" = seasonUnique) %>%
+  select(Season, Situation, "SRI") %>%
+  pivot_wider(names_from = "Situation", values_from = "SRI") %>% View()
+
+tar_load(downsampled_10min_forSocial)
+
+included_fl_dyads <- map(included_fl, ~filter(mutate(as.data.frame(expand.grid(.x, .x)), across(everything(), as.character)), Var1 < Var2))
+
+wide <- map(downsampled_10min_forSocial, ~{
+  .x %>% select(dateOnly, Nili_id) %>% distinct() %>%
+    mutate(present = T) %>%
+    pivot_wider(values_from = "present", names_from = "Nili_id")})
+
+datesboth_list <- map2(wide, included_fl_dyads, ~{
+  datesboth <- rep(NA, nrow(.y))
+  for(i in 1:nrow(.y)){
+    tt <- .x[,c(1, which(names(.x) %in% as.character(.y[i,])))]
+    present <- rowSums(tt[,2:3], na.rm = T)
+    out <- sum(present == 2)
+    datesboth[i] <- out
+  }
+  return(datesboth)
+})
+
+included_fl_dyads <- map2(included_fl_dyads, datesboth_list, ~{
+  .x %>% mutate(datesboth = .y)
+})
+names(included_fl_dyads) <- season_names
+
+included_fl_dyads_df <- purrr::list_rbind(included_fl_dyads, names_to = "seasonUnique")
+
+included_fl_dyads_df %>%
+  ggplot(aes(x = datesboth))+
+  geom_histogram()+
+  facet_wrap(~seasonUnique)+
+  labs(y = "Number of dyads",
+       x = "N days together") # this is a start on number of days together--should probably divided by number of days in the season to get proportion of the season together, but they only asked for number of observations.
+
+included_fl_dyads_df %>%
+  group_by(seasonUnique) %>%
+  mutate(situ = "Fl") %>%
+  summarize(mn = mean(datesboth),
+            sd = sd(datesboth),
+            min = min(datesboth),
+            max = max(datesboth))
+
+included_fl_dyads_df %>%
+  ggplot(aes(x = seasonUnique, y = datesboth))+
+  geom_boxplot()+
+  geom_jitter(width = 0.2, pch = 1, alpha = 0.2)+
+  labs(y = "Dates both observed",
+       x = "Season")
+
+# Report variance of random effects ---------------------------------------
+summary(sp_deg_int_mod)[[9]]
+summary(sp_str_int_mod)[[9]] 
+summary(sp_deg_obs_mod)[[9]]
+summary(sp_str_obs_mod)[[9]]
+
+# Dyad denominators -------------------------------------------------------
+tar_load(sfdata)
+tar_load(roosts)
+tar_load(roostPolygons)
+
+rp <- sf::st_read(roostPolygons)
+roostPolygons <- rp
+distThreshold <- 50
+idCol <- "Nili_id"
+return <- "both"
+getLocs <- T
+speedThreshUpper <- 5
+speedThreshLower <- NULL
+speedCol <- "ground_speed"
+roostBuffer <- 500
+consecThreshold <- 2
+longCol <- "location_long"
+latCol <- "location_lat"
+crsToSet <- "WGS84"
+crsToTransform <- 32636
+roostPolygons <- convertAndBuffer(roostPolygons, 
+                                  dist = roostBuffer)
+
+fn <- function(x){
+  filteredData <- vultureUtils::filterLocs(df = x, speedThreshUpper = speedThreshUpper, 
+                                           speedThreshLower = speedThreshLower, speedCol = speedCol)
+  
+  points <- filteredData[lengths(sf::st_intersects(filteredData, 
+                                                   roostPolygons)) == 0, ]
+  
+  times <- suncalc::getSunlightTimes(date = unique(lubridate::date(points$timestamp)), 
+                                     lat = 31.434306, lon = 34.991889, keep = c("sunrise", 
+                                                                                "sunset")) %>% dplyr::select(date, sunrise, 
+                                                                                                             sunset)
+  points <- points %>% {
+    if ("sunrise" %in% names(.)) 
+      dplyr::select(., -sunrise)
+    else .} %>% {
+      if ("sunset" %in% names(.)) 
+        dplyr::select(., -sunset)
+      else .} %>% dplyr::left_join(times, by = c(dateOnly = "date")) %>% 
+    dplyr::mutate(daytime = dplyr::case_when(timestamp > .data[["sunrise"]] & timestamp < .data[["sunset"]] ~ T, TRUE ~ F))
+  
+  dataset <- points
+  
+  dataset <- dataset %>% 
+    sf::st_as_sf(coords = c(longCol, latCol), remove = FALSE) %>% 
+    sf::st_set_crs(crsToSet)
+  dataset <- dataset %>% sf::st_transform(crsToTransform)
+  dataset$utmE <- unlist(purrr::map(dataset$geometry, 1))
+  dataset$utmN <- unlist(purrr::map(dataset$geometry, 2))
+  datset <- sf::st_drop_geometry(dataset)
+  dataset <- dataset %>% dplyr::mutate(`:=`({{timestampCol}}, as.POSIXct(.data[[timestampCol]], format = "%Y-%m-%d %H:%M:%OS", tz = "UTC")))
+  data.table::setDT(dataset)
+  dataset <- spatsoc::group_times(dataset, datetime = timestampCol, 
+                                  threshold = timeThreshold)
+  # Now that we have the timegroups, need to figure out how many timegroups each dyad shares (i.e. the denominator for the SRI calculations)
+  
+  alldyads <- as.data.frame(expand.grid(sort(unique(x$Nili_id)), sort(unique(x$Nili_id)))) %>%
+    mutate(across(everything(), as.character)) %>%
+    filter(Var1 < Var2)
+  
+  wide <- dataset %>%
+    select(Nili_id, timegroup) %>%
+    mutate(lgl = T) %>%
+    pivot_wider(id_cols = "timegroup", names_from = "Nili_id", values_from = lgl, values_fill = FALSE)
+  
+  vec <- rep(NA, nrow(alldyads))
+  for(i in 1:nrow(alldyads)){
+    toselect <- as.character(alldyads[i,])
+    if(!all(toselect %in% names(wide))){
+      vec[i] <- 0
+    }else{
+      cols <- wide[,toselect]
+      both_present <- sum(rowSums(cols) == 2)
+      vec[i] <- both_present
+    }
+  }
+  return(vec)
+}
+
+testfeeding <- vector(mode = "list", length = length(sfdata))
+for(i in 1:length(testfeeding)){
+  testfeeding[[i]] <- fn(sfdata[[i]])
+  cat("done with ", i, "\n")
+}
+
+stats <- map(testfeeding, ~{
+  df <- data.frame(min = min(.x, na.rm = T), 
+             max = max(.x, na.rm = T), 
+             mean = mean(.x, na.rm = T))
+  return(df)
+})
+names(stats) <- season_names
+stats_df <- purrr::list_rbind(stats, names_to = "seasonUnique") %>%
+  mutate(situ = "Feeding")

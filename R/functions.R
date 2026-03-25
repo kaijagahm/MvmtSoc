@@ -578,7 +578,7 @@ get_akde_centroids <- function(uds_w, season_names, downsampled_10min){
 get_daystracked <- function(downsampled_10min, season_names){
   durs <- map_dbl(downsampled_10min, ~{
     dates <- lubridate::ymd(.x$dateOnly)
-    dur <- difftime(max(dates), min(dates), units = "days")
+    dur <- length(seq.Date(from = min(dates), to = max(dates), by = "day"))
   })
   daysTracked_seasons <- map2(downsampled_10min, durs, ~.x %>%
                                 st_drop_geometry() %>%
@@ -639,7 +639,7 @@ scale_movement_behavior <- function(movementBehavior){
            homeRange_log = log(homeRange)) %>%
     mutate(across(-c(Nili_id, seasonUnique, birth_year, sex, age_group), 
                   function(x){as.numeric(as.vector(scale(x)))}))
-  return(movementBehaviorScaled)
+  return(movementBehaviorScaled) # scale everything *after* binding the seasons together.
 }
 
 get_demo <- function(movementBehaviorScaled){
