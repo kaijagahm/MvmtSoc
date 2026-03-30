@@ -408,6 +408,10 @@ ggsave(season_plot, file = here("fig/figS4.png"), width = 5.5, height = 7)
 
 # TABLE 1 -----------------------------------------------------------------
 effs_modified <- effs %>%
+  mutate(lower.CL = case_when(is.na(lower.CL) ~ asymp.LCL,
+                              .default = lower.CL),
+         upper.CL = case_when(is.na(upper.CL) ~ asymp.UCL,
+                              .default = upper.CL)) %>%
   mutate(`Social network` = paste0(str_to_title(response), " (", str_to_lower(mod), ")")) %>%
   rename("Situation" = "situ",
          "Estimate" = "space_use.trend") %>%
@@ -725,8 +729,9 @@ all_summ <- all %>%
             sdsri = sd(sri, na.rm = T))
 
 #Statistical model mean SRI ~ days tracked * situation
+library(lme4)
 mod <- lmer(mnsri ~ daysTracked1*type + (1|seasonUnique), data = all_summ)
-summary(mod)0
+summary(mod)
 
 all_summ %>%
   ggplot(aes(x = daysTracked1, y = mnsri, color = factor(seasonUnique)))+
