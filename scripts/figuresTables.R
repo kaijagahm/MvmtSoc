@@ -267,6 +267,7 @@ rl <- results_withpoints + legend
 ggsave(rl, width =9, height = 10, file = here("fig/fig3_line_withpoints.png"))
 
 ggsave(results, width =9, height = 6.5, file = here("fig/fig3_line.png"))
+ggsave(results_withpoints, width = 9, height = 6.5, file = here("fig/figS5_line_withpoints.png"))
 ggsave(legend, width = 3, height = 1, file = here("fig/fig3_legend.png"))
 
 ggsave(forestplots[[1]], filename = here("fig/fig3_forest1.png"), width = 1.5, height = 1)
