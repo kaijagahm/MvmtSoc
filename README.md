@@ -1,9 +1,16 @@
-# Code for "Social interactions in an avian scavenger are driven by social preference and movement, depending on the social situation"
-<a href="https://doi.org/10.5281/zenodo.15328133"><img src="https://zenodo.org/badge/605808003.svg" alt="DOI"></a>
+**Institution:** UCLA
+
+**Lab:** Pinter-Wollman Lab
+
+**Publication** Gahm, Kaija, Marta Acácio, Nili Anglister, Gideon Vaadia, Orr Spiegel, and Noa Pinter-Wollman. n.d. “Relationship between Spatial and Social Phenotypes in an Avian Scavenger.” Journal of Animal Ecology n/a (n/a). [https://doi.org/10.1111/1365-2656.70316](https://doi.org/10.1111/1365-2656.70316).
+
+
+# Code for "Relationship between spatial and social phenotypes in an avian scavenger"
+Data on [Dryad](https://doi.org/ 10.5061/dryad.7sqv9s54b). Published release version of this code on [Zenodo](https://zenodo.org/records/19446286).
 
 ## Authors
 Kaija Gahm, Marta Acácio, Nili Anglister, Gideon Vaadia, Orr Spiegel, Noa Pinter-Wollman
-Corresponding author: Kaija Gahm (kgahm@ucla.edu)
+Corresponding author: Kaija Gahm (kaija.gahm@gmail.com)
 
 # Overview
 The data cleaning and preparation steps are all contained in the targets pipeline. Outputs will be placed in the targets/ folder and can be loaded with tar_load(). 
@@ -38,5 +45,3 @@ Contains only one script, "functions.R", which is where the functions used in th
 Info for renv--package management
 ### scripts/
 Folder containing the modeling script and the script for creating figures and tables.
-
-## Dryad link for data: https://doi.org/10.5061/dryad.7sqv9s54b
